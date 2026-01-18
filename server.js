@@ -1,80 +1,59 @@
+const cors = require('cors');
 const express = require('express');
-const pool = require('./db'); // אנחנו מייבאים את החיבור שיצרנו ב-db.js
+const pool = require('./db');
+const bcrypt = require('bcrypt');
 const app = express();
-app.use(express.json()); // מאפשר לשרת לקרוא מידע שנשלח בפורמט JSON
+
+app.use(express.json());
+app.use(cors());
 const port = 3000;
 
-// המלצר מקשיב לבקשות בכתובת localhost:3000/status
+// בדיקת סטטוס
 app.get('/status', async (req, res) => {
     try {
         const dbRes = await pool.query('SELECT COUNT(*) FROM users');
-        const count = dbRes.rows[0].count;
-        res.send(`השרת עובד! כרגע יש במערכת ${count} משתמשים.`);
+        res.send(`השרת עובד! יש במערכת ${dbRes.rows[0].count} משתמשים.`);
     } catch (err) {
-        res.status(500).send('תקלה בשרת');
+        res.status(500).send('תקלה בחיבור למסד הנתונים');
     }
 });
 
-const bcrypt = require('bcrypt'); // תוסיף את זה למעלה
-
+// שלב 1: רישום ראשוני (טלפון וסיסמה)
 app.post('/register', async (req, res) => {
     const { phone, password } = req.body;
-    
     try {
-        // ערבול הסיסמה - 10 זה רמת ה"קושי" של הערבול
         const hashedPassword = await bcrypt.hash(password, 10);
-        
         const newUser = await pool.query(
             'INSERT INTO users (phone, password) VALUES ($1, $2) RETURNING id',
-            [phone, hashedPassword] // שומרים את הסיסמה המעורבלת!
+            [phone, hashedPassword]
         );
-        res.status(201).json({ message: 'משתמש נוצר בבטחה!', id: newUser.rows[0].id });
+        res.status(201).json({ message: 'נרשמת בהצלחה!', id: newUser.rows[0].id });
     } catch (err) {
         console.error(err);
-        res.status(500).send('שגיאה ברישום');
+        res.status(500).json({ message: 'שגיאה: ייתכן והמספר כבר קיים' });
     }
 });
 
-app.post('/create-profile', async (req, res) => {
-    const { user_id, first_name, last_name, gender, birth_date, height_cm, sector, occupation } = req.body;
-
+// שלב 2: עדכון פרטי פרופיל (שם, גיל, מגזר)
+app.put('/update-profile', async (req, res) => {
+    const { phone, fullName, age, sector, height } = req.body;
     try {
-        const newProfile = await pool.query(
-            `INSERT INTO user_profiles 
-            (user_id, first_name, last_name, gender, birth_date, height_cm, sector, occupation) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-            [user_id, first_name, last_name, gender, birth_date, height_cm, sector, occupation]
-        );
-        res.status(201).json({ message: 'הפרופיל נוצר בהצלחה!', profile: newProfile.rows[0] });
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('שגיאה ביצירת הפרופיל');
-    }
-});
-
-app.get('/user-full-details/:id', async (req, res) => {
-    const userId = req.params.id; // לוקח את ה-ID מכתובת ה-URL
-
-    try {
-        const fullDetails = await pool.query(
-            `SELECT u.phone, up.first_name, up.last_name, up.sector, up.occupation
-             FROM users u
-             JOIN user_profiles up ON u.id = up.user_id
-             WHERE u.id = $1`,
-            [userId]
+        const result = await pool.query(
+            "UPDATE users SET full_name = $1, age = $2, sector = $3, height = $4 WHERE phone = $5 RETURNING *",
+            [fullName, age, sector, height, phone]
         );
 
-        if (fullDetails.rows.length === 0) {
-            return res.status(404).send('משתמש לא נמצא או שטרם מילא פרופיל');
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "לא מצאנו משתמש עם הטלפון הזה" });
         }
 
-        res.json(fullDetails.rows[0]);
+        res.json({ message: "הפרופיל עודכן!", user: result.rows[0] });
     } catch (err) {
         console.error(err);
-        res.status(500).send('שגיאה בשליפת הנתונים');
+        res.status(500).json({ message: "שגיאה בעדכון הנתונים" });
     }
 });
 
 app.listen(port, () => {
-    console.log(`🚀 השרת רץ בכתובת: http://localhost:${port}/status`);
+    console.log(`🚀 שרת השידוכים רץ: http://localhost:${port}/status`);
 });
