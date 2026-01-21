@@ -1,90 +1,144 @@
-import { useState } from 'react';
-import './Profile.css'; // ייבוא העיצוב החדש שיצרת
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function Profile() {
-  const [formData, setFormData] = useState({
-    fullName: '',
-    age: '',
-    sector: 'חרדי',
-    height: ''
-  });
+    const [user, setUser] = useState(null);
+    const [formData, setFormData] = useState({
+        age: '', sector: '', height: '', gender: '',
+        search_min_age: '', search_max_age: '', search_sector: ''
+    });
+    const navigate = useNavigate();
 
-  const handleSave = async () => {
-    const userPhone = prompt("הזן את מספר הטלפון שלך לעדכון:");
-    
-    if (!userPhone) return;
+    // --- תיקון 1: טעינת הנתונים כשנכנסים לדף ---
+    useEffect(() => {
+        const savedUser = localStorage.getItem('user');
+        if (!savedUser) {
+            navigate('/login');
+        } else {
+            const parsedUser = JSON.parse(savedUser);
+            setUser(parsedUser);
 
-    try {
-      const response = await fetch('http://localhost:3000/update-profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          phone: userPhone,
-          fullName: formData.fullName,
-          age: parseInt(formData.age) || 0, 
-          sector: formData.sector,
-          height: parseInt(formData.height) || 0
-        })
-      });
+            // כאן אנחנו מוודאים שהטופס מתמלא בנתונים הקיימים
+            setFormData({
+                age: parsedUser.age || '',
+                sector: parsedUser.sector || '',
+                height: parsedUser.height || '',
+                gender: parsedUser.gender || '',
+                // הנתונים החדשים של החיפוש:
+                search_min_age: parsedUser.search_min_age || '',
+                search_max_age: parsedUser.search_max_age || '',
+                search_sector: parsedUser.search_sector || ''
+            });
+        }
+    }, [navigate]);
 
-      const data = await response.json();
-      if (response.ok) {
-        alert("הצלחה! הפרופיל עודכן.");
-      } else {
-        alert("שגיאה: " + data.message);
-      }
-    } catch (err) {
-      alert("השרת לא מגיב");
-    }
-  };
+    const handleSave = async () => {
+        try {
+            const response = await fetch('http://localhost:3000/update-profile', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    phone: user.phone,
+                    fullName: user.full_name,
+                    ...formData,
+                    // המרה למספרים כדי שהשרת לא יצעק
+                    age: parseInt(formData.age) || 0,
+                    search_min_age: parseInt(formData.search_min_age) || 0,
+                    search_max_age: parseInt(formData.search_max_age) || 0
+                })
+            });
 
-  return (
-    <div className="profile-container">
-      <h2>פרופיל אישי</h2>
-      <p>נא מלא את פרטיך כדי שנוכל להתחיל בשידוך</p>
-      
-      <div className="form-group">
-        <label>שם מלא</label>
-        <input 
-          type="text" 
-          placeholder="ישראל ישראלי"
-          onChange={(e) => setFormData({...formData, fullName: e.target.value})} 
-        />
-      </div>
+            if (response.ok) {
+                const data = await response.json();
+                alert("✅ הפרופיל והעדפות החיפוש עודכנו!");
+                // עדכון הזיכרון המקומי עם הנתונים החדשים מהשרת
+                localStorage.setItem('user', JSON.stringify(data.user));
+            }
+        } catch (err) {
+            console.error("Error updating profile:", err);
+        }
+    };
 
-      <div className="form-group">
-        <label>גיל</label>
-        <input 
-          type="number" 
-          placeholder="גיל"
-          onChange={(e) => setFormData({...formData, age: e.target.value})} 
-        />
-      </div>
+    if (!user) return <div>טוען...</div>;
 
-      <div className="form-group">
-        <label>מגזר</label>
-        <select onChange={(e) => setFormData({...formData, sector: e.target.value})}>
-          <option value="חרדי">חרדי</option>
-          <option value="חסידי">חסידי</option>
-          <option value="דתי לאומי">דתי לאומי</option>
-          <option value="ספרדי">ספרדי</option>
-        </select>
-      </div>
+    return (
+        <div style={containerStyle}>
+            <h2>הפרופיל של {user.full_name}</h2>
 
-      <div className="form-group">
-        <label>גובה (בס"מ)</label>
-        <input 
-          type="number" 
-          placeholder="175"
-          onChange={(e) => setFormData({...formData, height: e.target.value})} 
-        />
-      </div>
+            {/* --- כרטיס פרטים אישיים --- */}
+            <div style={cardStyle}>
+                <h3>פרטים אישיים</h3>
+                <label>מגדר:</label>
+                <select value={formData.gender} onChange={e => setFormData({ ...formData, gender: e.target.value })} style={inputStyle}>
+                    <option value="">בחר/י</option>
+                    <option value="גבר">גבר</option>
+                    <option value="אישה">אישה</option>
+                </select>
 
-      <button className="save-btn" onClick={handleSave}>
-        שמור פרופיל
-      </button>
-    </div>
-  );
+                <label>גיל:</label>
+                <input type="number" value={formData.age} onChange={e => setFormData({ ...formData, age: e.target.value })} style={inputStyle} />
+
+                <label>מגזר שלי:</label>
+                <select value={formData.sector} onChange={e => setFormData({ ...formData, sector: e.target.value })} style={inputStyle}>
+                    <option value="">בחר מגזר</option>
+                    <option value="ליטאי">ליטאי</option>
+                    <option value="חסידי">חסידי</option>
+                    <option value="ספרדי">ספרדי</option>
+                </select>
+                <div style={cardStyle}>
+                
+
+                    <label>גובה (למשל 1.75):</label>
+                    <input
+                        type="number"
+                        step="0.01"
+                        value={formData.height}
+                        onChange={e => setFormData({ ...formData, height: e.target.value })}
+                        style={inputStyle}
+                    />
+                </div>
+            </div>
+
+            {/* --- כרטיס העדפות חיפוש --- */}
+            <div style={{ ...cardStyle, borderTop: '4px solid #e91e63', marginTop: '20px' }}>
+                <h3>מה אני מחפש/ת?</h3>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ flex: 1 }}>
+                        <label>מגיל:</label>
+                        <input type="number" value={formData.search_min_age} onChange={e => setFormData({ ...formData, search_min_age: e.target.value })} style={inputStyle} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <label>עד גיל:</label>
+                        <input type="number" value={formData.search_max_age} onChange={e => setFormData({ ...formData, search_max_age: e.target.value })} style={inputStyle} />
+                    </div>
+                </div>
+
+                <label>מגזר רצוי:</label>
+                <select value={formData.search_sector} onChange={e => setFormData({ ...formData, search_sector: e.target.value })} style={inputStyle}>
+                    <option value="">כל המגזרים</option>
+                    <option value="ליטאי">ליטאי</option>
+                    <option value="חסידי">חסידי</option>
+                    <option value="ספרדי">ספרדי</option>
+                </select>
+            </div>
+
+            <button onClick={handleSave} style={saveButtonStyle}>שמור את כל הנתונים</button>
+
+            {/* --- תיקון 2: הכפתור החדש מוטמע כאן --- */}
+            <button
+                onClick={() => navigate('/matches')}
+                style={{ ...saveButtonStyle, backgroundColor: '#e91e63', marginTop: '10px' }}
+            >
+                💘 למציאת שידוכים מתאימים
+            </button>
+        </div>
+    );
 }
+
+// --- סגנונות (Styles) ---
+const containerStyle = { padding: '20px', direction: 'rtl', fontFamily: 'Arial', backgroundColor: '#f0f2f5', minHeight: '100vh' };
+const cardStyle = { maxWidth: '500px', margin: '0 auto', backgroundColor: 'white', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' };
+const inputStyle = { display: 'block', width: '100%', padding: '10px', margin: '10px 0', borderRadius: '5px', border: '1px solid #ddd' };
+const saveButtonStyle = { display: 'block', width: '100%', margin: '20px auto 0', padding: '15px', backgroundColor: '#2ecc71', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' };
 
 export default Profile;
