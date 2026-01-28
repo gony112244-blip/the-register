@@ -5,47 +5,92 @@ function Inbox() {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    
+    // שליפת הטוקן והמשתמש מהזיכרון
+    const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user'));
 
     // פונקציה לטעינת הבקשות
-    const fetchRequests = () => {
-        if (!user) return;
-        fetch(`http://localhost:3000/my-requests?userId=${user.id}`)
-            .then(res => res.json())
-            .then(data => {
+    const fetchRequests = async () => {
+        if (!user || !token) {
+            navigate('/login');
+            return;
+        }
+
+        try {
+            const res = await fetch(`http://localhost:3000/my-requests?userId=${user.id}`, {
+                method: 'GET',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // 🔑 הוספנו את המפתח
+                }
+            });
+
+            // טיפול במקרה שהחיבור פג תוקף
+            if (res.status === 401 || res.status === 403) {
+                alert("החיבור פג תוקף, נא להתחבר מחדש");
+                navigate('/login');
+                return;
+            }
+
+            const data = await res.json();
+
+            // הגנה מקריסה: מוודאים שקיבלנו מערך לפני שעושים map
+            if (Array.isArray(data)) {
                 setRequests(data);
-                setLoading(false);
-            })
-            .catch(err => console.error(err));
+            } else {
+                setRequests([]); // אם השרת מחזיר הודעה במקום רשימה
+            }
+        } catch (err) {
+            console.error("Error loading requests:", err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
         fetchRequests();
     }, []);
 
-    // טיפול באישור - שינוי ל-connection_id
+    // טיפול באישור
     const handleApprove = async (connection_id) => {
-        const res = await fetch('http://localhost:3000/approve-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ connectionId: connection_id, userId: user.id })
-        });
-        if (res.ok) {
-            alert("🎉 מזל טוב! השידוך הפך לפעיל.");
-            fetchRequests(); // רענון הרשימה
+        try {
+            const res = await fetch('http://localhost:3000/approve-request', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // 🔑 חובה גם כאן
+                },
+                body: JSON.stringify({ connectionId: connection_id, userId: user.id })
+            });
+            
+            if (res.ok) {
+                alert("🎉 מזל טוב! השידוך הפך לפעיל.");
+                fetchRequests(); // רענון הרשימה
+            }
+        } catch (err) {
+            console.error(err);
         }
     };
 
-    // טיפול בדחייה - שינוי ל-connection_id
+    // טיפול בדחייה
     const handleReject = async (connection_id) => {
         if (!window.confirm("האם את/ה בטוח/ה שברצונך לדחות את ההצעה?")) return;
         
-        const res = await fetch('http://localhost:3000/reject-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ connectionId: connection_id })
-        });
-        if (res.ok) fetchRequests();
+        try {
+            const res = await fetch('http://localhost:3000/reject-request', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // 🔑 חובה גם כאן
+                },
+                body: JSON.stringify({ connectionId: connection_id })
+            });
+
+            if (res.ok) fetchRequests();
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     if (loading) return <div style={{textAlign: 'center', marginTop: '50px', fontFamily: 'Segoe UI'}}>בודק דואר... 📩</div>;
@@ -65,7 +110,6 @@ function Inbox() {
                     </div>
                 ) : (
                     requests.map(req => (
-                        /* שימוש ב-connection_id כמפתח ייחודי (Key) */
                         <div key={req.connection_id} style={styles.card}>
                             <div style={styles.info}>
                                 <h2>{req.full_name}, {req.age}</h2>
@@ -73,7 +117,6 @@ function Inbox() {
                                 <small>התקבל בתאריך: {new Date(req.created_at).toLocaleDateString()}</small>
                             </div>
                             <div style={styles.actions}>
-                                {/* שימוש ב-connection_id בפונקציות הלחיצה */}
                                 <button onClick={() => handleReject(req.connection_id)} style={styles.rejectBtn}>❌ לא תודה</button>
                                 <button onClick={() => handleApprove(req.connection_id)} style={styles.approveBtn}>✅ מאשר/ת!</button>
                             </div>
@@ -85,6 +128,7 @@ function Inbox() {
     );
 }
 
+// העיצוב המקורי שלך - לא נגעתי בו
 const styles = {
     page: { fontFamily: 'Segoe UI', background: '#f0f2f5', minHeight: '100vh', direction: 'rtl' },
     header: { background: '#fff', padding: '20px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },

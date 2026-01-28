@@ -6,42 +6,34 @@ import AdminDashboard from './AdminDashboard';
 import Register from './Register';
 import Matches from './Matches';
 import Inbox from './Inbox';
-import Navbar from './Navbar'; // ייבוא ה-Navbar
+import Navbar from './Navbar';
+import Connections from './Connections';
+
+// --- התיקון הקריטי כאן: מייבאים מהקובץ הנכון ---
+import AdminMatches from './AdminMatches'; 
+
 import './App.css';
-import Connections from './Connections'
 
 function App() {
   return (
     <Router>
       <div className="App">
-        {/* --- כאן הוספנו את ה-Navbar --- */}
-        {/* הוא נמצא מעל ה-Routes כדי שיופיע תמיד בחלק העליון של המסך */}
-        <Navbar />
-
+        <Navbar /> 
         <Routes>
-          {/* דף הבית - הויטרינה של האתר */}
           <Route path="/" element={<Home />} />
-
-          {/* דף הכניסה */}
           <Route path="/login" element={<Login />} />
-
-          {/* דף הפרופיל */}
           <Route path="/profile" element={<Profile />} />
-
-          {/* פאנל הניהול */}
-          <Route path="/admin" element={<AdminDashboard />} />
-
-          {/* הרשמה */}
           <Route path="/register" element={<Register />} />
-
-          {/* שידוכים */}
+          
+          {/* דפים של המשתמש הרגיל */}
           <Route path="/matches" element={<Matches />} />
-
-          {/* תיבת בקשות */}
           <Route path="/inbox" element={<Inbox />} />
-
-          {/* שידוכים פעילים */}
           <Route path="/connections" element={<Connections />} />
+          
+          {/* דפים של המנהל */}
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/matches" element={<AdminMatches />} /> {/* הנתיב החדש */}
+
         </Routes>
       </div>
     </Router>

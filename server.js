@@ -1,123 +1,174 @@
+require('dotenv').config(); // חובה: טעינת המשתנים הסודיים (.env)
 const cors = require('cors');
 const express = require('express');
 const pool = require('./db');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken'); 
 const app = express();
 
 app.use(express.json());
 app.use(cors());
-const port = 3000;
 
-// --- נתיב בדיקה כללי ---
+const port = process.env.PORT || 3000; 
+const saltRounds = 10; 
+
+// ==========================================
+// 🛡️ Middleware: שומר הסף (חייב להיות למעלה!)
+// ==========================================
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // שולף את הטוקן מה-Bearer
+
+    if (!token) return res.status(401).json({ message: "נא להתחבר למערכת" });
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ message: "החיבור פג תוקף, נא להתחבר מחדש" });
+        req.user = user; // שומרים את פרטי המשתמש לבקשה הבאה
+        next(); // ממשיכים הלאה
+    });
+};
+
+// ==========================================
+// 📡 נתיבי מערכת כלליים (ללא אימות)
+// ==========================================
+
 app.get('/status', async (req, res) => {
     try {
         const dbRes = await pool.query('SELECT COUNT(*) FROM users');
-        res.send(`השרת עובד! יש במערכת ${dbRes.rows[0].count} משתמשים.`);
+        res.send(`השרת עובד ומחובר! יש במערכת ${dbRes.rows[0].count} משתמשים.`);
     } catch (err) {
+        console.error(err);
         res.status(500).send('תקלה בחיבור למסד הנתונים');
     }
 });
 
-// --- תיקון לבעיית ה-0 משתמשים בדף הבית ---
 app.get('/api/stats', async (req, res) => {
     try {
         const result = await pool.query('SELECT COUNT(*) FROM users');
-        // מחזיר את המספר בפורמט שהדף מצפה לו
         res.json({ totalUsers: result.rows[0].count });
     } catch (err) {
-        console.error("Error fetching stats:", err);
         res.status(500).json({ message: "שגיאת שרת" });
     }
 });
 
-// --- כניסה (Login) - תוקן לשליפת כל הנתונים ---
+// ==========================================
+// 🔐 אימות והרשמה (Auth)
+// ==========================================
+
+// כניסה (Login)
 app.post('/login', async (req, res) => {
     const { phone, password } = req.body;
     try {
-        // הכוכבית (*) קריטית כדי לטעון גם את המגדר וההעדפות
-        const result = await pool.query(
-            'SELECT * FROM users WHERE phone = $1 AND password = $2',
-            [phone, password]
-        );
+        const result = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
+        
         if (result.rows.length > 0) {
-            res.json({ user: result.rows[0] });
+            const user = result.rows[0];
+            const isMatch = await bcrypt.compare(password, user.password);
+            
+            if (isMatch) {
+                delete user.password; // מחיקת הסיסמה מהפלט לביטחון
+                
+                // יצירת הטוקן
+                const token = jwt.sign(
+                    { id: user.id, is_admin: user.is_admin }, 
+                    process.env.JWT_SECRET, 
+                    { expiresIn: '1h' } 
+                );
+                res.json({ user, token });
+            } else {
+                res.status(401).json({ message: "טלפון או סיסמה שגויים" });
+            }
         } else {
             res.status(401).json({ message: "טלפון או סיסמה שגויים" });
         }
     } catch (err) {
-        res.status(500).send("שגיאת שרת");
-    }
-});
-
-// --- הרשמה (Register) ---
-app.post('/register', async (req, res) => {
-    const { phone, password, full_name } = req.body;
-    try {
-        const result = await pool.query(
-            'INSERT INTO users (phone, password, full_name, is_approved, is_admin) VALUES ($1, $2, $3, false, false) RETURNING id, full_name',
-            [phone, password, full_name]
-        );
-        res.status(201).json({ message: "הרישום בוצע בהצלחה", user: result.rows[0] });
-    } catch (err) {
-        if (err.code === '23505') return res.status(400).json({ message: "המספר כבר רשום" });
+        console.error("Login Error:", err);
         res.status(500).json({ message: "שגיאת שרת פנימית" });
     }
 });
 
-// --- עדכון פרופיל (Update) - תוקן לשמירת מגדר וחיפוש ---
-app.put('/update-profile', async (req, res) => {
-    console.log("נתונים שהתקבלו לעדכון:", req.body); // לוג לבדיקה
+// הרשמה (Register)
+app.post('/register', async (req, res) => {
+    const { phone, password, full_name } = req.body;
+    try {
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+        const result = await pool.query(
+            'INSERT INTO users (phone, password, full_name, is_approved, is_admin) VALUES ($1, $2, $3, false, false) RETURNING id, full_name',
+            [phone, hashedPassword, full_name]
+        );
+        res.status(201).json({ message: "הרישום בוצע בהצלחה", user: result.rows[0] });
+    } catch (err) {
+        if (err.code === '23505') return res.status(400).json({ message: "המספר כבר רשום במערכת" });
+        res.status(500).json({ message: "שגיאת שרת פנימית" });
+    }
+});
 
+// ==========================================
+// 👤 פרופיל משתמש
+// ==========================================
+
+// --- עדכון פרופיל (הגרסה המתוקנת והמלאה) ---
+// --- עדכון פרופיל (הגרסה המתוקנת והמלאה) ---
+app.post('/update-profile', authenticateToken, async (req, res) => {
     const { 
-        phone, fullName, age, sector, height, gender, 
-        search_min_age, search_max_age, search_sector 
+        id, full_name, age, height, sector, phone,
+        reference_1_name, reference_1_phone, 
+        reference_2_name, reference_2_phone,
+        rabbi_name, rabbi_phone,
+        // 👇 הנה מה שהיה חסר בקוד ששלחת:
+        gender, search_min_age, search_max_age, search_sector
     } = req.body;
 
     try {
         const result = await pool.query(
             `UPDATE users SET 
-                full_name = $1, 
-                age = $2, 
-                sector = $3, 
-                height = $4, 
-                gender = $5, 
-                search_min_age = $6, 
-                search_max_age = $7, 
-                search_sector = $8 
-             WHERE phone = $9 RETURNING *`,
+                full_name = $1, age = $2, height = $3, sector = $4, phone = $5,
+                reference_1_name = $6, reference_1_phone = $7,
+                reference_2_name = $8, reference_2_phone = $9,
+                rabbi_name = $10, rabbi_phone = $11,
+                -- 👇 הוספנו את השורות האלו לשאילתה:
+                gender = $12, search_min_age = $13, search_max_age = $14, search_sector = $15
+             WHERE id = $16 RETURNING *`,
             [
-                fullName,       // $1
-                age,            // $2
-                sector,         // $3
-                height,         // $4
-                gender,         // $5 - זה מה שהיה חסר קודם!
-                search_min_age, // $6
-                search_max_age, // $7
-                search_sector,  // $8
-                phone           // $9
+                full_name, age, height, sector, phone, 
+                reference_1_name, reference_1_phone, 
+                reference_2_name, reference_2_phone, 
+                rabbi_name, rabbi_phone,
+                // 👇 הוספנו אותם גם לרשימת המשתנים:
+                gender, search_min_age, search_max_age, search_sector, 
+                id // ה-ID זז למקום ה-16
             ]
         );
 
         if (result.rows.length === 0) {
             return res.status(404).json({ message: "משתמש לא נמצא" });
         }
-        res.json({ message: "הפרופיל עודכן בהצלחה!", user: result.rows[0] });
+        
+        res.json({ message: "הפרופיל עודכן בהצלחה! ✅", user: result.rows[0] });
 
     } catch (err) {
-        console.error("❌ שגיאה בעדכון הפרופיל:", err.message);
+        console.error("Update error:", err);
         res.status(500).json({ message: "שגיאה בשמירת הנתונים בשרת" });
     }
 });
 
-// --- שידוכים (Matches) ---
-app.get('/matches', async (req, res) => {
+// ==========================================
+// 💘 מנוע השידוכים (Matches Engine)
+// ==========================================
+
+app.get('/matches', authenticateToken, async (req, res) => {
     const { gender, search_sector, search_min_age, search_max_age, myAge, currentPhone } = req.query;
 
+    // הגנה מקריסה אם חסרים פרטים
+    if (!gender || gender === 'null' || !myAge || myAge === 'null') {
+        return res.json([]); 
+    }
+
     try {
-        // הוספתי כאן את "id" בהתחלה - זה הקריטי!
         const result = await pool.query(
             `SELECT id, full_name, age, height, sector, phone, gender FROM users 
-             WHERE 
-                phone != $1 AND is_approved = true
+             WHERE phone != $1 
+                AND is_approved = true
                 AND gender != $2
                 AND ($3::text IS NULL OR $3 = '' OR sector = $3)
                 AND age >= $4 AND age <= $5
@@ -126,41 +177,73 @@ app.get('/matches', async (req, res) => {
         );
         res.json(result.rows);
     } catch (err) {
-        console.error("❌ שגיאה בשידוכים:", err.message);
+        console.error("Match error:", err);
         res.status(500).json({ message: "תקלה בטעינת השידוכים" });
     }
 });
 
-// --- ניהול (Admin) ---
-app.get('/admin/users', async (req, res) => {
+// ==========================================
+// 👮 אזור ניהול (Admin)
+// ==========================================
+
+app.get('/admin/users', authenticateToken, async (req, res) => {
+    // וידוא הרשאות ניהול
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
     try {
         const result = await pool.query(
             'SELECT id, phone, full_name, age, sector, height, is_approved FROM users WHERE is_admin = false ORDER BY id DESC'
         );
         res.json(result.rows);
     } catch (err) {
-        res.status(500).json({ message: "שגיאה" });
+        res.status(500).json({ message: "שגיאת שרת פנימית" });
     }
 });
 
-app.put('/admin/approve/:id', async (req, res) => {
+app.put('/admin/approve/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+    
     const { id } = req.params;
     try {
         await pool.query('UPDATE users SET is_approved = true WHERE id = $1', [id]);
-        res.json({ message: "אושר" });
+        res.json({ message: "המשתמש אושר בהצלחה" });
     } catch (err) {
-        res.status(500).json({ message: "שגיאה" });
+        res.status(500).json({ message: "שגיאה באישור המשתמש" });
     }
 });
 
-
-// --- נתיב יצירת קשר (שליחת "לייק") ---
-app.post('/connect', async (req, res) => {
-    const { myId, targetId } = req.body; // מקבלים: מי אני (myId) ולמי אני פונה (targetId)
+// שליפת תיקים שממתינים לשדכן
+app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
 
     try {
-        // 1. בדיקת חסימה: האם אני כרגע "תפוס" בשידוך פעיל וטרי?
-        // אנחנו בודקים אם יש שורה שבה אני מעורב, הסטטוס הוא 'active', וזה קרה ב-24 שעות האחרונות
+        const result = await pool.query(
+            `SELECT 
+                c.id AS connection_id,
+                u1.full_name AS s_name, u1.phone AS s_phone, u1.age AS s_age, u1.sector AS s_sector,
+                u1.rabbi_name AS s_rabbi, u1.rabbi_phone AS s_rabbi_phone,
+                u2.full_name AS r_name, u2.phone AS r_phone, u2.age AS r_age, u2.sector AS r_sector,
+                u2.rabbi_name AS r_rabbi, u2.rabbi_phone AS r_rabbi_phone
+             FROM connections c
+             JOIN users u1 ON c.sender_id = u1.id
+             JOIN users u2 ON c.receiver_id = u2.id
+             WHERE c.status = 'waiting_for_shadchan'`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בשליפת נתוני שדכן" });
+    }
+});
+
+// ==========================================
+// ❤️ אינטראקציות וקשרים (Connections)
+// ==========================================
+
+// שליחת "לייק" / יצירת קשר
+app.post('/connect', authenticateToken, async (req, res) => {
+    const { myId, targetId } = req.body;
+    try {
+        // בדיקת חסימה ל-24 שעות (הלוגיקה שביקשת לא לאבד)
         const checkBlock = await pool.query(
             `SELECT * FROM connections 
              WHERE (sender_id = $1 OR receiver_id = $1) 
@@ -168,143 +251,196 @@ app.post('/connect', async (req, res) => {
              AND updated_at > NOW() - INTERVAL '24 hours'`,
             [myId]
         );
-
-        // אם מצאנו שורה כזו - המשתמש חסום!
         if (checkBlock.rows.length > 0) {
-            return res.status(400).json({ 
-                message: "🚫 יש לך התאמה פעילה! עליך לסיים אותה או להמתין 24 שעות." 
-            });
+            return res.status(400).json({ message: "🚫 יש לך התאמה פעילה! המתן 24 שעות." });
         }
 
-        // 2. בדיקה כפולה: האם כבר פניתי לאדם הזה בעבר? (כדי לא לשלוח פעמיים)
-        const checkDuplicate = await pool.query(
-            `SELECT * FROM connections 
-             WHERE sender_id = $1 AND receiver_id = $2`,
-            [myId, targetId]
-        );
-
-        if (checkDuplicate.rows.length > 0) {
-            return res.status(400).json({ message: "כבר שלחת פנייה למשתמש זה בעבר." });
-        }
-
-        // 3. אם הכל תקין - רושמים את ההצעה ביומן!
-        // הסטטוס יהיה 'pending' (ממתין) באופן אוטומטי בגלל הגדרת ברירת המחדל בטבלה
         await pool.query(
             `INSERT INTO connections (sender_id, receiver_id) VALUES ($1, $2)`,
             [myId, targetId]
         );
-
-        res.json({ message: "🎉 הפנייה נשלחה בהצלחה! ממתינים לתשובה." });
-
+        res.json({ message: "🎉 הפנייה נשלחה בהצלחה!" });
     } catch (err) {
-        console.error("Connection error:", err);
         res.status(500).json({ message: "שגיאה ביצירת הקשר" });
     }
 });
 
-
-// --- 1. שליפת בקשות נכנסות (Inbox) ---
-app.get('/my-requests', async (req, res) => {
+// דואר נכנס (Inbox) - בקשות שממתינות לי
+app.get('/my-requests', authenticateToken, async (req, res) => {
     const { userId } = req.query;
-
     try {
-        // שיעור ה-JOIN: אנחנו שולפים את פרטי השידוך (c) ואת פרטי המשתמש השולח (u)
         const result = await pool.query(
-            `SELECT 
-                c.id AS connection_id, 
-                c.created_at,
-                u.full_name, 
-                u.age, 
-                u.height, 
-                u.sector, 
-                u.gender 
+            `SELECT c.id AS connection_id, c.created_at, u.full_name, u.age, u.height, u.sector 
              FROM connections c
-             JOIN users u ON c.sender_id = u.id  -- החיבור הקסום!
+             JOIN users u ON c.sender_id = u.id
              WHERE c.receiver_id = $1 AND c.status = 'pending'`,
             [userId]
         );
         res.json(result.rows);
     } catch (err) {
-        console.error("Error fetching requests:", err);
         res.status(500).json({ message: "שגיאה בטעינת בקשות" });
     }
 });
 
-// --- 2. אישור בקשה (מתחילים שידוך!) ---
-app.post('/approve-request', async (req, res) => {
+// אישור בקשה (שלב 1)
+app.post('/approve-request', authenticateToken, async (req, res) => {
     const { connectionId, userId } = req.body;
-
     try {
-        // עדכון הסטטוס ל-active, ורישום ש"אני" ביצעתי את הפעולה האחרונה
         await pool.query(
-            `UPDATE connections 
-             SET status = 'active', updated_at = NOW(), last_action_by = $1
-             WHERE id = $2`,
+            `UPDATE connections SET status = 'active', updated_at = NOW(), last_action_by = $1 WHERE id = $2`,
             [userId, connectionId]
         );
-        res.json({ message: "🎉 השידוך אושר! עכשיו שניכם יכולים לראות פרטים מלאים." });
+        res.json({ message: "הבקשה אושרה! עכשיו בשיחות פעילות." });
     } catch (err) {
-        console.error("Error approving:", err);
-        res.status(500).json({ message: "שגיאה באישור השידוך" });
+        res.status(500).json({ message: "שגיאה באישור" });
     }
 });
 
-// --- 3. דחיית בקשה ---
-app.post('/reject-request', async (req, res) => {
+// דחיית בקשה
+app.post('/reject-request', authenticateToken, async (req, res) => {
     const { connectionId } = req.body;
-
     try {
-        // אנחנו משנים את הסטטוס ל-rejected (כדי לשמור היסטוריה)
-        await pool.query(
-            `UPDATE connections SET status = 'rejected' WHERE id = $1`,
-            [connectionId]
-        );
-        res.json({ message: "הבקשה הוסרה בהצלחה." });
+        await pool.query(`UPDATE connections SET status = 'rejected' WHERE id = $1`, [connectionId]);
+        res.json({ message: "הבקשה נדחתה." });
     } catch (err) {
-        console.error("Error rejecting:", err);
-        res.status(500).json({ message: "שגיאה בדחיית השידוך" });
+        res.status(500).json({ message: "שגיאה בדחייה" });
     }
 });
 
-
-// --- שליפת שידוכים פעילים (החדר המאובטח) ---
-app.get('/my-connections', async (req, res) => {
+// השיחות הפעילות שלי
+app.get('/my-connections', authenticateToken, async (req, res) => {
     const { userId } = req.query;
-
     try {
-        // שאילתה חכמה: תביא לי את הפרטים של הצד *השני* בשידוך
-        // (אם אני השולח -> תביא את המקבל. אם אני המקבל -> תביא את השולח)
         const result = await pool.query(
-            `SELECT 
-                c.id AS connection_id,
-                c.updated_at, -- מתי השידוך אושר (בשביל הטיימר)
-                u.full_name,
-                u.age,
-                u.phone, -- הנה הזהב! הטלפון נחשף
-                u.reference_1_name, -- ממליץ 1
-                u.reference_1_phone,
-                u.reference_2_name, -- ממליץ 2
-                u.reference_2_phone
+            `SELECT c.id, c.status, c.sender_id, c.receiver_id, c.sender_final_approve, c.receiver_final_approve,
+                u.full_name, u.phone, u.reference_1_name, u.reference_1_phone,
+                u.reference_2_name, u.reference_2_phone, u.rabbi_name, u.rabbi_phone
              FROM connections c
-             JOIN users u ON (
-                CASE 
-                    WHEN c.sender_id = $1 THEN c.receiver_id 
-                    ELSE c.sender_id 
-                END
-             ) = u.id
+             JOIN users u ON (CASE WHEN c.sender_id = $1 THEN c.receiver_id ELSE c.sender_id END) = u.id
              WHERE (c.sender_id = $1 OR c.receiver_id = $1) 
-             AND c.status = 'active'`, 
+             AND (c.status = 'active' OR c.status = 'waiting_for_shadchan')`, 
             [userId]
         );
-        
         res.json(result.rows);
     } catch (err) {
-        console.error("Error fetching connections:", err);
-        res.status(500).json({ message: "שגיאה בטעינת השידוכים" });
+        res.status(500).json({ message: "שגיאה בטעינת שיחות" });
     }
 });
 
+// אישור סופי (רצון להתקדם לשדכן)
+app.post('/finalize-connection', authenticateToken, async (req, res) => {
+    const { connectionId, userId } = req.body;
+    try {
+        const checkUser = await pool.query(`SELECT sender_id, receiver_id FROM connections WHERE id = $1`, [connectionId]);
+        if (checkUser.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
+        
+        const conn = checkUser.rows[0];
+        let updateField = conn.sender_id === userId ? 'sender_final_approve' : 'receiver_final_approve';
 
+        await pool.query(`UPDATE connections SET ${updateField} = TRUE WHERE id = $1`, [connectionId]);
+
+        // בדיקה אם שני הצדדים אישרו
+        const checkBoth = await pool.query(`SELECT sender_final_approve, receiver_final_approve FROM connections WHERE id = $1`, [connectionId]);
+        const { sender_final_approve, receiver_final_approve } = checkBoth.rows[0];
+
+        if (sender_final_approve && receiver_final_approve) {
+            await pool.query(`UPDATE connections SET status = 'waiting_for_shadchan' WHERE id = $1`, [connectionId]);
+            res.json({ status: 'completed', message: "🎉 שני הצדדים אישרו! התיק עבר לשדכנית." });
+        } else {
+            res.json({ status: 'waiting', message: "האישור שלך התקבל. ממתינים לצד השני." });
+        }
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה באישור הסופי" });
+    }
+});
+
+// ==========================================
+// 📸 ניהול תמונות (Images)
+// ==========================================
+
+// הוספת תמונה (עד 3)
+app.post('/api/upload-image', authenticateToken, async (req, res) => {
+    const { userId, imageUrl } = req.body; 
+    try {
+        const countCheck = await pool.query('SELECT COUNT(*) FROM user_images WHERE user_id = $1', [userId]);
+        if (parseInt(countCheck.rows[0].count) >= 3) {
+            return res.status(400).json({ message: "הגעת למקסימום של 3 תמונות" });
+        }
+
+        const result = await pool.query(
+            'INSERT INTO user_images (user_id, image_url) VALUES ($1, $2) RETURNING *',
+            [userId, imageUrl]
+        );
+        res.json({ message: "התמונה נשמרה בהצלחה", image: result.rows[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "שגיאה בשמירת התמונה" });
+    }
+});
+
+// מחיקת תמונה
+app.delete('/api/delete-image/:imageId', authenticateToken, async (req, res) => {
+    const { imageId } = req.params;
+    try {
+        await pool.query('DELETE FROM user_images WHERE id = $1', [imageId]);
+        res.json({ message: "התמונה נמחקה" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה במחיקה" });
+    }
+});
+
+// שליפת תמונות של משתמש
+app.get('/api/user-images/:userId', authenticateToken, async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const result = await pool.query('SELECT * FROM user_images WHERE user_id = $1', [userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בטעינת תמונות" });
+    }
+});
+
+// --- נתיב לשדכנית: שליפת תיקים שממתינים לטיפול ---
+app.get('/admin/matches-to-handle', authenticateToken, async (req, res) => {
+    // 1. וידוא שרק אדמין יכול לראות את זה
+    if (!req.user.is_admin) {
+        return res.status(403).json({ message: "גישה לדרג ניהול בלבד" });
+    }
+
+    try {
+        const query = `
+            SELECT 
+                c.id AS connection_id,
+                -- פרטי צד א' (השולח)
+                u1.full_name AS sender_name, u1.phone AS sender_phone, 
+                u1.age AS sender_age, u1.sector AS sender_sector,
+                u1.rabbi_name AS sender_rabbi, u1.rabbi_phone AS sender_rabbi_phone,
+                u1.reference_1_name AS s_ref1, u1.reference_1_phone AS s_ref1_phone,
+                
+                -- פרטי צד ב' (המקבל)
+                u2.full_name AS receiver_name, u2.phone AS receiver_phone, 
+                u2.age AS receiver_age, u2.sector AS receiver_sector,
+                u2.rabbi_name AS receiver_rabbi, u2.rabbi_phone AS receiver_rabbi_phone,
+                u2.reference_1_name AS r_ref1, u2.reference_1_phone AS r_ref1_phone
+
+            FROM connections c
+            JOIN users u1 ON c.sender_id = u1.id
+            JOIN users u2 ON c.receiver_id = u2.id
+            WHERE c.status = 'waiting_for_shadchan'
+        `;
+        
+        const result = await pool.query(query);
+        res.json(result.rows);
+
+    } catch (err) {
+        console.error("Error fetching admin matches:", err);
+        res.status(500).json({ message: "שגיאת שרת בשליפת שידוכים" });
+    }
+});
+
+// ==========================================
+//  הפעלת השרת
+// ==========================================
 app.listen(port, () => {
-    console.log(`🚀 שרת השידוכים רץ: http://localhost:${port}/status`);
+    console.log(`🚀 שרת השידוכים רץ בפורט ${port}: http://localhost:${port}/status`);
 });

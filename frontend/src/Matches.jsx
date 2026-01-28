@@ -7,14 +7,28 @@ function Matches() {
     const [user, setUser] = useState(null);
     const navigate = useNavigate();
 
+    // שליפת הטוקן (התיקון החדש)
+    const token = localStorage.getItem('token');
+
     useEffect(() => {
         const savedUser = localStorage.getItem('user');
-        if (!savedUser) {
+        
+        // בדיקה כפולה: אם אין משתמש או אין טוקן - החוצה
+        if (!savedUser || !token) {
             navigate('/login');
             return;
         }
 
         const currentUser = JSON.parse(savedUser);
+        
+        // --- הוספתי הגנה קטנה למניעת מסך ריק ---
+        if (!currentUser.gender) {
+            alert("חובה לעדכן מגדר בפרופיל כדי לקבל התאמות!");
+            navigate('/profile');
+            return;
+        }
+        // --------------------------------------
+
         setUser(currentUser);
 
         const queryParams = new URLSearchParams({
@@ -26,10 +40,24 @@ function Matches() {
             currentPhone: currentUser.phone
         }).toString();
 
-        fetch(`http://localhost:3000/matches?${queryParams}`)
-            .then(res => res.json())
+        fetch(`http://localhost:3000/matches?${queryParams}`, {
+            method: 'GET', // ברירת מחדל, אבל טוב לציין
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // 🔑 הוספנו את המפתח! בלעדיו תקבל 401
+            }
+        })
+            .then(res => {
+                if (res.status === 401) {
+                    navigate('/login'); // אם הטוקן פג תוקף
+                    return null;
+                }
+                return res.json();
+            })
             .then(data => {
-                setMatches(data);
+                if (data) {
+                    setMatches(data);
+                }
                 setLoading(false);
             })
             .catch(err => {
@@ -37,30 +65,31 @@ function Matches() {
                 setLoading(false);
             });
 
-    }, [navigate]);
+    }, [navigate, token]);
 
-    // --- זו הפונקציה החדשה והחכמה! ---
     const handleConnect = async (matchName, matchId) => {
-        // הגנה: אם אין משתמש מחובר, עצור
         if (!user || !user.id) return;
 
         try {
             const response = await fetch('http://localhost:3000/connect', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // 🔑 הוספנו את המפתח גם כאן!
+                },
                 body: JSON.stringify({ 
-                    myId: user.id,      // אני (השולח)
-                    targetId: matchId   // המועמד (המקבל)
+                    myId: user.id,      
+                    targetId: matchId   
                 })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                // הצלחה! (הודעה ירוקה ושמחה)
                 alert(`🎉 ${data.message}`);
+                // עדכון הרשימה המקומית (אופציונלי - להסיר את מי שעשינו לו לייק)
+                // setMatches(matches.filter(m => m.id !== matchId)); 
             } else {
-                // כישלון/חסימה (הודעה מהשרת המסבירה למה)
                 alert(`⚠️ שים לב: ${data.message}`);
             }
 
@@ -69,7 +98,6 @@ function Matches() {
             alert("תקלה בתקשורת עם השרת");
         }
     };
-    // --------------------------------
 
     if (loading) return (
         <div style={styles.loadingContainer}>
@@ -125,7 +153,6 @@ function Matches() {
                                             <span style={styles.detailValue}>{match.sector}</span>
                                         </div>
                                     </div>
-                                    {/* הכפתור עכשיו שולח גם את השם וגם את ה-ID */}
                                     <button 
                                         onClick={() => handleConnect(match.full_name, match.id)}
                                         style={styles.actionButton}
@@ -151,7 +178,7 @@ function Matches() {
     );
 }
 
-// --- אותו עיצוב מודרני בדיוק ---
+// --- העיצוב המקורי שלך (בדיוק כמו ששלחת) ---
 const styles = {
     pageWrapper: {
         minHeight: '100vh',
@@ -238,7 +265,7 @@ const styles = {
         borderRadius: '20px',
         overflow: 'hidden',
         boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+        transition: 'transform 0.3s ease',
         position: 'relative',
         display: 'flex',
         flexDirection: 'column'

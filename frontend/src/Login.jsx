@@ -8,7 +8,9 @@ function Login() {
 
     const handleLogin = async (e) => {
         e.preventDefault();
+        
         try {
+            // 1. שליחת הבקשה לשרת
             const response = await fetch('http://localhost:3000/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -17,35 +19,37 @@ function Login() {
 
             const data = await response.json();
 
-            if (response.ok) {
-                const loggedUser = data.user;
-                
-                // 1. שמירת המשתמש המעודכן בזיכרון של הדפדפן
-                localStorage.setItem('user', JSON.stringify(loggedUser));
-
-                // --- כאן נכנס התיקון החדש: סדר עדיפויות ---
-
-                // א. בדיקה ראשונה: האם זה הבוס? (מנהל)
-                if (loggedUser.is_admin) {
-                    console.log("👑 מנהל זוהה - עובר לפאנל ניהול");
-                    navigate('/admin'); 
-                    return; // חשוב! עוצר כאן כדי שלא ימשיך לבדיקות האחרות
-                }
-
-                // ב. בדיקה שנייה: האם משתמש רגיל כבר מילא את כל הפרטים?
-                if (loggedUser.gender && loggedUser.age) {
-                    console.log("✅ משתמש מלא - עובר להתאמות");
-                    navigate('/matches');
-                } else {
-                    // ג. ברירת מחדל: חסרים פרטים - לך להשלים פרופיל
-                    console.log("📝 חסרים פרטים - עובר לפרופיל");
-                    navigate('/profile');
-                }
-                // ---------------------------------------------
-
-            } else {
+            // 2. בדיקה קריטית: האם השרת אישר את הכניסה?
+            if (!response.ok) {
                 alert(data.message || "שגיאה בהתחברות");
+                return; // עוצרים כאן אם יש שגיאה
             }
+
+            // 3. אם הכל תקין - שומרים את המידע בדפדפן
+            localStorage.setItem('token', data.token); // התיקון החשוב: שמירת הטוקן!
+            localStorage.setItem('user', JSON.stringify(data.user));
+
+            // 4. לוגיקת הניתוב החכמה שלך (נשמרה במלואה)
+            const loggedUser = data.user;
+
+            // א. האם מנהל?
+            if (loggedUser.is_admin) {
+                console.log("👑 מנהל זוהה - עובר לפאנל ניהול");
+                navigate('/admin'); 
+                return;
+            }
+
+            // ב. האם משתמש רגיל שמילא פרטים?
+            // הערה: וידאתי שהשדות תואמים למה שחוזר מהשרת
+            if (loggedUser.gender && loggedUser.age) {
+                console.log("✅ משתמש מלא - עובר להתאמות");
+                navigate('/matches');
+            } else {
+                // ג. חסרים פרטים
+                console.log("📝 חסרים פרטים - עובר לפרופיל");
+                navigate('/profile');
+            }
+
         } catch (err) {
             console.error("Login error:", err);
             alert("תקלה בתקשורת עם השרת");
@@ -76,10 +80,10 @@ function Login() {
     );
 }
 
-// סגנונות בסיסיים
+// --- העיצוב המקורי שלך נשמר ---
 const containerStyle = { display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', direction: 'rtl' };
-const formStyle = { padding: '20px', border: '1px solid #ccc', borderRadius: '10px', backgroundColor: '#f9f9f9' };
-const inputStyle = { display: 'block', width: '100%', padding: '10px', margin: '10px 0' };
-const buttonStyle = { width: '100%', padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' };
+const formStyle = { padding: '20px', border: '1px solid #ccc', borderRadius: '10px', backgroundColor: '#f9f9f9', minWidth: '300px' };
+const inputStyle = { display: 'block', width: '100%', padding: '10px', margin: '10px 0', boxSizing: 'border-box' };
+const buttonStyle = { width: '100%', padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', marginTop: '10px' };
 
 export default Login;

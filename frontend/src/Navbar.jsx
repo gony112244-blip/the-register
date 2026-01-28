@@ -1,92 +1,100 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 function Navbar() {
-    const navigate = useNavigate();
-    const location = useLocation();
-    
-    // שליפת המשתמש מהזיכרון
-    const user = JSON.parse(localStorage.getItem('user'));
+  const navigate = useNavigate();
+  
+  // שליפת המשתמש מהזיכרון המקומי (localStorage)
+  // המושג: Data Persistence - שמירת נתונים כך שלא יימחקו ברענון הדף
+  const user = JSON.parse(localStorage.getItem('user'));
 
-    // אם אין משתמש מחובר, לא מציגים תפריט
-    if (!user) return null;
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
 
-    const handleLogout = () => {
-        localStorage.removeItem('user');
-        navigate('/login');
-    };
+  return (
+    <nav style={styles.nav}>
+      <div style={styles.logo}>
+        <Link to="/" style={styles.logoLink}>Shiduch.App 💍</Link>
+      </div>
+      
+      <div style={styles.links}>
+        <Link to="/matches" style={styles.link}>שידוכים</Link>
+        <Link to="/inbox" style={styles.link}>הודעות נכנסות</Link>
+        <Link to="/connections" style={styles.link}>שידוכים פעילים</Link>
+        
+        {/* --- המושג: Conditional Rendering (רינדור מותנה) --- */}
+        {/* שימוש באופרטור &&: אם הצד השמאלי אמת, הצד הימני יוצג */}
+        {user && user.is_admin && (
+          <Link to="/admin/matches" style={styles.adminLink}>🛡️ ניהול שידוכים</Link>
+        )}
+      </div>
 
-    // פונקציית עזר לבדוק אם אנחנו בדף מסוים (לצורך הדגשה)
-    const isActive = (path) => location.pathname === path;
-
-    return (
-        <nav style={styles.nav}>
-            <div style={styles.logo} onClick={() => navigate('/matches')}>
-                Shiduch.App 💘
-            </div>
-            
-            <div style={styles.links}>
-                <button 
-                    onClick={() => navigate('/matches')} 
-                    style={{...styles.link, color: isActive('/matches') ? '#ec4899' : '#374151', fontWeight: isActive('/matches') ? 'bold' : 'normal'}}
-                >
-                    🔍 שידוכים
-                </button>
-                
-                <button 
-                    onClick={() => navigate('/inbox')} 
-                    style={{...styles.link, color: isActive('/inbox') ? '#ec4899' : '#374151', fontWeight: isActive('/inbox') ? 'bold' : 'normal'}}
-                >
-                    📬 הודעות נכנסות
-                </button>
-
-                {/* --- הכפתור החדש שהוספנו --- */}
-                <button 
-                    onClick={() => navigate('/connections')} 
-                    style={{...styles.link, color: isActive('/connections') ? '#ec4899' : '#374151', fontWeight: isActive('/connections') ? 'bold' : 'normal'}}
-                >
-                    📞 שידוכים פעילים
-                </button>
-                {/* --------------------------- */}
-
-                <button 
-                    onClick={() => navigate('/profile')} 
-                    style={{...styles.link, color: isActive('/profile') ? '#ec4899' : '#374151', fontWeight: isActive('/profile') ? 'bold' : 'normal'}}
-                >
-                    👤 פרופיל
-                </button>
-                
-                {/* כפתור ניהול - רק למנהלים */}
-                {user.is_admin && (
-                    <button 
-                        onClick={() => navigate('/admin')} 
-                        style={styles.adminLink}
-                    >
-                        🛡️ פאנל ניהול
-                    </button>
-                )}
-            </div>
-
-            <div style={styles.userSection}>
-                <span style={styles.userName}>{user.full_name}</span>
-                <button onClick={handleLogout} style={styles.logoutBtn}>התנתקות</button>
-            </div>
-        </nav>
-    );
+      <div style={styles.userSection}>
+        {user ? (
+          <>
+            <span style={styles.welcomeText}>שלום, **{user.full_name}**</span>
+            <Link to="/profile" style={styles.profileBtn}>👤 פרופיל</Link>
+            <button onClick={handleLogout} style={styles.logoutBtn}>יציאה</button>
+          </>
+        ) : (
+          <Link to="/login" style={styles.loginBtn}>כניסה</Link>
+        )}
+      </div>
+    </nav>
+  );
 }
 
 const styles = {
-    nav: {
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '10px 40px', background: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        position: 'sticky', top: 0, zIndex: 1000, direction: 'rtl', fontFamily: 'Segoe UI'
-    },
-    logo: { fontSize: '1.4rem', fontWeight: 'bold', color: '#ec4899', cursor: 'pointer' },
-    links: { display: 'flex', gap: '25px', alignItems: 'center' },
-    link: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', transition: '0.2s' },
-    adminLink: { background: '#fff1f2', border: '1px solid #fecdd3', color: '#9f1239', padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' },
-    userSection: { display: 'flex', alignItems: 'center', gap: '15px' },
-    userName: { fontSize: '0.9rem', color: '#6b7280' },
-    logoutBtn: { background: '#f3f4f6', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', color: '#4b5563', fontSize: '0.9rem' }
+  nav: { 
+    display: 'flex', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    padding: '10px 20px', 
+    background: '#fff', 
+    borderBottom: '2px solid #fce7f3',
+    direction: 'rtl',
+    fontFamily: 'Segoe UI'
+  },
+  logo: { fontSize: '1.5rem', fontWeight: 'bold' },
+  logoLink: { textDecoration: 'none', color: '#db2777' },
+  links: { display: 'flex', gap: '20px', alignItems: 'center' },
+  link: { textDecoration: 'none', color: '#475569', fontWeight: '500' },
+  adminLink: { 
+    textDecoration: 'none', 
+    color: '#db2777', 
+    fontWeight: 'bold', 
+    border: '2px solid #db2777', 
+    padding: '4px 12px', 
+    borderRadius: '8px',
+    fontSize: '0.9rem',
+    background: '#fff1f2'
+  },
+  userSection: { display: 'flex', alignItems: 'center', gap: '15px' },
+  welcomeText: { color: '#1e293b', fontSize: '0.95rem' },
+  profileBtn: { 
+    textDecoration: 'none', 
+    background: '#fdf2f8', 
+    color: '#db2777', 
+    padding: '5px 12px', 
+    borderRadius: '20px', 
+    fontSize: '0.9rem',
+    border: '1px solid #fbcfe8'
+  },
+  logoutBtn: { 
+    background: 'none', 
+    border: 'none', 
+    color: '#94a3b8', 
+    cursor: 'pointer', 
+    fontSize: '0.9rem' 
+  },
+  loginBtn: { 
+    textDecoration: 'none', 
+    background: '#db2777', 
+    color: 'white', 
+    padding: '8px 20px', 
+    borderRadius: '8px' 
+  }
 };
 
 export default Navbar;
