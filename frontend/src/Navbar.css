@@ -1,0 +1,115 @@
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: #fff;
+    border-bottom: 2px solid #fce7f3;
+    direction: rtl;
+    font-family: 'Segoe UI', sans-serif;
+    /* מניעת ריצוד - קובע גובה קבוע */
+    min-height: 60px;
+    box-sizing: border-box;
+}
+
+.navbar-logo {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.navbar-logo a {
+    text-decoration: none;
+    color: #db2777;
+}
+
+.navbar-links {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+/* תיקון הריצוד - הלינקים לא משנים גודל ב-hover */
+.navbar-links a {
+    text-decoration: none;
+    color: #475569;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background-color 0.2s, color 0.2s;
+    /* חשוב! מונע שינוי גודל שגורם לריצוד */
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.navbar-links a:hover {
+    background-color: #fdf2f8;
+    color: #db2777;
+}
+
+.navbar-admin-link {
+    text-decoration: none;
+    color: #db2777 !important;
+    font-weight: bold;
+    border: 2px solid #db2777;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: #fff1f2;
+}
+
+.navbar-admin-link:hover {
+    background: #db2777;
+    color: white !important;
+}
+
+.navbar-user-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.navbar-welcome {
+    color: #1e293b;
+    font-size: 0.95rem;
+}
+
+.navbar-profile-btn {
+    text-decoration: none;
+    background: #fdf2f8;
+    color: #db2777;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    border: 1px solid #fbcfe8;
+    transition: background-color 0.2s;
+}
+
+.navbar-profile-btn:hover {
+    background: #fce7f3;
+}
+
+.navbar-logout-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+}
+
+.navbar-logout-btn:hover {
+    color: #64748b;
+}
+
+.navbar-login-btn {
+    text-decoration: none;
+    background: #db2777;
+    color: white;
+    padding: 8px 20px;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.navbar-login-btn:hover {
+    background: #be185d;
+}

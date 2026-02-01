@@ -1,36 +1,97 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Register() {
     const [phone, setPhone] = useState("");
-    const [fullName, setFullName] = useState(""); // הוספנו שדה לשם מלא
+    const [fullName, setFullName] = useState("");
+    const [password, setPassword] = useState("");
     const [message, setMessage] = useState("");
-    const passwordRef = useRef();
+    const [errors, setErrors] = useState({}); // אובייקט שגיאות
+    const [showPassword, setShowPassword] = useState(false); // הסבר: מצב הצגת סיסמה
     const navigate = useNavigate();
 
+    // פונקציות בדיקה (Validation)
+    const validateName = (name) => {
+        // לפחות 2 אותיות (עברית או אנגלית)
+        const letterCount = (name.match(/[a-zA-Zא-ת]/g) || []).length;
+        return letterCount >= 2;
+    };
+
+    const validatePhone = (phone) => {
+        // מספר טלפון ישראלי תקין (10 ספרות, מתחיל ב-05 או 07 או 02-04 או 08-09)
+        const phoneRegex = /^0[2-9]\d{7,8}$/;
+        return phoneRegex.test(phone.replace(/-/g, ''));
+    };
+
+    const validatePassword = (password) => {
+        // לפחות 4 תווים
+        return password.length >= 4;
+    };
+
+    // בדיקה בזמן אמת
+    const handleNameChange = (e) => {
+        const value = e.target.value;
+        setFullName(value);
+        if (value && !validateName(value)) {
+            setErrors(prev => ({ ...prev, name: "השם חייב להכיל לפחות 2 אותיות" }));
+        } else {
+            setErrors(prev => ({ ...prev, name: null }));
+        }
+    };
+
+    const handlePhoneChange = (e) => {
+        const value = e.target.value;
+        setPhone(value);
+        if (value && !validatePhone(value)) {
+            setErrors(prev => ({ ...prev, phone: "מספר טלפון לא תקין" }));
+        } else {
+            setErrors(prev => ({ ...prev, phone: null }));
+        }
+    };
+
+    const handlePasswordChange = (e) => {
+        const value = e.target.value;
+        setPassword(value);
+        if (value && !validatePassword(value)) {
+            setErrors(prev => ({ ...prev, password: "הסיסמה חייבת להכיל לפחות 4 תווים" }));
+        } else {
+            setErrors(prev => ({ ...prev, password: null }));
+        }
+    };
+
+    // האם הטופס תקין?
+    const isFormValid = useMemo(() => {
+        return validateName(fullName) && validatePhone(phone) && validatePassword(password);
+    }, [fullName, phone, password]);
+
     const handleRegister = async () => {
-        const password = passwordRef.current.value;
+        // בדיקה סופית לפני שליחה
+        if (!isFormValid) {
+            setMessage("נא למלא את כל השדות כראוי");
+            return;
+        }
 
         try {
             const response = await fetch('http://localhost:3000/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    phone, 
-                    password, 
-                    full_name: fullName // שליחת השם לשרת
+                body: JSON.stringify({
+                    phone,
+                    password,
+                    full_name: fullName
                 })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                // המושג ללמידה: User Feedback
-                // לפני הניווט, אנחנו נותנים למשתמש הוראה ברורה מה הצעד הבא
-                alert("נרשמת בהצלחה! כעת המתן לאישור השדכנית כדי שתוכל להיכנס.");
-                
-                // ניווט לדף הכניסה - המשתמש יצטרך להיכנס רק אחרי אישור
-                navigate('/login');
+                // הסבר: השרת מחזיר טוקן - נשמור אותו ונעבור לפרופיל
+                // כך המשתמש נכנס מיד בלי להתחבר שוב!
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+
+                // מעבר ישיר לדף הפרופיל למילוי פרטים
+                navigate('/profile');
             } else {
                 setMessage(`שגיאה: ${data.message}`);
             }
@@ -39,59 +100,233 @@ function Register() {
         }
     };
 
+    // סגנונות
+    const getInputStyle = (fieldName) => ({
+        ...inputStyle,
+        borderColor: errors[fieldName] ? '#dc3545' : '#cbd5e1',
+        backgroundColor: errors[fieldName] ? '#fff5f5' : '#fff'
+    });
+
     return (
-        <div style={{ padding: '40px', textAlign: 'center', direction: 'rtl', fontFamily: 'sans-serif' }}>
-            <div style={{ maxWidth: '400px', margin: '0 auto', border: '1px solid #ddd', padding: '20px', borderRadius: '10px' }}>
-                <h3>יצירת חשבון חדש</h3>
-                
-                <input
-                    type="text"
-                    placeholder="שם מלא"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    style={inputStyle}
-                />
+        <div style={pageStyle}>
+            <div style={containerStyle}>
+                <div style={headerStyle}>
+                    <span style={logoStyle}>📋</span>
+                    <h2 style={titleStyle}>הרשמה לפנקס</h2>
+                    <p style={subtitleStyle}>יצירת חשבון חדש</p>
+                </div>
 
-                <input
-                    type="text"
-                    placeholder="מספר טלפון"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    style={inputStyle}
-                />
+                {/* שם מלא */}
+                <div style={fieldWrapper}>
+                    <label style={labelStyle}>שם מלא</label>
+                    <input
+                        type="text"
+                        placeholder="לפחות 2 אותיות"
+                        value={fullName}
+                        onChange={handleNameChange}
+                        style={getInputStyle('name')}
+                    />
+                    {errors.name && <span style={errorStyle}>{errors.name}</span>}
+                </div>
 
-                <input
-                    type="password"
-                    placeholder="בחר סיסמה"
-                    ref={passwordRef}
-                    style={inputStyle}
-                />
+                {/* מספר טלפון */}
+                <div style={fieldWrapper}>
+                    <label style={labelStyle}>מספר טלפון</label>
+                    <input
+                        type="text"
+                        placeholder="05X-XXXXXXX"
+                        value={phone}
+                        onChange={handlePhoneChange}
+                        style={getInputStyle('phone')}
+                    />
+                    {errors.phone && <span style={errorStyle}>{errors.phone}</span>}
+                </div>
 
-                {/* המושג ללמידה: Conditional Rendering & Props */}
+                {/* סיסמה עם כפתור הצגה */}
+                <div style={fieldWrapper}>
+                    <label style={labelStyle}>בחר סיסמה</label>
+                    <div style={passwordWrapper}>
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="לפחות 4 תווים"
+                            value={password}
+                            onChange={handlePasswordChange}
+                            style={{ ...getInputStyle('password'), flex: 1 }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            style={showPasswordBtn}
+                        >
+                            {showPassword ? '🔓' : '🔒'}
+                        </button>
+                    </div>
+                    {errors.password && <span style={errorStyle}>{errors.password}</span>}
+                </div>
+
+                {/* כפתור הרשמה */}
                 <button
                     onClick={handleRegister}
-                    disabled={phone.length < 9 || !fullName}
+                    disabled={!isFormValid}
                     style={{
                         ...buttonStyle,
-                        backgroundColor: (phone.length < 9 || !fullName) ? '#ccc' : '#28a745',
-                        cursor: (phone.length < 9 || !fullName) ? 'not-allowed' : 'pointer'
+                        backgroundColor: isFormValid ? '#c9a227' : '#ccc',
+                        cursor: isFormValid ? 'pointer' : 'not-allowed',
+                        opacity: isFormValid ? 1 : 0.7
                     }}
                 >
                     הירשם והמתן לאישור
                 </button>
 
-                {message && <p style={{ color: 'red', marginTop: '10px' }}>{message}</p>}
-                
-                <p style={{ marginTop: '15px', fontSize: '14px' }}>
-                    כבר רשום? <span onClick={() => navigate('/login')} style={{ color: '#007bff', cursor: 'pointer' }}>התחבר כאן</span>
+                {message && <p style={messageStyle}>{message}</p>}
+
+                <p style={linkStyle}>
+                    כבר רשום? <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
+                </p>
+
+                <p style={phoneInfoStyle}>
+                    📞 אפשר להירשם גם בטלפון: <strong>072-XXX-XXXX</strong>
                 </p>
             </div>
         </div>
     );
 }
 
-// עיצוב בסיסי Inline - בראיונות יגידו לך שעדיף CSS נפרד, אבל זה מצוין לבנייה מהירה
-const inputStyle = { display: 'block', width: '100%', margin: '10px 0', padding: '10px', boxSizing: 'border-box' };
-const buttonStyle = { width: '100%', padding: '12px', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold', fontSize: '16px' };
+// עיצוב מותאם לסגנון הפנקס
+const pageStyle = {
+    minHeight: '100vh',
+    background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '20px',
+    direction: 'rtl',
+    fontFamily: "'Heebo', 'Segoe UI', sans-serif"
+};
+
+const containerStyle = {
+    background: '#fff',
+    padding: '40px 35px',
+    borderRadius: '20px',
+    boxShadow: '0 15px 50px rgba(0, 0, 0, 0.2)',
+    width: '100%',
+    maxWidth: '400px'
+};
+
+const headerStyle = {
+    textAlign: 'center',
+    marginBottom: '30px'
+};
+
+const logoStyle = {
+    fontSize: '3rem',
+    display: 'block',
+    marginBottom: '10px'
+};
+
+const titleStyle = {
+    margin: '0 0 5px',
+    color: '#1e3a5f',
+    fontSize: '1.8rem',
+    fontWeight: '700'
+};
+
+const subtitleStyle = {
+    margin: 0,
+    color: '#6b7280',
+    fontSize: '1rem'
+};
+
+const fieldWrapper = {
+    marginBottom: '20px'
+};
+
+const labelStyle = {
+    display: 'block',
+    marginBottom: '8px',
+    color: '#374151',
+    fontWeight: '600',
+    fontSize: '0.95rem'
+};
+
+const inputStyle = {
+    width: '100%',
+    padding: '14px 16px',
+    borderRadius: '10px',
+    border: '2px solid #cbd5e1',
+    fontSize: '1rem',
+    boxSizing: 'border-box',
+    transition: 'all 0.3s ease',
+    outline: 'none'
+};
+
+const errorStyle = {
+    color: '#dc3545',
+    fontSize: '0.85rem',
+    marginTop: '6px',
+    display: 'block',
+    fontWeight: '500'
+};
+
+const buttonStyle = {
+    width: '100%',
+    padding: '15px',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '1.1rem',
+    fontWeight: '700',
+    color: '#1a1a1a',
+    transition: 'all 0.3s ease',
+    marginTop: '10px'
+};
+
+const messageStyle = {
+    color: '#dc3545',
+    textAlign: 'center',
+    marginTop: '15px',
+    padding: '10px',
+    background: '#fff5f5',
+    borderRadius: '8px'
+};
+
+const linkStyle = {
+    textAlign: 'center',
+    marginTop: '20px',
+    color: '#6b7280',
+    fontSize: '0.95rem'
+};
+
+const linkTextStyle = {
+    color: '#c9a227',
+    cursor: 'pointer',
+    fontWeight: '600'
+};
+
+const phoneInfoStyle = {
+    textAlign: 'center',
+    marginTop: '25px',
+    padding: '15px',
+    background: '#f8f5f0',
+    borderRadius: '10px',
+    color: '#4a4540',
+    fontSize: '0.9rem'
+};
+
+// הסבר: עיצוב לשורת הסיסמה עם כפתור הצגה
+const passwordWrapper = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px'
+};
+
+const showPasswordBtn = {
+    padding: '14px 16px',
+    borderRadius: '10px',
+    border: '2px solid #cbd5e1',
+    background: '#f8fafc',
+    cursor: 'pointer',
+    fontSize: '1.2rem',
+    transition: 'all 0.3s ease'
+};
 
 export default Register;

@@ -12,7 +12,7 @@ function Matches() {
 
     useEffect(() => {
         const savedUser = localStorage.getItem('user');
-        
+
         // בדיקה כפולה: אם אין משתמש או אין טוקן - החוצה
         if (!savedUser || !token) {
             navigate('/login');
@@ -20,7 +20,15 @@ function Matches() {
         }
 
         const currentUser = JSON.parse(savedUser);
-        
+        setUser(currentUser);
+
+        // הסבר: בדיקה אם המשתמש מאושר
+        // אם הוא עדיין לא אושר - לא נטען התאמות, נציג הודעה
+        if (!currentUser.is_approved) {
+            setLoading(false);
+            return; // לא ממשיכים לטעון התאמות
+        }
+
         // --- הוספתי הגנה קטנה למניעת מסך ריק ---
         if (!currentUser.gender) {
             alert("חובה לעדכן מגדר בפרופיל כדי לקבל התאמות!");
@@ -29,22 +37,12 @@ function Matches() {
         }
         // --------------------------------------
 
-        setUser(currentUser);
-
-        const queryParams = new URLSearchParams({
-            gender: currentUser.gender,
-            search_sector: currentUser.search_sector || '',
-            search_min_age: currentUser.search_min_age || 18,
-            search_max_age: currentUser.search_max_age || 120,
-            myAge: currentUser.age,
-            currentPhone: currentUser.phone
-        }).toString();
-
-        fetch(`http://localhost:3000/matches?${queryParams}`, {
-            method: 'GET', // ברירת מחדל, אבל טוב לציין
+        // הסבר: השרת עכשיו עושה את כל הסינון לבד לפי פרטי המשתמש!
+        fetch('http://localhost:3000/matches', {
+            method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` // 🔑 הוספנו את המפתח! בלעדיו תקבל 401
+                'Authorization': `Bearer ${token}` // 🔑 הטוקן מזהה את המשתמש
             }
         })
             .then(res => {
@@ -73,13 +71,13 @@ function Matches() {
         try {
             const response = await fetch('http://localhost:3000/connect', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}` // 🔑 הוספנו את המפתח גם כאן!
                 },
-                body: JSON.stringify({ 
-                    myId: user.id,      
-                    targetId: matchId   
+                body: JSON.stringify({
+                    myId: user.id,
+                    targetId: matchId
                 })
             });
 
@@ -102,7 +100,7 @@ function Matches() {
     if (loading) return (
         <div style={styles.loadingContainer}>
             <div style={styles.spinner}></div>
-            <h2 style={{marginTop: '20px', color: '#fff'}}>מחפש התאמות מושלמות...</h2>
+            <h2 style={{ marginTop: '20px', color: '#fff' }}>מחפש התאמות מושלמות...</h2>
         </div>
     );
 
@@ -110,7 +108,7 @@ function Matches() {
         <div style={styles.pageWrapper}>
             <nav style={styles.navbar}>
                 <div style={styles.navContent}>
-                    <h1 style={styles.logo}>Shiduch.App 💘</h1>
+                    <h1 style={styles.logo}>הפנקס 📋</h1>
                     <div style={styles.userInfo}>
                         <span>שלום, {user?.full_name}</span>
                         <button onClick={() => navigate('/profile')} style={styles.iconButton}>
@@ -121,58 +119,79 @@ function Matches() {
             </nav>
 
             <div style={styles.container}>
-                <div style={styles.headerSection}>
-                    <h2 style={styles.pageTitle}>ההתאמות שלך להיום</h2>
-                    <p style={styles.subTitle}>מצאנו עבורך מועמדים על בסיס ההעדפות שלך</p>
-                </div>
+                {/* הסבר: בדיקה אם המשתמש מאושר - אם לא, מציגים הודעה */}
+                {!user?.is_approved ? (
+                    <div style={styles.pendingApproval}>
+                        <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
+                        <h2 style={{ color: '#1e3a5f', marginBottom: '15px' }}>הפרופיל שלך בבדיקה</h2>
+                        <p style={{ color: '#6b7280', lineHeight: '1.8', maxWidth: '400px', margin: '0 auto' }}>
+                            לאחר שנאמת את הפרטים שלך, תוכל לראות הצעות מתאימות.
+                            <br />
+                            בדרך כלל התהליך לוקח עד 24 שעות.
+                        </p>
+                        <button
+                            onClick={() => navigate('/profile')}
+                            style={{ ...styles.outlineButton, marginTop: '25px' }}
+                        >
+                            לעדכון פרטי הפרופיל
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <div style={styles.headerSection}>
+                            <h2 style={styles.pageTitle}>ההתאמות שלך להיום</h2>
+                            <p style={styles.subTitle}>מצאנו עבורך מועמדים על בסיס ההעדפות שלך</p>
+                        </div>
 
-                <div style={styles.grid}>
-                    {matches.length > 0 ? (
-                        matches.map((match, index) => (
-                            <div key={index} style={styles.card}>
-                                <div style={styles.cardHeader}>
-                                    <div style={styles.matchBadge}>{match.sector}</div>
-                                </div>
-                                <div style={styles.imageWrapper}>
-                                    <img 
-                                        src={`https://ui-avatars.com/api/?name=${match.full_name}&background=fff&color=6366f1&size=128&bold=true`} 
-                                        alt={match.full_name} 
-                                        style={styles.avatar}
-                                    />
-                                </div>
-                                <div style={styles.cardBody}>
-                                    <h3 style={styles.name}>{match.full_name}, {match.age}</h3>
-                                    <div style={styles.divider}></div>
-                                    <div style={styles.detailsGrid}>
-                                        <div style={styles.detailItem}>
-                                            <span style={styles.detailLabel}>גובה</span>
-                                            <span style={styles.detailValue}>{match.height || '?'} מ'</span>
+                        <div style={styles.grid}>
+                            {matches.length > 0 ? (
+                                matches.map((match, index) => (
+                                    <div key={index} style={styles.card}>
+                                        <div style={styles.cardHeader}>
+                                            <div style={styles.matchBadge}>{match.sector}</div>
                                         </div>
-                                        <div style={styles.detailItem}>
-                                            <span style={styles.detailLabel}>מגזר</span>
-                                            <span style={styles.detailValue}>{match.sector}</span>
+                                        <div style={styles.imageWrapper}>
+                                            <img
+                                                src={`https://ui-avatars.com/api/?name=${match.full_name}&background=fff&color=6366f1&size=128&bold=true`}
+                                                alt={match.full_name}
+                                                style={styles.avatar}
+                                            />
+                                        </div>
+                                        <div style={styles.cardBody}>
+                                            <h3 style={styles.name}>{match.full_name}, {match.age}</h3>
+                                            <div style={styles.divider}></div>
+                                            <div style={styles.detailsGrid}>
+                                                <div style={styles.detailItem}>
+                                                    <span style={styles.detailLabel}>גובה</span>
+                                                    <span style={styles.detailValue}>{match.height || '?'} מ'</span>
+                                                </div>
+                                                <div style={styles.detailItem}>
+                                                    <span style={styles.detailLabel}>מגזר</span>
+                                                    <span style={styles.detailValue}>{match.sector}</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => handleConnect(match.full_name, match.id)}
+                                                style={styles.actionButton}
+                                            >
+                                                יצירת קשר ✨
+                                            </button>
                                         </div>
                                     </div>
-                                    <button 
-                                        onClick={() => handleConnect(match.full_name, match.id)}
-                                        style={styles.actionButton}
-                                    >
-                                        יצירת קשר ✨
+                                ))
+                            ) : (
+                                <div style={styles.emptyState}>
+                                    <div style={{ fontSize: '50px' }}>🤷‍♂️</div>
+                                    <h3>עדיין לא מצאנו התאמה מדויקת</h3>
+                                    <p>נסה להרחיב את טווח הגילאים בפרופיל</p>
+                                    <button onClick={() => navigate('/profile')} style={styles.outlineButton}>
+                                        לעריכת העדפות חיפוש
                                     </button>
                                 </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div style={styles.emptyState}>
-                            <div style={{fontSize: '50px'}}>🤷‍♂️</div>
-                            <h3>עדיין לא מצאנו התאמה מדויקת</h3>
-                            <p>נסה להרחיב את טווח הגילאים בפרופיל</p>
-                            <button onClick={() => navigate('/profile')} style={styles.outlineButton}>
-                                לעריכת העדפות חיפוש
-                            </button>
+                            )}
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -369,6 +388,16 @@ const styles = {
         fontWeight: 'bold',
         marginTop: '15px',
         cursor: 'pointer'
+    },
+    // הסבר: עיצוב להודעה שמופיעה למשתמש שמחכה לאישור
+    pendingApproval: {
+        background: 'white',
+        padding: '60px 40px',
+        borderRadius: '25px',
+        textAlign: 'center',
+        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
+        maxWidth: '500px',
+        margin: '40px auto'
     }
 };
 

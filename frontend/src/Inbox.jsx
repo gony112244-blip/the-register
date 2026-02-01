@@ -5,7 +5,7 @@ function Inbox() {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
-    
+
     // שליפת הטוקן והמשתמש מהזיכרון
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user'));
@@ -20,7 +20,7 @@ function Inbox() {
         try {
             const res = await fetch(`http://localhost:3000/my-requests?userId=${user.id}`, {
                 method: 'GET',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}` // 🔑 הוספנו את המפתח
                 }
@@ -49,6 +49,12 @@ function Inbox() {
     };
 
     useEffect(() => {
+        // הסבר: בדיקה אם המשתמש מאושר
+        // אם לא מאושר - לא טוענים בקשות
+        if (user && !user.is_approved) {
+            setLoading(false);
+            return;
+        }
         fetchRequests();
     }, []);
 
@@ -57,13 +63,13 @@ function Inbox() {
         try {
             const res = await fetch('http://localhost:3000/approve-request', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}` // 🔑 חובה גם כאן
                 },
                 body: JSON.stringify({ connectionId: connection_id, userId: user.id })
             });
-            
+
             if (res.ok) {
                 alert("🎉 מזל טוב! השידוך הפך לפעיל.");
                 fetchRequests(); // רענון הרשימה
@@ -76,11 +82,11 @@ function Inbox() {
     // טיפול בדחייה
     const handleReject = async (connection_id) => {
         if (!window.confirm("האם את/ה בטוח/ה שברצונך לדחות את ההצעה?")) return;
-        
+
         try {
             const res = await fetch('http://localhost:3000/reject-request', {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}` // 🔑 חובה גם כאן
                 },
@@ -93,7 +99,7 @@ function Inbox() {
         }
     };
 
-    if (loading) return <div style={{textAlign: 'center', marginTop: '50px', fontFamily: 'Segoe UI'}}>בודק דואר... 📩</div>;
+    if (loading) return <div style={{ textAlign: 'center', marginTop: '50px', fontFamily: 'Segoe UI' }}>בודק דואר... 📩</div>;
 
     return (
         <div style={styles.page}>
@@ -103,7 +109,17 @@ function Inbox() {
             </header>
 
             <div style={styles.container}>
-                {requests.length === 0 ? (
+                {/* הסבר: הודעה למשתמש שעדיין לא אושר */}
+                {!user?.is_approved ? (
+                    <div style={styles.empty}>
+                        <div style={{ fontSize: '50px', marginBottom: '15px' }}>⏳</div>
+                        <h3>הפרופיל שלך בבדיקה</h3>
+                        <p>לאחר שנאמת את הפרטים שלך, תוכל לקבל הודעות.</p>
+                        <button onClick={() => navigate('/profile')} style={styles.backButton}>
+                            לעדכון פרטי הפרופיל
+                        </button>
+                    </div>
+                ) : requests.length === 0 ? (
                     <div style={styles.empty}>
                         <h3>אין בקשות חדשות כרגע...</h3>
                         <p>אבל אל דאגה, ברגע שמישהו יעשה לך לייק - זה יופיע כאן!</p>
