@@ -12,8 +12,15 @@ function Profile() {
         full_name: '', last_name: '', age: '', gender: 'male',
         status: 'single', has_children: false, children_count: 0,
 
+        // 📞 איש קשר לשידוך (מי ליצור עימו קשר?)
+        contact_person_type: 'self', // self/parent/other
+        contact_person_name: '',
+        contact_phone_1: '',
+        contact_phone_2: '',
+
         // רקע משפחתי
-        family_background: '', father_occupation: '', mother_occupation: '',
+        family_background: '', heritage_sector: '', // מגזר עדתי לסינון
+        father_occupation: '', mother_occupation: '',
         father_heritage: '', mother_heritage: '', siblings_count: '', sibling_position: '',
 
         // מראה
@@ -36,11 +43,12 @@ function Profile() {
         rabbi_name: '', rabbi_phone: '',
         mechutanim_name: '', mechutanim_phone: '',
 
-        // חלק ג - דרישות
+        // חלק ג - דרישות (פשוט יותר!)
         search_min_age: '', search_max_age: '',
         search_height_min: '', search_height_max: '',
-        search_body_types: '', search_appearances: '', search_skin_tones: '',
-        search_statuses: '', search_backgrounds: '', unwanted_heritages: '',
+        search_body_types: '', search_appearances: '',
+        search_statuses: '', search_backgrounds: '',
+        search_heritage_sectors: '', // מגזרים עדתיים מתאימים
         mixed_heritage_ok: true, search_financial_min: '', search_financial_discuss: false,
 
         // מצב אישור
@@ -72,22 +80,57 @@ function Profile() {
     // שמירה לשרת
     const handleSave = async () => {
         try {
-            const res = await fetch('http://localhost:3000/update-profile', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(user)
-            });
+            // אם המשתמש כבר מאושר - השינויים צריכים אישור מנהל
+            if (user.is_approved) {
+                // הצגת אזהרה
+                const confirmed = window.confirm(
+                    "⚠️ שים לב!\n\n" +
+                    "הפרופיל שלך כבר מאושר.\n" +
+                    "השינויים יועברו לבדיקת המנהל ויאושרו תוך 28 שעות לכל היותר.\n\n" +
+                    "להמשיך?"
+                );
 
-            if (res.ok) {
-                const data = await res.json();
-                localStorage.setItem('user', JSON.stringify(data.user));
-                setMessage("✅ הפרטים נשמרו בהצלחה!");
-                setTimeout(() => setMessage(''), 3000);
+                if (!confirmed) return;
+
+                // שליחת בקשה לאישור שינויים
+                const res = await fetch('http://localhost:3000/request-profile-update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ changes: user })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    setMessage(`✅ ${data.message}\n${data.info}`);
+                    // עדכון מצב ממתין
+                    setUser(prev => ({ ...prev, is_profile_pending: true }));
+                    setTimeout(() => navigate('/my-profile'), 2000);
+                } else {
+                    const error = await res.json();
+                    setMessage(`❌ ${error.message}`);
+                }
             } else {
-                setMessage("❌ שגיאה בשמירה");
+                // משתמש חדש - שמירה ישירה
+                const res = await fetch('http://localhost:3000/update-profile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(user)
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    setMessage("✅ הפרטים נשמרו בהצלחה!");
+                    setTimeout(() => setMessage(''), 3000);
+                } else {
+                    setMessage("❌ שגיאה בשמירה");
+                }
             }
         } catch (err) {
             setMessage("❌ שגיאה בתקשורת לשרת");
@@ -136,13 +179,15 @@ function Profile() {
 
                 {message && <div style={styles.alert}>{message}</div>}
 
-                {/* סטטוס אישור */}
+                {/* סטטוס אישור - מתוקן */}
                 <div style={{
                     ...styles.statusBar,
                     background: user.is_approved ? '#d4edda' : '#fff3cd',
-                    borderColor: user.is_approved ? '#28a745' : '#ffc107'
+                    borderColor: user.is_approved ? '#28a745' : '#ffc107',
+                    justifyContent: 'center',
+                    textAlign: 'center'
                 }}>
-                    <span style={{ fontSize: '1.5rem' }}>{user.is_approved ? '✅' : '⏳'}</span>
+                    <span style={{ fontSize: '1.5rem', marginLeft: '10px' }}>{user.is_approved ? '✅' : '⏳'}</span>
                     <div>
                         <strong>{user.is_approved ? 'הפרופיל מאושר!' : 'ממתין לאישור'}</strong>
                         <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
@@ -233,18 +278,63 @@ function Profile() {
                             </div>
                         </div>
 
+                        {/* 📞 איש קשר לשידוך */}
+                        <div style={{ ...styles.card, background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)', border: '2px solid #f59e0b' }}>
+                            <h3 style={styles.cardTitle}>📞 עם מי ליצור קשר לשידוך?</h3>
+                            <p style={{ ...styles.hint, color: '#92400e', marginBottom: '15px' }}>
+                                💡 אצלנו הורים רבים מתעסקים בשידוכים. הזן את פרטי איש הקשר שהשדכנית תתקשר אליו.
+                            </p>
+                            <div style={styles.grid}>
+                                <div style={styles.field}>
+                                    <label>מי מטפל בשידוך?</label>
+                                    <select name="contact_person_type" value={user.contact_person_type || 'self'} onChange={handleChange} style={styles.input}>
+                                        <option value="self">המועמד/ת בעצמו</option>
+                                        <option value="father">האבא</option>
+                                        <option value="mother">האמא</option>
+                                        <option value="both_parents">שני ההורים</option>
+                                        <option value="sibling">אח/אחות</option>
+                                        <option value="other">אחר</option>
+                                    </select>
+                                </div>
+                                {user.contact_person_type && user.contact_person_type !== 'self' && (
+                                    <div style={styles.field}>
+                                        <label>שם איש הקשר</label>
+                                        <input name="contact_person_name" value={user.contact_person_name || ''} onChange={handleChange} placeholder="לדוגמא: יעקב כהן (האבא)" style={styles.input} />
+                                    </div>
+                                )}
+                                <div style={styles.field}>
+                                    <label>📱 טלפון ראשי ליצירת קשר</label>
+                                    <input name="contact_phone_1" value={user.contact_phone_1 || ''} onChange={handleChange} placeholder="050-1234567" style={styles.input} />
+                                </div>
+                                <div style={styles.field}>
+                                    <label>📱 טלפון נוסף (אופציונלי)</label>
+                                    <input name="contact_phone_2" value={user.contact_phone_2 || ''} onChange={handleChange} placeholder="טלפון חלופי" style={styles.input} />
+                                </div>
+                            </div>
+                        </div>
+
                         {/* רקע משפחתי */}
                         <div style={styles.card}>
                             <h3 style={styles.cardTitle}>👨‍👩‍👧‍👦 רקע משפחתי</h3>
                             <div style={styles.grid}>
                                 <div style={styles.field}>
-                                    <label>רקע משפחה</label>
+                                    <label>רקע משפחה (דתי)</label>
                                     <select name="family_background" value={user.family_background || ''} onChange={handleChange} style={styles.input}>
                                         <option value="">בחר...</option>
                                         <option value="haredi">חרדי</option>
                                         <option value="dati_leumi">דתי לאומי</option>
                                         <option value="masorti">מסורתי</option>
                                         <option value="baal_teshuva">חוזר בתשובה</option>
+                                    </select>
+                                </div>
+                                <div style={styles.field}>
+                                    <label>מגזר עדתי (לסינון)</label>
+                                    <select name="heritage_sector" value={user.heritage_sector || ''} onChange={handleChange} style={styles.input}>
+                                        <option value="">בחר...</option>
+                                        <option value="ashkenazi">אשכנזי</option>
+                                        <option value="sephardi">ספרדי</option>
+                                        <option value="teimani">תימני</option>
+                                        <option value="mixed">מעורב</option>
                                     </select>
                                 </div>
                                 <div style={styles.field}>
@@ -256,12 +346,12 @@ function Profile() {
                                     <input name="mother_occupation" value={user.mother_occupation || ''} onChange={handleChange} style={styles.input} />
                                 </div>
                                 <div style={styles.field}>
-                                    <label>עדת האבא</label>
-                                    <input name="father_heritage" value={user.father_heritage || ''} onChange={handleChange} style={styles.input} placeholder="לדוגמא: אשכנזי, ספרדי, תימני..." />
+                                    <label>עדת האבא (פירוט)</label>
+                                    <input name="father_heritage" value={user.father_heritage || ''} onChange={handleChange} style={styles.input} placeholder="לדוגמא: פולני, מרוקאי, עיראקי..." />
                                 </div>
                                 <div style={styles.field}>
-                                    <label>עדת האמא</label>
-                                    <input name="mother_heritage" value={user.mother_heritage || ''} onChange={handleChange} style={styles.input} placeholder="לדוגמא: אשכנזי, ספרדי, תימני..." />
+                                    <label>עדת האמא (פירוט)</label>
+                                    <input name="mother_heritage" value={user.mother_heritage || ''} onChange={handleChange} style={styles.input} placeholder="לדוגמא: רומני, טוניסאי, תימני..." />
                                 </div>
                                 <div style={styles.field}>
                                     <label>מספר אחים</label>
@@ -603,24 +693,190 @@ function Profile() {
                             </div>
                         </div>
 
-                        {/* העדפות עדה */}
+                        {/* סטטוס */}
                         <div style={styles.card}>
-                            <h3 style={styles.cardTitle}>🌍 עדות</h3>
-                            <div style={styles.grid}>
-                                <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
-                                    <label>עדות שלא מתאימות (אופציונלי)</label>
-                                    <input name="unwanted_heritages" value={user.unwanted_heritages || ''} onChange={handleChange} style={styles.input} placeholder="לדוגמא: תימני, מרוקאי... (השאר ריק = מתאים הכל)" />
-                                </div>
-                                <div style={styles.field}>
-                                    <label>האם עדה מעורבת מתאימה?</label>
-                                    <select name="mixed_heritage_ok" value={user.mixed_heritage_ok ? 'yes' : 'no'} onChange={(e) => setUser(prev => ({ ...prev, mixed_heritage_ok: e.target.value === 'yes' }))} style={styles.input}>
-                                        <option value="yes">כן</option>
-                                        <option value="no">לא</option>
-                                    </select>
-                                </div>
+                            <h3 style={styles.cardTitle}>💍 סטטוס</h3>
+                            <p style={styles.hint}>אילו סטטוסים מתאימים לך? (אם לא תסמן - הכל מתאים)</p>
+                            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                {[
+                                    { value: 'single', label: 'רווק/ה' },
+                                    { value: 'divorced', label: 'גרוש/ה' },
+                                    { value: 'widower', label: 'אלמן/ה' }
+                                ].map(option => (
+                                    <label key={option.value} style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                        padding: '10px 15px',
+                                        background: (user.search_statuses || '').includes(option.value) ? '#c9a227' : '#f0f0f0',
+                                        borderRadius: '8px',
+                                        fontWeight: (user.search_statuses || '').includes(option.value) ? 'bold' : 'normal'
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(user.search_statuses || '').includes(option.value)}
+                                            onChange={(e) => {
+                                                const current = user.search_statuses ? user.search_statuses.split(',').filter(x => x) : [];
+                                                if (e.target.checked) { current.push(option.value); }
+                                                else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
+                                                setUser(prev => ({ ...prev, search_statuses: current.join(',') }));
+                                            }}
+                                            style={{ width: '18px', height: '18px' }}
+                                        />
+                                        {option.label}
+                                    </label>
+                                ))}
                             </div>
                         </div>
 
+                        {/* רקע דתי */}
+                        <div style={styles.card}>
+                            <h3 style={styles.cardTitle}>🕍 רקע דתי</h3>
+                            <p style={styles.hint}>אילו רקעים דתיים מתאימים לך? (אם לא תסמן - הכל מתאים)</p>
+                            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                {[
+                                    { value: 'haredi', label: 'חרדי' },
+                                    { value: 'dati_leumi', label: 'דתי לאומי' },
+                                    { value: 'masorti', label: 'מסורתי' },
+                                    { value: 'baal_teshuva', label: 'חוזר בתשובה' }
+                                ].map(option => (
+                                    <label key={option.value} style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                        padding: '10px 15px',
+                                        background: (user.search_backgrounds || '').includes(option.value) ? '#c9a227' : '#f0f0f0',
+                                        borderRadius: '8px',
+                                        fontWeight: (user.search_backgrounds || '').includes(option.value) ? 'bold' : 'normal'
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(user.search_backgrounds || '').includes(option.value)}
+                                            onChange={(e) => {
+                                                const current = user.search_backgrounds ? user.search_backgrounds.split(',').filter(x => x) : [];
+                                                if (e.target.checked) { current.push(option.value); }
+                                                else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
+                                                setUser(prev => ({ ...prev, search_backgrounds: current.join(',') }));
+                                            }}
+                                            style={{ width: '18px', height: '18px' }}
+                                        />
+                                        {option.label}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* מבנה גוף */}
+                        <div style={styles.card}>
+                            <h3 style={styles.cardTitle}>🏃 מבנה גוף</h3>
+                            <p style={styles.hint}>אילו מבני גוף מתאימים לך? (אם לא תסמן - הכל מתאים)</p>
+                            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                {[
+                                    { value: 'very_thin', label: 'רזה מאוד' },
+                                    { value: 'thin', label: 'רזה' },
+                                    { value: 'average', label: 'ממוצע' },
+                                    { value: 'full', label: 'מלא' }
+                                ].map(option => (
+                                    <label key={option.value} style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                        padding: '10px 15px',
+                                        background: (user.search_body_types || '').includes(option.value) ? '#c9a227' : '#f0f0f0',
+                                        borderRadius: '8px',
+                                        fontWeight: (user.search_body_types || '').includes(option.value) ? 'bold' : 'normal'
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(user.search_body_types || '').includes(option.value)}
+                                            onChange={(e) => {
+                                                const current = user.search_body_types ? user.search_body_types.split(',').filter(x => x) : [];
+                                                if (e.target.checked) { current.push(option.value); }
+                                                else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
+                                                setUser(prev => ({ ...prev, search_body_types: current.join(',') }));
+                                            }}
+                                            style={{ width: '18px', height: '18px' }}
+                                        />
+                                        {option.label}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* מראה */}
+                        <div style={styles.card}>
+                            <h3 style={styles.cardTitle}>✨ מראה כללי</h3>
+                            <p style={styles.hint}>מה רמת המראה שמתאימה לך? (אם לא תסמן - הכל מתאים)</p>
+                            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                {[
+                                    { value: 'fair', label: 'סביר' },
+                                    { value: 'ok', label: 'בסדר גמור' },
+                                    { value: 'good', label: 'טוב' },
+                                    { value: 'handsome', label: 'נאה' },
+                                    { value: 'very_handsome', label: 'נאה מאוד' }
+                                ].map(option => (
+                                    <label key={option.value} style={{
+                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                        padding: '10px 15px',
+                                        background: (user.search_appearances || '').includes(option.value) ? '#c9a227' : '#f0f0f0',
+                                        borderRadius: '8px',
+                                        fontWeight: (user.search_appearances || '').includes(option.value) ? 'bold' : 'normal'
+                                    }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(user.search_appearances || '').includes(option.value)}
+                                            onChange={(e) => {
+                                                const current = user.search_appearances ? user.search_appearances.split(',').filter(x => x) : [];
+                                                if (e.target.checked) { current.push(option.value); }
+                                                else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
+                                                setUser(prev => ({ ...prev, search_appearances: current.join(',') }));
+                                            }}
+                                            style={{ width: '18px', height: '18px' }}
+                                        />
+                                        {option.label}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* מגזר עדתי */}
+                        <div style={styles.card}>
+                            <h3 style={styles.cardTitle}>🌍 מגזר עדתי</h3>
+                            <p style={styles.hint}>סמן אילו מגזרים מתאימים לך (אם לא תסמן כלום - הכל מתאים)</p>
+                            <div style={{ ...styles.field, marginTop: '15px' }}>
+                                <label>מגזרים שמתאימים לי:</label>
+                                <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginTop: '10px' }}>
+                                    {[
+                                        { value: 'ashkenazi', label: 'אשכנזי' },
+                                        { value: 'sephardi', label: 'ספרדי' },
+                                        { value: 'teimani', label: 'תימני' },
+                                        { value: 'mixed', label: 'מעורב' }
+                                    ].map(option => (
+                                        <label key={option.value} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            cursor: 'pointer',
+                                            padding: '10px 15px',
+                                            background: (user.search_heritage_sectors || '').includes(option.value) ? '#c9a227' : '#f0f0f0',
+                                            borderRadius: '8px',
+                                            fontWeight: (user.search_heritage_sectors || '').includes(option.value) ? 'bold' : 'normal'
+                                        }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={(user.search_heritage_sectors || '').includes(option.value)}
+                                                onChange={(e) => {
+                                                    const current = user.search_heritage_sectors ? user.search_heritage_sectors.split(',').filter(x => x) : [];
+                                                    if (e.target.checked) {
+                                                        current.push(option.value);
+                                                    } else {
+                                                        const index = current.indexOf(option.value);
+                                                        if (index > -1) current.splice(index, 1);
+                                                    }
+                                                    setUser(prev => ({ ...prev, search_heritage_sectors: current.join(',') }));
+                                                }}
+                                                style={{ width: '18px', height: '18px' }}
+                                            />
+                                            {option.label}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                         {/* דרישות כלכליות */}
                         <div style={styles.card}>
                             <h3 style={styles.cardTitle}>💰 דרישות כלכליות</h3>
@@ -640,6 +896,166 @@ function Profile() {
                         </div>
                     </div>
                 )}
+
+                {/* ==========================================
+                    📷 העלאת תמונות פרופיל (עד 3)
+                ========================================== */}
+                <div style={styles.photoUploadCard}>
+                    <h3 style={styles.cardTitle}>📷 תמונות פרופיל</h3>
+                    <p style={styles.hint}>
+                        אתה יכול להעלות עד 3 תמונות. אחרים יוכלו לראות שיש לך תמונות, אבל לא יראו אותן עד שתאשר.
+                    </p>
+
+                    {/* תמונות קיימות */}
+                    <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '20px' }}>
+                        {(user.profile_images || []).map((imgUrl, idx) => (
+                            <div key={idx} style={{ position: 'relative' }}>
+                                <img
+                                    src={`http://localhost:3000${imgUrl}`}
+                                    alt={`תמונה ${idx + 1}`}
+                                    style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '10px', border: '3px solid #c9a227' }}
+                                />
+                                <button
+                                    onClick={async () => {
+                                        if (!window.confirm('למחוק את התמונה?')) return;
+                                        try {
+                                            const res = await fetch('http://localhost:3000/delete-profile-image', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                                body: JSON.stringify({ imageUrl: imgUrl })
+                                            });
+                                            if (res.ok) {
+                                                setUser(prev => ({ ...prev, profile_images: prev.profile_images.filter((_, i) => i !== idx) }));
+                                                setMessage('✅ התמונה נמחקה');
+                                            }
+                                        } catch (err) {
+                                            setMessage('❌ שגיאה במחיקה');
+                                        }
+                                    }}
+                                    style={{
+                                        position: 'absolute', top: '-8px', right: '-8px',
+                                        background: '#ef4444', color: '#fff', border: 'none',
+                                        borderRadius: '50%', width: '26px', height: '26px',
+                                        cursor: 'pointer', fontWeight: 'bold'
+                                    }}
+                                >✕</button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* כפתור העלאה */}
+                    {(user.profile_images || []).length < 3 && (
+                        <>
+                            <input
+                                type="file"
+                                id="profileImageInput"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+
+                                    setUploading(true);
+                                    setMessage('⏳ מעלה תמונה...');
+
+                                    const formData = new FormData();
+                                    formData.append('profileImage', file);
+
+                                    try {
+                                        const res = await fetch('http://localhost:3000/upload-profile-image', {
+                                            method: 'POST',
+                                            headers: { 'Authorization': `Bearer ${token}` },
+                                            body: formData
+                                        });
+
+                                        const data = await res.json();
+                                        if (res.ok) {
+                                            setMessage('✅ התמונה הועלתה!');
+                                            setUser(prev => ({ ...prev, profile_images: [...(prev.profile_images || []), data.imageUrl] }));
+                                        } else {
+                                            setMessage(`❌ ${data.message}`);
+                                        }
+                                    } catch (err) {
+                                        setMessage('❌ שגיאה בהעלאה');
+                                    }
+                                    setUploading(false);
+                                }}
+                            />
+                            <button
+                                onClick={() => document.getElementById('profileImageInput').click()}
+                                disabled={uploading}
+                                style={{
+                                    ...styles.saveButton,
+                                    background: uploading ? '#ccc' : 'linear-gradient(135deg, #22c55e, #16a34a)'
+                                }}
+                            >
+                                {uploading ? '⏳ מעלה...' : `📤 הוסף תמונה (${(user.profile_images || []).length}/3)`}
+                            </button>
+                        </>
+                    )}
+                </div>
+
+                {/* ==========================================
+                    🆔 העלאת תעודת זהות (בסוף הדף)
+                ========================================== */}
+                <div style={styles.idUploadCard}>
+                    <h3 style={styles.cardTitle}>🆔 אימות זהות - תעודת זהות</h3>
+                    <p style={styles.hint}>
+                        {user.contact_person_type === 'self'
+                            ? '📌 העלה צילום של תעודת הזהות שלך (כולל ספח)'
+                            : '📌 אפשר להעלות את תעודת הזהות שלך (ההורה) או של המועמד עם ספח'}
+                    </p>
+
+                    {user.id_card_image_url && (
+                        <div style={{
+                            padding: '12px', borderRadius: '8px', marginBottom: '15px',
+                            background: user.id_card_verified ? '#d4edda' : '#fff3cd',
+                            border: `1px solid ${user.id_card_verified ? '#28a745' : '#ffc107'}`
+                        }}>
+                            {user.id_card_verified ? '✅ תעודת הזהות אומתה!' : '⏳ ממתינה לאימות'}
+                        </div>
+                    )}
+
+                    {user.contact_person_type && user.contact_person_type !== 'self' && (
+                        <div style={styles.field}>
+                            <label>של מי התעודה?</label>
+                            <select value={user.id_card_owner_type || 'candidate'} onChange={(e) => setUser(prev => ({ ...prev, id_card_owner_type: e.target.value }))} style={styles.input}>
+                                <option value="candidate">של המועמד/ת</option>
+                                <option value="parent">שלי (ההורה)</option>
+                            </select>
+                        </div>
+                    )}
+
+                    <input type="file" id="idCardInput" accept="image/*" style={{ display: 'none' }}
+                        onChange={async (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            setUploading(true);
+                            const formData = new FormData();
+                            formData.append('idCard', file);
+                            formData.append('idOwner', user.contact_person_type === 'self' ? 'self' : (user.id_card_owner_type || 'candidate'));
+                            try {
+                                const res = await fetch('http://localhost:3000/upload-id-card', {
+                                    method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData
+                                });
+                                const data = await res.json();
+                                if (res.ok) { setMessage('✅ ת"ז הועלתה!'); setUser(prev => ({ ...prev, id_card_image_url: data.imageUrl })); }
+                                else { setMessage(`❌ ${data.message}`); }
+                            } catch (err) { setMessage('❌ שגיאה'); }
+                            setUploading(false);
+                        }}
+                    />
+                    <button onClick={() => document.getElementById('idCardInput').click()} disabled={uploading}
+                        style={{ ...styles.saveButton, background: uploading ? '#ccc' : 'linear-gradient(135deg, #3b82f6, #6366f1)' }}>
+                        {uploading ? '⏳ מעלה...' : (user.id_card_image_url ? '🔄 להחלפה' : '📤 להעלאת ת"ז')}
+                    </button>
+
+                    {user.id_card_image_url && (
+                        <div style={{ marginTop: '15px', textAlign: 'center' }}>
+                            <img src={`http://localhost:3000${user.id_card_image_url}`} alt="ת.ז" style={{ maxWidth: '180px', borderRadius: '8px', border: '2px solid #e5e7eb' }} />
+                        </div>
+                    )}
+                </div>
 
                 {/* כפתור שמירה */}
                 <button onClick={handleSave} style={styles.saveButton}>
@@ -696,6 +1112,22 @@ const styles = {
         borderRadius: '15px',
         marginBottom: '20px',
         border: '2px solid'
+    },
+    photoUploadCard: {
+        background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+        border: '2px solid #f59e0b',
+        borderRadius: '15px',
+        padding: '25px',
+        marginBottom: '20px',
+        textAlign: 'center'
+    },
+    idUploadCard: {
+        background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
+        border: '2px solid #22c55e',
+        borderRadius: '15px',
+        padding: '25px',
+        marginBottom: '20px',
+        textAlign: 'center'
     },
     tabs: {
         display: 'flex',

@@ -165,6 +165,356 @@ app.post('/register', async (req, res) => {
 // 👤 פרופיל משתמש
 // ==========================================
 
+// --- קבלת פרטי הפרופיל שלי ---
+app.get('/my-profile', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+
+        const user = result.rows[0];
+        delete user.password; // לא מחזירים סיסמה!
+
+        // בדיקת אישור אוטומטי אחרי 28 שעות
+        if (user.is_profile_pending && user.pending_changes_at) {
+            const hoursSinceRequest = (Date.now() - new Date(user.pending_changes_at).getTime()) / (1000 * 60 * 60);
+
+            if (hoursSinceRequest >= 28) {
+                // אישור אוטומטי!
+                const pendingChanges = user.pending_changes || {};
+                const updateFields = Object.keys(pendingChanges).map((key, i) => `${key} = $${i + 1}`).join(', ');
+                const updateValues = Object.values(pendingChanges);
+
+                if (updateFields) {
+                    await pool.query(
+                        `UPDATE users SET ${updateFields}, is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $${updateValues.length + 1}`,
+                        [...updateValues, userId]
+                    );
+
+                    // הודעה למשתמש
+                    await pool.query(
+                        `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+                        [userId, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
+                    );
+                }
+
+                // רענון הנתונים
+                const refreshed = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+                delete refreshed.rows[0].password;
+                return res.json(refreshed.rows[0]);
+            }
+        }
+
+        res.json(user);
+    } catch (err) {
+        console.error("Error fetching profile:", err);
+        res.status(500).json({ message: "שגיאה בטעינת הפרופיל" });
+    }
+});
+
+// ==========================================
+// 📷 העלאת תעודת זהות לאימות
+// ==========================================
+app.post('/upload-id-card', authenticateToken, upload.single('idCard'), async (req, res) => {
+    const userId = req.user.id;
+    const { idOwner } = req.body; // 'self' / 'parent' / 'candidate'
+
+    if (!req.file) {
+        return res.status(400).json({ message: "לא נבחר קובץ" });
+    }
+
+    try {
+        // שמירת הנתיב בדאטאבייס
+        const imageUrl = `/uploads/${req.file.filename}`;
+
+        await pool.query(
+            `UPDATE users SET 
+                id_card_image_url = $1,
+                id_card_owner_type = $2,
+                id_card_uploaded_at = NOW(),
+                id_card_verified = FALSE
+             WHERE id = $3`,
+            [imageUrl, idOwner || 'self', userId]
+        );
+
+        // שליפת פרטי המשתמש להודעה
+        const userResult = await pool.query('SELECT full_name, contact_person_type FROM users WHERE id = $1', [userId]);
+        const user = userResult.rows[0];
+
+        // הודעה למנהל
+        const ownerText = {
+            self: 'של המועמד עצמו',
+            parent: 'של ההורה',
+            candidate: 'של המועמד (הועלה ע"י הורה)'
+        };
+
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) 
+             VALUES ($1, 1, $2, 'admin_notification')`,
+            [userId, `📷 ${user.full_name} העלה צילום תעודת זהות ${ownerText[idOwner] || 'לאימות'}.\nנא לאמת את הזהות.`]
+        );
+
+        res.json({
+            message: "תעודת הזהות הועלתה בהצלחה! ✅",
+            info: "המנהל יבדוק ויאשר בהקדם.",
+            imageUrl
+        });
+
+    } catch (err) {
+        console.error("Upload ID error:", err);
+        res.status(500).json({ message: "שגיאה בהעלאת הקובץ" });
+    }
+});
+
+// ==========================================
+// 📷 העלאת תמונות פרופיל (עד 3)
+// ==========================================
+app.post('/upload-profile-image', authenticateToken, upload.single('profileImage'), async (req, res) => {
+    const userId = req.user.id;
+
+    if (!req.file) {
+        return res.status(400).json({ message: "לא נבחר קובץ" });
+    }
+
+    try {
+        // בדיקה - עד 3 תמונות
+        const current = await pool.query('SELECT profile_images FROM users WHERE id = $1', [userId]);
+        const images = current.rows[0]?.profile_images || [];
+
+        if (images.length >= 3) {
+            return res.status(400).json({ message: "ניתן להעלות עד 3 תמונות בלבד" });
+        }
+
+        const imageUrl = `/uploads/${req.file.filename}`;
+
+        await pool.query(
+            `UPDATE users SET 
+                profile_images = array_append(profile_images, $1),
+                profile_images_count = COALESCE(profile_images_count, 0) + 1
+             WHERE id = $2`,
+            [imageUrl, userId]
+        );
+
+        res.json({ message: "התמונה הועלתה!", imageUrl });
+
+    } catch (err) {
+        console.error("Upload profile image error:", err);
+        res.status(500).json({ message: "שגיאה בהעלאה" });
+    }
+});
+
+// מחיקת תמונת פרופיל
+app.post('/delete-profile-image', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { imageUrl } = req.body;
+
+    try {
+        await pool.query(
+            `UPDATE users SET 
+                profile_images = array_remove(profile_images, $1),
+                profile_images_count = GREATEST(COALESCE(profile_images_count, 0) - 1, 0)
+             WHERE id = $2`,
+            [imageUrl, userId]
+        );
+
+        res.json({ message: "התמונה נמחקה" });
+
+    } catch (err) {
+        console.error("Delete profile image error:", err);
+        res.status(500).json({ message: "שגיאה במחיקה" });
+    }
+});
+
+// ==========================================
+// 👁️ מערכת אישור צפייה בתמונות
+// ==========================================
+
+// בקשה לצפות בתמונות של מישהו
+app.post('/request-photo-access', authenticateToken, async (req, res) => {
+    const requesterId = req.user.id;
+    const { targetId } = req.body;
+
+    try {
+        // בדיקה אם כבר יש בקשה/אישור
+        const existing = await pool.query(
+            'SELECT * FROM photo_approvals WHERE requester_id = $1 AND target_id = $2',
+            [requesterId, targetId]
+        );
+
+        if (existing.rows.length > 0) {
+            return res.json({ message: "כבר שלחת בקשה", status: existing.rows[0].status });
+        }
+
+        // יצירת בקשה חדשה
+        await pool.query(
+            `INSERT INTO photo_approvals (requester_id, target_id, status) VALUES ($1, $2, 'pending')`,
+            [requesterId, targetId]
+        );
+
+        // שליחת הודעה לצד השני
+        const requesterInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [requesterId]);
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) 
+             VALUES ($1, $2, $3, 'photo_request')`,
+            [requesterId, targetId, `📷 ${requesterInfo.rows[0].full_name} מבקש/ת לראות את התמונות שלך`]
+        );
+
+        res.json({ message: "הבקשה נשלחה! תקבל הודעה כשיאשרו" });
+
+    } catch (err) {
+        console.error("Photo request error:", err);
+        res.status(500).json({ message: "שגיאה בשליחת הבקשה" });
+    }
+});
+
+// תגובה לבקשת תמונות (אישור/לא כרגע/אישור אוטומטי)
+app.post('/respond-photo-request', authenticateToken, async (req, res) => {
+    const targetId = req.user.id; // מי שמגיב הוא ה-target
+    const { requesterId, response } = req.body; // response: 'approve' / 'reject' / 'auto_approve'
+
+    try {
+        if (response === 'reject') {
+            await pool.query(
+                `UPDATE photo_approvals SET status = 'rejected', updated_at = NOW() 
+                 WHERE requester_id = $1 AND target_id = $2`,
+                [requesterId, targetId]
+            );
+
+            // הודעה למבקש
+            await pool.query(
+                `INSERT INTO messages (from_user_id, to_user_id, content, type) 
+                 VALUES ($1, $2, $3, 'photo_response')`,
+                [targetId, requesterId, `📷 הבקשה לצפייה בתמונות נדחתה לעת עתה`]
+            );
+
+            return res.json({ message: "הבקשה נדחתה" });
+        }
+
+        // אישור (רגיל או אוטומטי)
+        const autoApprove = response === 'auto_approve';
+        await pool.query(
+            `UPDATE photo_approvals SET status = 'approved', auto_approve = $1, updated_at = NOW() 
+             WHERE requester_id = $2 AND target_id = $3`,
+            [autoApprove, requesterId, targetId]
+        );
+
+        // הכלל: מי שמאשר - גם רואה! לכן ניצור גם אישור הפוך
+        const reverseExists = await pool.query(
+            'SELECT * FROM photo_approvals WHERE requester_id = $1 AND target_id = $2',
+            [targetId, requesterId]
+        );
+
+        if (reverseExists.rows.length === 0) {
+            await pool.query(
+                `INSERT INTO photo_approvals (requester_id, target_id, status, auto_approve) 
+                 VALUES ($1, $2, 'approved', $3)`,
+                [targetId, requesterId, autoApprove]
+            );
+        } else {
+            await pool.query(
+                `UPDATE photo_approvals SET status = 'approved', updated_at = NOW() 
+                 WHERE requester_id = $1 AND target_id = $2`,
+                [targetId, requesterId]
+            );
+        }
+
+        // הודעה למבקש
+        const targetInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [targetId]);
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) 
+             VALUES ($1, $2, $3, 'photo_response')`,
+            [targetId, requesterId, `✅ ${targetInfo.rows[0].full_name} אישר/ה צפייה בתמונות!`]
+        );
+
+        res.json({
+            message: autoApprove
+                ? "אישרת! מעכשיו כל תמונה שתעלה - תהיה גלויה לו"
+                : "אישרת צפייה בתמונות!"
+        });
+
+    } catch (err) {
+        console.error("Photo response error:", err);
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// בדיקה אם יש לי הרשאה לראות תמונות של מישהו
+app.get('/check-photo-access/:targetId', authenticateToken, async (req, res) => {
+    const requesterId = req.user.id;
+    const targetId = req.params.targetId;
+
+    try {
+        const result = await pool.query(
+            `SELECT status FROM photo_approvals 
+             WHERE requester_id = $1 AND target_id = $2 AND status = 'approved'`,
+            [requesterId, targetId]
+        );
+
+        res.json({
+            canView: result.rows.length > 0,
+            status: result.rows[0]?.status || 'none'
+        });
+
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// קבלת תמונות של מישהו (רק אם יש הרשאה!)
+app.get('/get-user-photos/:targetId', authenticateToken, async (req, res) => {
+    const requesterId = req.user.id;
+    const targetId = req.params.targetId;
+
+    try {
+        // בדיקת הרשאה
+        const permission = await pool.query(
+            `SELECT status FROM photo_approvals 
+             WHERE requester_id = $1 AND target_id = $2 AND status = 'approved'`,
+            [requesterId, targetId]
+        );
+
+        if (permission.rows.length === 0) {
+            return res.status(403).json({ message: "אין הרשאה לצפייה", photos: [] });
+        }
+
+        // יש הרשאה - שולח תמונות
+        const photos = await pool.query(
+            'SELECT profile_images FROM users WHERE id = $1',
+            [targetId]
+        );
+
+        res.json({ photos: photos.rows[0]?.profile_images || [] });
+
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// קבלת בקשות תמונות שממתינות לי
+app.get('/pending-photo-requests', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+        const result = await pool.query(
+            `SELECT pa.*, u.full_name, u.profile_images_count
+             FROM photo_approvals pa
+             JOIN users u ON u.id = pa.requester_id
+             WHERE pa.target_id = $1 AND pa.status = 'pending'
+             ORDER BY pa.created_at DESC`,
+            [userId]
+        );
+
+        res.json(result.rows);
+
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
 // --- עדכון פרופיל (גרסה מלאה עם 3 חלקים) ---
 // הסבר: כאן נשמרים כל פרטי המשתמש - חלק א', ב', ג'
 app.post('/update-profile', authenticateToken, async (req, res) => {
@@ -173,8 +523,10 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         // חלק א' - פרטים בסיסיים
         full_name, last_name, age, gender, phone,
         status, has_children, children_count,
+        // 📞 איש קשר לשידוך
+        contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
         // רקע משפחתי
-        family_background, father_occupation, mother_occupation,
+        family_background, heritage_sector, father_occupation, mother_occupation,
         father_heritage, mother_heritage, siblings_count, sibling_position,
         // מראה
         height, body_type, skin_tone, appearance,
@@ -195,12 +547,12 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         rabbi_name, rabbi_phone,
         mechutanim_name, mechutanim_phone,
 
-        // חלק ג' - דרישות
+        // חלק ג' - דרישות (פשוט יותר!)
         search_min_age, search_max_age,
         search_height_min, search_height_max,
-        search_body_types, search_appearances, search_skin_tones,
-        search_statuses, search_backgrounds, unwanted_heritages,
-        mixed_heritage_ok, search_financial_min, search_financial_discuss
+        search_body_types, search_appearances,
+        search_statuses, search_backgrounds,
+        search_heritage_sectors, mixed_heritage_ok, search_financial_min, search_financial_discuss
     } = req.body;
 
     try {
@@ -208,30 +560,32 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             `UPDATE users SET 
                 full_name = $1, last_name = $2, age = $3, gender = $4, phone = $5,
                 status = $6, has_children = $7, children_count = $8,
-                family_background = $9, father_occupation = $10, mother_occupation = $11,
-                father_heritage = $12, mother_heritage = $13, siblings_count = $14, sibling_position = $15,
-                height = $16, body_type = $17, skin_tone = $18, appearance = $19,
-                apartment_help = $20, current_occupation = $21, yeshiva_name = $22, work_field = $23,
-                life_aspiration = $24, favorite_study = $25, study_place = $26, study_field = $27, occupation_details = $28,
-                about_me = $29, home_style = $30, partner_description = $31, important_in_life = $32,
-                id_card_image_url = $33,
-                full_address = $34, father_full_name = $35, mother_full_name = $36, siblings_details = $37,
-                reference_1_name = $38, reference_1_phone = $39,
-                reference_2_name = $40, reference_2_phone = $41,
-                reference_3_name = $42, reference_3_phone = $43,
-                family_reference_name = $44, family_reference_phone = $45,
-                rabbi_name = $46, rabbi_phone = $47,
-                mechutanim_name = $48, mechutanim_phone = $49,
-                search_min_age = $50, search_max_age = $51,
-                search_height_min = $52, search_height_max = $53,
-                search_body_types = $54, search_appearances = $55, search_skin_tones = $56,
-                search_statuses = $57, search_backgrounds = $58, unwanted_heritages = $59,
-                mixed_heritage_ok = $60, search_financial_min = $61, search_financial_discuss = $62
-             WHERE id = $63 RETURNING *`,
+                contact_person_type = $9, contact_person_name = $10, contact_phone_1 = $11, contact_phone_2 = $12,
+                family_background = $13, heritage_sector = $14, father_occupation = $15, mother_occupation = $16,
+                father_heritage = $17, mother_heritage = $18, siblings_count = $19, sibling_position = $20,
+                height = $21, body_type = $22, skin_tone = $23, appearance = $24,
+                apartment_help = $25, current_occupation = $26, yeshiva_name = $27, work_field = $28,
+                life_aspiration = $29, favorite_study = $30, study_place = $31, study_field = $32, occupation_details = $33,
+                about_me = $34, home_style = $35, partner_description = $36, important_in_life = $37,
+                id_card_image_url = $38,
+                full_address = $39, father_full_name = $40, mother_full_name = $41, siblings_details = $42,
+                reference_1_name = $43, reference_1_phone = $44,
+                reference_2_name = $45, reference_2_phone = $46,
+                reference_3_name = $47, reference_3_phone = $48,
+                family_reference_name = $49, family_reference_phone = $50,
+                rabbi_name = $51, rabbi_phone = $52,
+                mechutanim_name = $53, mechutanim_phone = $54,
+                search_min_age = $55, search_max_age = $56,
+                search_height_min = $57, search_height_max = $58,
+                search_body_types = $59, search_appearances = $60,
+                search_statuses = $61, search_backgrounds = $62,
+                search_heritage_sectors = $63, mixed_heritage_ok = $64, search_financial_min = $65, search_financial_discuss = $66
+             WHERE id = $67 RETURNING *`,
             [
                 full_name, last_name, age, gender, phone,
                 status, has_children, children_count,
-                family_background, father_occupation, mother_occupation,
+                contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
+                family_background, heritage_sector, father_occupation, mother_occupation,
                 father_heritage, mother_heritage, siblings_count, sibling_position,
                 height, body_type, skin_tone, appearance,
                 apartment_help, current_occupation, yeshiva_name, work_field,
@@ -247,9 +601,9 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 mechutanim_name, mechutanim_phone,
                 search_min_age, search_max_age,
                 search_height_min, search_height_max,
-                search_body_types, search_appearances, search_skin_tones,
-                search_statuses, search_backgrounds, unwanted_heritages,
-                mixed_heritage_ok, search_financial_min, search_financial_discuss,
+                search_body_types, search_appearances,
+                search_statuses, search_backgrounds,
+                search_heritage_sectors, mixed_heritage_ok, search_financial_min, search_financial_discuss,
                 id // ID בסוף
             ]
         );
@@ -267,6 +621,55 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error("Update error:", err);
         res.status(500).json({ message: "שגיאה בשמירת הנתונים בשרת" });
+    }
+});
+
+// --- בקשה לשינוי פרופיל (דורש אישור מנהל) ---
+// הסבר: משתמש מאושר שרוצה לשנות פרטים - השינויים ממתינים לאישור
+app.post('/request-profile-update', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const changes = req.body.changes; // אובייקט עם השינויים
+
+    try {
+        // בדיקה שהמשתמש כבר מאושר (אחרת update-profile רגיל)
+        const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+        const currentUser = userResult.rows[0];
+
+        if (!currentUser.is_approved) {
+            // משתמש חדש - לא צריך אישור, שומרים ישירות
+            return res.status(400).json({ message: "משתמש חדש - השתמש ב-update-profile" });
+        }
+
+        // שמירת השינויים כ-pending
+        await pool.query(
+            `UPDATE users SET 
+                pending_changes = $1,
+                pending_changes_at = NOW(),
+                is_profile_pending = TRUE,
+                profile_edit_count = COALESCE(profile_edit_count, 0) + 1
+             WHERE id = $2`,
+            [JSON.stringify(changes), userId]
+        );
+
+        // שליחת הודעה למנהל (ID=1 הוא המנהל)
+        const changedFields = Object.keys(changes).join(', ');
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) 
+             VALUES ($1, 1, $2, 'admin_notification')`,
+            [userId, `📝 ${currentUser.full_name} מבקש לשנות את הפרופיל שלו.\nשדות ששונו: ${changedFields}\nזו בקשת העריכה מספר ${(currentUser.profile_edit_count || 0) + 1} שלו.`]
+        );
+
+        res.json({
+            message: "הבקשה נשלחה למנהל! ⏳",
+            info: "השינויים יאושרו תוך 28 שעות לכל היותר."
+        });
+
+    } catch (err) {
+        console.error("Request update error:", err);
+        res.status(500).json({ message: "שגיאה בשליחת הבקשה" });
     }
 });
 
@@ -433,6 +836,15 @@ app.get('/matches', authenticateToken, async (req, res) => {
             paramIndex += statuses.length;
         }
 
+        // סינון לפי מגזר עדתי (החדש והפשוט!)
+        if (currentUser.search_heritage_sectors && currentUser.search_heritage_sectors !== '') {
+            const sectors = currentUser.search_heritage_sectors.split(',').map(t => t.trim());
+            const placeholders = sectors.map((_, i) => `$${paramIndex + i}`).join(',');
+            conditions.push(`(heritage_sector IS NULL OR heritage_sector IN (${placeholders}))`);
+            params.push(...sectors);
+            paramIndex += sectors.length;
+        }
+
         // הסבר: בדיקה שגם הצד השני מחפש אותי!
         // המועמד צריך לרצות את הגיל שלי
         if (currentUser.age) {
@@ -454,11 +866,46 @@ app.get('/matches', authenticateToken, async (req, res) => {
             paramIndex++;
         }
 
+        // הסבר: המועמד צריך לרצות את המגזר העדתי שלי
+        if (currentUser.heritage_sector) {
+            conditions.push(`(search_heritage_sectors IS NULL OR search_heritage_sectors = '' OR search_heritage_sectors LIKE $${paramIndex})`);
+            params.push(`%${currentUser.heritage_sector}%`);
+            paramIndex++;
+        }
+
+        // 🆕 המועמד צריך לרצות את הסטטוס שלי (רווק/גרוש/אלמן)
+        if (currentUser.status) {
+            conditions.push(`(search_statuses IS NULL OR search_statuses = '' OR search_statuses LIKE $${paramIndex})`);
+            params.push(`%${currentUser.status}%`);
+            paramIndex++;
+        }
+
+        // 🆕 המועמד צריך לרצות את הרקע הדתי שלי
+        if (currentUser.family_background) {
+            conditions.push(`(search_backgrounds IS NULL OR search_backgrounds = '' OR search_backgrounds LIKE $${paramIndex})`);
+            params.push(`%${currentUser.family_background}%`);
+            paramIndex++;
+        }
+
+        // 🆕 המועמד צריך לרצות את מבנה הגוף שלי
+        if (currentUser.body_type) {
+            conditions.push(`(search_body_types IS NULL OR search_body_types = '' OR search_body_types LIKE $${paramIndex})`);
+            params.push(`%${currentUser.body_type}%`);
+            paramIndex++;
+        }
+
+        // 🆕 המועמד צריך לרצות את המראה שלי
+        if (currentUser.appearance) {
+            conditions.push(`(search_appearances IS NULL OR search_appearances = '' OR search_appearances LIKE $${paramIndex})`);
+            params.push(`%${currentUser.appearance}%`);
+            paramIndex++;
+        }
+
         // שלב 3: הרצת השאילתה
         const query = `
             SELECT id, full_name, last_name, age, height, gender, phone,
-                   family_background, body_type, appearance, skin_tone,
-                   current_occupation, about_me, sector
+                   family_background, heritage_sector, body_type, appearance, skin_tone,
+                   current_occupation, about_me, profile_images_count
             FROM users
             WHERE ${conditions.join(' AND ')}
             ORDER BY id DESC
@@ -524,6 +971,186 @@ app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ message: "שגיאה בשליפת נתוני שדכן" });
+    }
+});
+
+// 🆕 שליפת פרופילים שממתינים לאישור שינויים
+app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, phone, pending_changes, pending_changes_at, profile_edit_count
+             FROM users 
+             WHERE is_profile_pending = TRUE
+             ORDER BY pending_changes_at ASC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בשליפת בקשות שינוי" });
+    }
+});
+
+// 🆕 אישור שינויי פרופיל
+app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { id } = req.params;
+
+    try {
+        // שליפת השינויים הממתינים
+        const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+        const user = userResult.rows[0];
+        const pendingChanges = user.pending_changes || {};
+
+        // יישום השינויים
+        const updateFields = Object.keys(pendingChanges).map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const updateValues = Object.values(pendingChanges);
+
+        if (updateFields) {
+            await pool.query(
+                `UPDATE users SET ${updateFields}, is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $${updateValues.length + 1}`,
+                [...updateValues, id]
+            );
+        }
+
+        // הודעה למשתמש
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [id, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
+        );
+
+        res.json({ message: "השינויים אושרו בהצלחה!" });
+    } catch (err) {
+        console.error("Approve changes error:", err);
+        res.status(500).json({ message: "שגיאה באישור השינויים" });
+    }
+});
+
+// 🆕 דחיית שינויי פרופיל
+app.post('/admin/reject-profile-changes/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    try {
+        // איפוס השינויים הממתינים
+        await pool.query(
+            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1`,
+            [id]
+        );
+
+        // הודעה למשתמש
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [id, `❌ השינויים בפרופיל לא אושרו.\nסיבה: ${reason || 'לא צוינה סיבה'}`]
+        );
+
+        res.json({ message: "השינויים נדחו והמשתמש קיבל הודעה" });
+    } catch (err) {
+        console.error("Reject changes error:", err);
+        res.status(500).json({ message: "שגיאה בדחיית השינויים" });
+    }
+});
+
+// ==========================================
+// 👥 ניהול משתמשים למנהל
+// ==========================================
+
+// שליפת כל המשתמשים למנהל
+app.get('/admin/all-users', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, last_name, phone, age, gender, 
+                    is_approved, is_blocked, blocked_reason, blocked_at,
+                    admin_notes, profile_images, profile_images_count,
+                    created_at, id_card_verified
+             FROM users 
+             WHERE is_admin != TRUE
+             ORDER BY created_at DESC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Get all users error:", err);
+        res.status(500).json({ message: "שגיאה בשליפת משתמשים" });
+    }
+});
+
+// חסימה/שחרור משתמש
+app.post('/admin/block-user', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { userId, block, reason } = req.body;
+
+    try {
+        if (block) {
+            await pool.query(
+                `UPDATE users SET is_blocked = TRUE, blocked_reason = $1, blocked_at = NOW() WHERE id = $2`,
+                [reason || 'לא צוינה סיבה', userId]
+            );
+            // הודעה למשתמש
+            await pool.query(
+                `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+                [userId, `⚠️ החשבון שלך הוגבל זמנית.\nלפרטים נוספים, פנה למנהל.`]
+            );
+        } else {
+            await pool.query(
+                `UPDATE users SET is_blocked = FALSE, blocked_reason = NULL, blocked_at = NULL WHERE id = $1`,
+                [userId]
+            );
+            // הודעה למשתמש
+            await pool.query(
+                `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+                [userId, `✅ החשבון שלך שוחרר! אתה יכול להמשיך להשתמש במערכת.`]
+            );
+        }
+
+        res.json({ message: block ? "המשתמש נחסם" : "המשתמש שוחרר" });
+    } catch (err) {
+        console.error("Block user error:", err);
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// שמירת הערת מנהל על משתמש
+app.post('/admin/user-note', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { userId, note } = req.body;
+
+    try {
+        await pool.query(
+            `UPDATE users SET admin_notes = $1 WHERE id = $2`,
+            [note, userId]
+        );
+        res.json({ message: "ההערה נשמרה" });
+    } catch (err) {
+        console.error("Save note error:", err);
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// שליחת הודעה מהמנהל למשתמש
+app.post('/admin/send-message', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { userId, message } = req.body;
+
+    try {
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'admin_message')`,
+            [userId, `📬 הודעה מהמנהל:\n${message}`]
+        );
+        res.json({ message: "ההודעה נשלחה" });
+    } catch (err) {
+        console.error("Send admin message error:", err);
+        res.status(500).json({ message: "שגיאה" });
     }
 });
 
@@ -727,6 +1354,51 @@ app.get('/admin/matches-to-handle', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error("Error fetching admin matches:", err);
         res.status(500).json({ message: "שגיאת שרת בשליפת שידוכים" });
+    }
+});
+
+// ==========================================
+// 📬 מערכת הודעות (Mailbox)
+// ==========================================
+
+// שליפת הודעות שלי
+app.get('/my-messages', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await pool.query(
+            `SELECT * FROM messages 
+             WHERE to_user_id = $1 
+             ORDER BY created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בטעינת הודעות" });
+    }
+});
+
+// סימון הודעה כנקראה
+app.post('/mark-message-read/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    try {
+        await pool.query('UPDATE messages SET is_read = TRUE WHERE id = $1 AND to_user_id = $2', [id, req.user.id]);
+        res.json({ message: "סומן כנקרא" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// ספירת הודעות שלא נקראו (לתפריט)
+app.get('/unread-count', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await pool.query(
+            `SELECT COUNT(*) FROM messages WHERE to_user_id = $1 AND is_read = FALSE`,
+            [userId]
+        );
+        res.json({ count: parseInt(result.rows[0].count) });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
     }
 });
 

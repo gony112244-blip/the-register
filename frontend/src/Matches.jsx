@@ -149,6 +149,19 @@ function Matches() {
                                     <div key={index} style={styles.card}>
                                         <div style={styles.cardHeader}>
                                             <div style={styles.matchBadge}>{match.sector}</div>
+                                            {/* תג תמונות */}
+                                            {match.profile_images_count > 0 && (
+                                                <div style={{
+                                                    background: '#c9a227',
+                                                    color: '#1a1a1a',
+                                                    padding: '4px 10px',
+                                                    borderRadius: '15px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 'bold'
+                                                }}>
+                                                    📷 {match.profile_images_count} תמונות
+                                                </div>
+                                            )}
                                         </div>
                                         <div style={styles.imageWrapper}>
                                             <img
@@ -163,13 +176,42 @@ function Matches() {
                                             <div style={styles.detailsGrid}>
                                                 <div style={styles.detailItem}>
                                                     <span style={styles.detailLabel}>גובה</span>
-                                                    <span style={styles.detailValue}>{match.height || '?'} מ'</span>
+                                                    <span style={styles.detailValue}>{match.height || '?'} ס"מ</span>
                                                 </div>
                                                 <div style={styles.detailItem}>
                                                     <span style={styles.detailLabel}>מגזר</span>
                                                     <span style={styles.detailValue}>{match.sector}</span>
                                                 </div>
                                             </div>
+
+                                            {/* כפתור בקשת תמונות */}
+                                            {match.profile_images_count > 0 && (
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const res = await fetch('http://localhost:3000/request-photo-access', {
+                                                                method: 'POST',
+                                                                headers: {
+                                                                    'Content-Type': 'application/json',
+                                                                    'Authorization': `Bearer ${token}`
+                                                                },
+                                                                body: JSON.stringify({ targetId: match.id })
+                                                            });
+                                                            const data = await res.json();
+                                                            alert(data.message);
+                                                        } catch (err) {
+                                                            alert('שגיאה');
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        ...styles.secondaryButton,
+                                                        marginBottom: '10px'
+                                                    }}
+                                                >
+                                                    👁️ בקשה לראות תמונות
+                                                </button>
+                                            )}
+
                                             <button
                                                 onClick={() => handleConnect(match.full_name, match.id)}
                                                 style={styles.actionButton}
@@ -360,7 +402,7 @@ const styles = {
     },
     actionButton: {
         marginTop: 'auto',
-        background: 'linear-gradient(to right, #6366f1, #8b5cf6)',
+        background: 'linear-gradient(to right, #1e3a5f, #2d4a6f)',
         color: 'white',
         border: 'none',
         padding: '12px',
@@ -368,8 +410,20 @@ const styles = {
         fontWeight: 'bold',
         fontSize: '1rem',
         cursor: 'pointer',
-        boxShadow: '0 4px 6px rgba(99, 102, 241, 0.3)',
-        transition: 'transform 0.1s'
+        boxShadow: '0 4px 6px rgba(30, 58, 95, 0.3)',
+        transition: 'transform 0.1s',
+        width: '100%'
+    },
+    secondaryButton: {
+        background: 'linear-gradient(135deg, #c9a227, #f59e0b)',
+        color: '#1a1a1a',
+        border: 'none',
+        padding: '10px 15px',
+        borderRadius: '10px',
+        fontWeight: 'bold',
+        fontSize: '0.9rem',
+        cursor: 'pointer',
+        width: '100%'
     },
     emptyState: {
         gridColumn: '1 / -1',

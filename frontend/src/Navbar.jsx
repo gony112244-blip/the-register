@@ -26,12 +26,15 @@ function Navbar() {
         <Link to="/matches">שידוכים</Link>
         <Link to="/inbox">הודעות נכנסות</Link>
         <Link to="/connections">שידוכים פעילים</Link>
+        <Link to="/photo-requests">📷 בקשות תמונות</Link>
 
         {/* לינק למנהל - מופיע רק אם המשתמש הוא אדמין */}
         {user && user.is_admin && (
           <>
-            <Link to="/admin" className="navbar-admin-link">🛡️ ניהול משתמשים</Link>
-            <Link to="/admin/matches" className="navbar-admin-link">🛡️ ניהול שידוכים</Link>
+            <Link to="/admin" className="navbar-admin-link">📊 לוח בקרה</Link>
+            <Link to="/admin/users" className="navbar-admin-link">👥 משתמשים</Link>
+            <Link to="/admin/matches" className="navbar-admin-link">💍 שידוכים</Link>
+            <Link to="/admin/pending-profiles" className="navbar-admin-link">📝 אישורים</Link>
           </>
         )}
       </div>
@@ -40,7 +43,7 @@ function Navbar() {
         {user ? (
           <>
             <span className="navbar-welcome">שלום, {user.full_name}</span>
-            <Link to="/profile" className="navbar-profile-btn">👤 פרופיל</Link>
+            <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיסייה שלי</Link>
             <button onClick={handleLogout} className="navbar-logout-btn">יציאה</button>
           </>
         ) : (

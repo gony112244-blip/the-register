@@ -2,15 +2,19 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import Home from './Home';
 import Login from './Login';
 import Profile from './Profile';
+import ProfileView from './ProfileView'; // 🆕 צפייה בפרופיל
 import AdminDashboard from './AdminDashboard';
 import Register from './Register';
 import Matches from './Matches';
 import Inbox from './Inbox';
 import Navbar from './Navbar';
 import Connections from './Connections';
+import PhotoRequests from './PhotoRequests'; // 🆕 בקשות תמונות
 
 // --- התיקון הקריטי כאן: מייבאים מהקובץ הנכון ---
 import AdminMatches from './AdminMatches';
+import AdminPendingProfiles from './AdminPendingProfiles'; // 🆕 אישור שינויי פרופיל
+import AdminUsers from './AdminUsers'; // 🆕 ניהול משתמשים
 
 import './App.css';
 
@@ -31,12 +35,17 @@ function AppContent() {
 
         {/* דפים של המשתמש הרגיל */}
         <Route path="/matches" element={<Matches />} />
+        <Route path="/my-profile" element={<ProfileView />} /> {/* 🆕 צפייה בפרופיל */}
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/connections" element={<Connections />} />
+        <Route path="/photo-requests" element={<PhotoRequests />} /> {/* 🆕 בקשות תמונות */}
 
         {/* דפים של המנהל */}
         <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/matches" element={<AdminMatches />} /> {/* הנתיב החדש */}
+        <Route path="/admin/matches" element={<AdminMatches />} />
+        <Route path="/admin/pending-profiles" element={<AdminPendingProfiles />} /> {/* 🆕 אישור שינויים */}
+        <Route path="/admin/users" element={<AdminUsers />} /> {/* 🆕 ניהול משתמשים */}
+
 
       </Routes>
     </div>
