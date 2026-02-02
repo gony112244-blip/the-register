@@ -1007,13 +1007,19 @@ app.get('/matches', authenticateToken, async (req, res) => {
         }
 
         // שלב 2: בניית תנאי הסינון
+        let params = [userId];
+        let paramIndex = 2; // כי הפרמטר הראשון הוא userId
         let conditions = [
-            'id != $1',                    // לא את עצמי
-            'is_approved = true',          // רק מאושרים
-            'gender = $2'                  // מגדר הפוך
+            `is_approved = TRUE`,        // רק מאושרים
+            `is_blocked = FALSE`,        // לא חסומים
+            `id != $1`,                  // לא אני עצמי
+            `gender != (SELECT gender FROM users WHERE id = $1)`, // מין נגדי
+            // לא מישהו שכבר יצרתי איתו קשר פעיל
+            `id NOT IN (SELECT receiver_id FROM connections WHERE sender_id = $1 AND status != 'rejected')`,
+            `id NOT IN (SELECT sender_id FROM connections WHERE receiver_id = $1 AND status != 'rejected')`,
+            // 🆕 סינון מוסתרים (סל מחזור)
+            `id NOT IN (SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $1)`
         ];
-        let params = [userId, targetGender];
-        let paramIndex = 3;
 
         // סינון לפי גיל
         if (currentUser.search_min_age) {
@@ -1665,6 +1671,56 @@ app.get('/unread-count', authenticateToken, async (req, res) => {
         res.json({ count: parseInt(result.rows[0].count) });
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// ==========================================
+// 🗑️ סל מחזור (הסתרת פרופילים)
+// ==========================================
+
+// הסתרת פרופיל
+app.post('/api/hide-profile', authenticateToken, async (req, res) => {
+    const { userId, hiddenUserId } = req.body;
+    try {
+        await pool.query(
+            'INSERT INTO hidden_profiles (user_id, hidden_user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [userId, hiddenUserId]
+        );
+        res.json({ message: "הפרופיל הועבר לסל המיחזור" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בהסתרה" });
+    }
+});
+
+// שחזור פרופיל
+app.post('/api/unhide-profile', authenticateToken, async (req, res) => {
+    const { userId, hiddenUserId } = req.body;
+    try {
+        await pool.query(
+            'DELETE FROM hidden_profiles WHERE user_id = $1 AND hidden_user_id = $2',
+            [userId, hiddenUserId]
+        );
+        res.json({ message: "הפרופיל הוחזר לרשימה" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בשחזור" });
+    }
+});
+
+// קבלת רשימת המוסתרים שלי
+app.get('/api/my-hidden-profiles', authenticateToken, async (req, res) => {
+    const { userId } = req.query;
+    try {
+        const result = await pool.query(
+            `SELECT u.id, u.full_name, u.age, u.height, u.status, u.heritage_sector, u.profile_images
+             FROM hidden_profiles h
+             JOIN users u ON h.hidden_user_id = u.id
+             WHERE h.user_id = $1
+             ORDER BY h.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בטעינת מוסתרים" });
     }
 });
 

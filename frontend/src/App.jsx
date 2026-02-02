@@ -12,6 +12,7 @@ import Inbox from './Inbox';
 import Navbar from './Navbar'; // סרגל ניווט
 import Connections from './Connections';
 import PhotoRequests from './PhotoRequests';
+import HiddenProfiles from './HiddenProfiles';
 import ForgotPassword from './ForgotPassword';
 
 import AdminMatches from './AdminMatches';
@@ -62,6 +63,7 @@ function AppContent() {
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/connections" element={<Connections />} />
         <Route path="/photo-requests" element={<PhotoRequests />} />
+        <Route path="/hidden-profiles" element={<HiddenProfiles />} />
 
         {/* דפים של המנהל */}
         <Route path="/admin" element={<AdminDashboard />} />
