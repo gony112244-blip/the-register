@@ -98,6 +98,10 @@ function Login() {
                     אין לך חשבון? <span onClick={() => navigate('/register')} style={linkTextStyle}>הירשם כאן</span>
                 </p>
 
+                <p style={linkStyle}>
+                    <span onClick={() => navigate('/forgot-password')} style={linkTextStyle}>שכחתי סיסמה 🔐</span>
+                </p>
+
                 <p style={phoneInfoStyle}>
                     📞 אפשר להתחבר גם בטלפון: <strong>072-XXX-XXXX</strong>
                 </p>

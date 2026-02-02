@@ -1,30 +1,168 @@
+/* ====================================
+   App CSS - Global Styles & Responsiveness
+   ==================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Heebo', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: right;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  transition: filter 300ms;
+/* Toast Animation */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* ====================================
+   Mobile Responsiveness
+   ==================================== */
+
+/* טאבלטים */
+@media (max-width: 1024px) {
+  .navbar-links {
+    gap: 10px !important;
+  }
+
+  .navbar-links a {
+    padding: 8px 12px !important;
+    font-size: 0.85rem !important;
+  }
 }
 
-/* הסרנו את אנימציית הסיבוב כי היא גורמת לריצוד */
+/* ניידים */
+@media (max-width: 768px) {
+  .navbar {
+    flex-wrap: wrap !important;
+    padding: 10px 15px !important;
+    height: auto !important;
+    min-height: 60px !important;
+    gap: 10px !important;
+  }
 
-.card {
-  padding: 2em;
+  .navbar-logo {
+    font-size: 1.3rem !important;
+  }
+
+  .navbar-links {
+    order: 3 !important;
+    width: 100% !important;
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+    padding: 10px 0 !important;
+  }
+
+  .navbar-links a {
+    padding: 6px 10px !important;
+    font-size: 0.8rem !important;
+    border-radius: 6px !important;
+  }
+
+  .navbar-admin-link {
+    padding: 5px 10px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .navbar-user-section {
+    gap: 8px !important;
+  }
+
+  .navbar-welcome {
+    display: none !important;
+  }
+
+  .navbar-profile-btn,
+  .navbar-logout-btn {
+    padding: 6px 12px !important;
+    font-size: 0.8rem !important;
+  }
 }
 
-.read-the-docs {
-  color: #888;
+/* טלפונים קטנים */
+@media (max-width: 480px) {
+  .navbar-logo {
+    font-size: 1.1rem !important;
+  }
+
+  .navbar-links a {
+    padding: 5px 8px !important;
+    font-size: 0.75rem !important;
+  }
+}
+
+/* Focus States for Accessibility */
+button:focus,
+a:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 3px solid #c9a227;
+  outline-offset: 2px;
+}
+
+/* Disable outline for mouse users */
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better Text Selection */
+::selection {
+  background: #c9a227;
+  color: #1e3a5f;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e3a5f;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2d4a6f;
 }

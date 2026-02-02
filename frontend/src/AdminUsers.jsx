@@ -7,10 +7,9 @@ function AdminUsers() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [showModal, setShowModal] = useState(false);
     const [noteText, setNoteText] = useState('');
     const [messageText, setMessageText] = useState('');
-    const [filter, setFilter] = useState('all'); // all, approved, pending, blocked
+    const [filter, setFilter] = useState('all');
 
     useEffect(() => {
         if (!token) {
@@ -26,7 +25,7 @@ function AdminUsers() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            setUsers(data);
+            setUsers(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error(err);
         }
@@ -56,7 +55,6 @@ function AdminUsers() {
                 body: JSON.stringify({ userId: selectedUser.id, note: noteText })
             });
             alert('ההערה נשמרה');
-            setShowModal(false);
             fetchUsers();
         } catch (err) {
             alert('שגיאה');
@@ -116,121 +114,125 @@ function AdminUsers() {
                     ))}
                 </div>
 
-                {/* רשימת משתמשים */}
-                <div style={styles.usersList}>
-                    {filteredUsers.map(user => (
-                        <div
-                            key={user.id}
-                            style={{
-                                ...styles.userCard,
-                                ...(user.is_blocked ? styles.blockedCard : {}),
-                                ...(selectedUser?.id === user.id ? styles.selectedCard : {})
-                            }}
-                            onClick={() => { setSelectedUser(user); setNoteText(user.admin_notes || ''); }}
-                        >
-                            <div style={styles.userHeader}>
-                                <img
-                                    src={`https://ui-avatars.com/api/?name=${user.full_name}&background=${user.is_blocked ? 'ef4444' : '1e3a5f'}&color=fff&size=50&bold=true`}
-                                    alt={user.full_name}
-                                    style={styles.avatar}
-                                />
-                                <div style={styles.userInfo}>
-                                    <h3 style={styles.userName}>{user.full_name} {user.last_name || ''}</h3>
-                                    <div style={styles.userMeta}>
-                                        <span>#{user.id}</span>
-                                        <span>📱 {user.phone}</span>
-                                        <span>📅 {user.age} שנים</span>
-                                        <span>{user.gender === 'male' ? '👨' : '👩'}</span>
+                {/* Layout שני טורים */}
+                <div style={styles.mainLayout}>
+                    {/* רשימת משתמשים */}
+                    <div style={styles.usersList}>
+                        {filteredUsers.map(user => (
+                            <div
+                                key={user.id}
+                                style={{
+                                    ...styles.userCard,
+                                    ...(user.is_blocked ? styles.blockedCard : {}),
+                                    ...(selectedUser?.id === user.id ? styles.selectedCard : {})
+                                }}
+                                onClick={() => { setSelectedUser(user); setNoteText(user.admin_notes || ''); }}
+                            >
+                                <div style={styles.userHeader}>
+                                    <img
+                                        src={`https://ui-avatars.com/api/?name=${user.full_name}&background=${user.is_blocked ? 'ef4444' : '1e3a5f'}&color=fff&size=50&bold=true`}
+                                        alt={user.full_name}
+                                        style={styles.avatar}
+                                    />
+                                    <div style={styles.userInfo}>
+                                        <h3 style={styles.userName}>{user.full_name} {user.last_name || ''}</h3>
+                                        <div style={styles.userMeta}>
+                                            <span>#{user.id}</span>
+                                            <span>📱 {user.phone}</span>
+                                            <span>📅 {user.age} שנים</span>
+                                            <span>{user.gender === 'male' ? '👨' : '👩'}</span>
+                                        </div>
+                                    </div>
+                                    <div style={styles.badges}>
+                                        {user.is_approved && <span style={styles.approvedBadge}>✅</span>}
+                                        {!user.is_approved && <span style={styles.pendingBadge}>⏳</span>}
+                                        {user.is_blocked && <span style={styles.blockedBadge}>🚫</span>}
                                     </div>
                                 </div>
-                                <div style={styles.badges}>
-                                    {user.is_approved && <span style={styles.approvedBadge}>✅ מאושר</span>}
-                                    {!user.is_approved && <span style={styles.pendingBadge}>⏳ ממתין</span>}
-                                    {user.is_blocked && <span style={styles.blockedBadge}>🚫 חסום</span>}
-                                    {user.profile_images_count > 0 && <span style={styles.photoBadge}>📷 {user.profile_images_count}</span>}
-                                </div>
                             </div>
+                        ))}
+                    </div>
 
-                            {user.admin_notes && (
-                                <div style={styles.notePreview}>
-                                    📝 {user.admin_notes.substring(0, 50)}...
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                {/* פאנל פרטים */}
-                {selectedUser && (
+                    {/* פאנל פרטים */}
                     <div style={styles.detailsPanel}>
-                        <h2 style={styles.panelTitle}>📋 {selectedUser.full_name}</h2>
+                        {selectedUser ? (
+                            <>
+                                <h2 style={styles.panelTitle}>📋 {selectedUser.full_name}</h2>
 
-                        {/* תמונות */}
-                        {selectedUser.profile_images && selectedUser.profile_images.length > 0 && (
-                            <div style={styles.photosSection}>
-                                <h4>📷 תמונות פרופיל:</h4>
-                                <div style={styles.photosGrid}>
-                                    {selectedUser.profile_images.map((img, idx) => (
-                                        <img
-                                            key={idx}
-                                            src={`http://localhost:3000${img}`}
-                                            alt={`תמונה ${idx + 1}`}
-                                            style={styles.photo}
-                                            onClick={() => window.open(`http://localhost:3000${img}`, '_blank')}
-                                        />
-                                    ))}
+                                {/* תמונות */}
+                                {selectedUser.profile_images && selectedUser.profile_images.length > 0 && (
+                                    <div style={styles.photosSection}>
+                                        <h4>📷 תמונות פרופיל:</h4>
+                                        <div style={styles.photosGrid}>
+                                            {selectedUser.profile_images.map((img, idx) => (
+                                                <img
+                                                    key={idx}
+                                                    src={`http://localhost:3000${img}`}
+                                                    alt={`תמונה ${idx + 1}`}
+                                                    style={styles.photo}
+                                                    onClick={() => window.open(`http://localhost:3000${img}`, '_blank')}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* הערות מנהל */}
+                                <div style={styles.section}>
+                                    <h4>📝 הערות פנימיות:</h4>
+                                    <textarea
+                                        value={noteText}
+                                        onChange={(e) => setNoteText(e.target.value)}
+                                        placeholder="הערות לשימוש פנימי בלבד..."
+                                        style={styles.textarea}
+                                    />
+                                    <button onClick={handleSaveNote} style={styles.saveBtn}>
+                                        💾 שמור הערה
+                                    </button>
                                 </div>
-                            </div>
-                        )}
 
-                        {/* הערות מנהל */}
-                        <div style={styles.section}>
-                            <h4>📝 הערות פנימיות:</h4>
-                            <textarea
-                                value={noteText}
-                                onChange={(e) => setNoteText(e.target.value)}
-                                placeholder="הערות לשימוש פנימי בלבד..."
-                                style={styles.textarea}
-                            />
-                            <button onClick={handleSaveNote} style={styles.saveBtn}>
-                                💾 שמור הערה
-                            </button>
-                        </div>
+                                {/* שליחת הודעה */}
+                                <div style={styles.section}>
+                                    <h4>✉️ שליחת הודעה למשתמש:</h4>
+                                    <textarea
+                                        value={messageText}
+                                        onChange={(e) => setMessageText(e.target.value)}
+                                        placeholder="כתוב הודעה..."
+                                        style={styles.textarea}
+                                    />
+                                    <button onClick={handleSendMessage} style={styles.sendBtn}>
+                                        📤 שלח הודעה
+                                    </button>
+                                </div>
 
-                        {/* שליחת הודעה */}
-                        <div style={styles.section}>
-                            <h4>✉️ שליחת הודעה למשתמש:</h4>
-                            <textarea
-                                value={messageText}
-                                onChange={(e) => setMessageText(e.target.value)}
-                                placeholder="כתוב הודעה..."
-                                style={styles.textarea}
-                            />
-                            <button onClick={handleSendMessage} style={styles.sendBtn}>
-                                📤 שלח הודעה
-                            </button>
-                        </div>
+                                {/* פעולות */}
+                                <div style={styles.actions}>
+                                    {!selectedUser.is_blocked ? (
+                                        <button onClick={() => handleBlock(selectedUser.id, true)} style={styles.blockBtn}>
+                                            🚫 חסום משתמש
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => handleBlock(selectedUser.id, false)} style={styles.unblockBtn}>
+                                            ✅ שחרר חסימה
+                                        </button>
+                                    )}
+                                </div>
 
-                        {/* פעולות */}
-                        <div style={styles.actions}>
-                            {!selectedUser.is_blocked ? (
-                                <button onClick={() => handleBlock(selectedUser.id, true)} style={styles.blockBtn}>
-                                    🚫 חסום משתמש
-                                </button>
-                            ) : (
-                                <button onClick={() => handleBlock(selectedUser.id, false)} style={styles.unblockBtn}>
-                                    ✅ שחרר חסימה
-                                </button>
-                            )}
-                        </div>
-
-                        {selectedUser.is_blocked && selectedUser.blocked_reason && (
-                            <div style={styles.blockReason}>
-                                <strong>סיבת חסימה:</strong> {selectedUser.blocked_reason}
+                                {selectedUser.is_blocked && selectedUser.blocked_reason && (
+                                    <div style={styles.blockReason}>
+                                        <strong>סיבת חסימה:</strong> {selectedUser.blocked_reason}
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <div style={styles.noSelection}>
+                                <div style={{ fontSize: '60px', marginBottom: '20px' }}>👆</div>
+                                <h3>בחר משתמש מהרשימה</h3>
+                                <p>לחץ על משתמש כדי לראות פרטים ולבצע פעולות</p>
                             </div>
                         )}
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
@@ -244,7 +246,7 @@ const styles = {
         direction: 'rtl',
         fontFamily: "'Heebo', 'Segoe UI', sans-serif"
     },
-    container: { maxWidth: '1200px', margin: '0 auto' },
+    container: { maxWidth: '1400px', margin: '0 auto' },
     loadingContainer: {
         height: '100vh',
         display: 'flex',
@@ -270,7 +272,8 @@ const styles = {
         border: '1px solid rgba(255,255,255,0.2)',
         color: '#fff',
         borderRadius: '10px',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        transition: 'all 0.2s'
     },
     activeFilter: {
         padding: '10px 20px',
@@ -281,13 +284,26 @@ const styles = {
         cursor: 'pointer',
         fontWeight: 'bold'
     },
-    usersList: { display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' },
+    mainLayout: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 400px',
+        gap: '20px',
+        alignItems: 'start'
+    },
+    usersList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px',
+        maxHeight: 'calc(100vh - 200px)',
+        overflowY: 'auto',
+        paddingLeft: '10px'
+    },
     userCard: {
         background: '#fff',
         borderRadius: '15px',
         padding: '15px 20px',
         cursor: 'pointer',
-        transition: 'transform 0.2s',
+        transition: 'all 0.2s',
         border: '3px solid transparent'
     },
     blockedCard: { background: '#fef2f2', borderColor: '#ef4444' },
@@ -296,33 +312,35 @@ const styles = {
     avatar: { width: '50px', height: '50px', borderRadius: '50%' },
     userInfo: { flex: 1 },
     userName: { margin: '0 0 5px', color: '#1e3a5f', fontSize: '1.1rem' },
-    userMeta: { display: 'flex', gap: '15px', fontSize: '0.85rem', color: '#6b7280' },
-    badges: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-    approvedBadge: { background: '#d4edda', color: '#155724', padding: '4px 10px', borderRadius: '15px', fontSize: '0.8rem' },
-    pendingBadge: { background: '#fff3cd', color: '#856404', padding: '4px 10px', borderRadius: '15px', fontSize: '0.8rem' },
-    blockedBadge: { background: '#f8d7da', color: '#721c24', padding: '4px 10px', borderRadius: '15px', fontSize: '0.8rem' },
-    photoBadge: { background: '#c9a227', color: '#1a1a1a', padding: '4px 10px', borderRadius: '15px', fontSize: '0.8rem', fontWeight: 'bold' },
-    notePreview: { marginTop: '10px', background: '#f3f4f6', padding: '8px 12px', borderRadius: '8px', fontSize: '0.85rem', color: '#6b7280' },
+    userMeta: { display: 'flex', gap: '15px', fontSize: '0.85rem', color: '#6b7280', flexWrap: 'wrap' },
+    badges: { display: 'flex', gap: '5px' },
+    approvedBadge: { background: '#d4edda', padding: '4px 8px', borderRadius: '10px', fontSize: '0.9rem' },
+    pendingBadge: { background: '#fff3cd', padding: '4px 8px', borderRadius: '10px', fontSize: '0.9rem' },
+    blockedBadge: { background: '#f8d7da', padding: '4px 8px', borderRadius: '10px', fontSize: '0.9rem' },
     detailsPanel: {
         background: '#fff',
         borderRadius: '20px',
         padding: '25px',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+        boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+        position: 'sticky',
+        top: '90px'
     },
+    noSelection: { textAlign: 'center', padding: '40px 20px', color: '#6b7280' },
     panelTitle: { margin: '0 0 20px', color: '#1e3a5f' },
     photosSection: { marginBottom: '20px' },
     photosGrid: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
-    photo: { width: '100px', height: '100px', objectFit: 'cover', borderRadius: '10px', cursor: 'pointer', border: '2px solid #e5e7eb' },
+    photo: { width: '80px', height: '80px', objectFit: 'cover', borderRadius: '10px', cursor: 'pointer', border: '2px solid #e5e7eb' },
     section: { marginBottom: '20px' },
     textarea: {
         width: '100%',
-        minHeight: '80px',
+        minHeight: '70px',
         padding: '12px',
         border: '2px solid #e5e7eb',
         borderRadius: '10px',
         fontSize: '0.95rem',
         resize: 'vertical',
-        marginBottom: '10px'
+        marginBottom: '10px',
+        boxSizing: 'border-box'
     },
     saveBtn: {
         padding: '10px 25px',
@@ -344,7 +362,8 @@ const styles = {
     },
     actions: { marginTop: '20px' },
     blockBtn: {
-        padding: '12px 30px',
+        width: '100%',
+        padding: '12px',
         background: 'linear-gradient(135deg, #ef4444, #dc2626)',
         color: '#fff',
         border: 'none',
@@ -353,7 +372,8 @@ const styles = {
         cursor: 'pointer'
     },
     unblockBtn: {
-        padding: '12px 30px',
+        width: '100%',
+        padding: '12px',
         background: 'linear-gradient(135deg, #22c55e, #16a34a)',
         color: '#fff',
         border: 'none',

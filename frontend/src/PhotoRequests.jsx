@@ -22,9 +22,11 @@ function PhotoRequests() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            setRequests(data);
+            // הגנה: וודא שזה מערך
+            setRequests(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error(err);
+            setRequests([]);
         }
         setLoading(false);
     };
@@ -80,7 +82,7 @@ function PhotoRequests() {
                             <div key={idx} style={styles.requestCard}>
                                 <div style={styles.requestHeader}>
                                     <img
-                                        src={`https://ui-avatars.com/api/?name=${req.full_name}&background=6366f1&color=fff&size=60&bold=true`}
+                                        src={`https://ui-avatars.com/api/?name=${req.full_name}&background=1e3a5f&color=fff&size=60&bold=true`}
                                         alt={req.full_name}
                                         style={styles.avatar}
                                     />
@@ -257,7 +259,7 @@ const styles = {
     autoApproveButton: {
         flex: 1,
         padding: '12px',
-        background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)',
         color: '#fff',
         border: 'none',
         borderRadius: '10px',

@@ -1,27 +1,27 @@
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { ToastProvider } from './components/ToastProvider';
 import Home from './Home';
 import Login from './Login';
 import Profile from './Profile';
-import ProfileView from './ProfileView'; // 🆕 צפייה בפרופיל
+import ProfileView from './ProfileView';
 import AdminDashboard from './AdminDashboard';
 import Register from './Register';
 import Matches from './Matches';
 import Inbox from './Inbox';
 import Navbar from './Navbar';
 import Connections from './Connections';
-import PhotoRequests from './PhotoRequests'; // 🆕 בקשות תמונות
+import PhotoRequests from './PhotoRequests';
+import ForgotPassword from './ForgotPassword';
 
-// --- התיקון הקריטי כאן: מייבאים מהקובץ הנכון ---
 import AdminMatches from './AdminMatches';
-import AdminPendingProfiles from './AdminPendingProfiles'; // 🆕 אישור שינויי פרופיל
-import AdminUsers from './AdminUsers'; // 🆕 ניהול משתמשים
+import AdminPendingProfiles from './AdminPendingProfiles';
+import AdminUsers from './AdminUsers';
 
 import './App.css';
 
-// קומפוננט עזר שמציג Navbar רק בדפים פנימיים
 function AppContent() {
   const location = useLocation();
-  const hideNavbarOn = ['/', '/login', '/register']; // דפים שלא צריכים Navbar
+  const hideNavbarOn = ['/', '/login', '/register', '/forgot-password'];
   const showNavbar = !hideNavbarOn.includes(location.pathname);
 
   return (
@@ -32,21 +32,20 @@ function AppContent() {
         <Route path="/login" element={<Login />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* דפים של המשתמש הרגיל */}
         <Route path="/matches" element={<Matches />} />
-        <Route path="/my-profile" element={<ProfileView />} /> {/* 🆕 צפייה בפרופיל */}
+        <Route path="/my-profile" element={<ProfileView />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/connections" element={<Connections />} />
-        <Route path="/photo-requests" element={<PhotoRequests />} /> {/* 🆕 בקשות תמונות */}
+        <Route path="/photo-requests" element={<PhotoRequests />} />
 
         {/* דפים של המנהל */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/matches" element={<AdminMatches />} />
-        <Route path="/admin/pending-profiles" element={<AdminPendingProfiles />} /> {/* 🆕 אישור שינויים */}
-        <Route path="/admin/users" element={<AdminUsers />} /> {/* 🆕 ניהול משתמשים */}
-
-
+        <Route path="/admin/pending-profiles" element={<AdminPendingProfiles />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
       </Routes>
     </div>
   );
@@ -54,9 +53,11 @@ function AppContent() {
 
 function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <ToastProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </ToastProvider>
   );
 }
 

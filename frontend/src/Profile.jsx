@@ -1046,7 +1046,7 @@ function Profile() {
                         }}
                     />
                     <button onClick={() => document.getElementById('idCardInput').click()} disabled={uploading}
-                        style={{ ...styles.saveButton, background: uploading ? '#ccc' : 'linear-gradient(135deg, #3b82f6, #6366f1)' }}>
+                        style={{ ...styles.saveButton, background: uploading ? '#ccc' : 'linear-gradient(135deg, #1e3a5f, #2d4a6f)' }}>
                         {uploading ? '⏳ מעלה...' : (user.id_card_image_url ? '🔄 להחלפה' : '📤 להעלאת ת"ז')}
                     </button>
 

@@ -141,7 +141,7 @@ function ProfileView() {
                             </div>
 
                             {/* מראה */}
-                            <div style={styles.infoBox('#fdf4ff', '#a855f7')}>
+                            <div style={styles.infoBox('#f0f9ff', '#1e3a5f')}>
                                 <h4 style={styles.boxTitle}>🪞 מראה חיצוני</h4>
                                 <div style={styles.detailsGrid}>
                                     <div style={styles.detailItem}><span>גובה:</span> <strong>{user.height || '-'} ס"מ</strong></div>
@@ -151,7 +151,7 @@ function ProfileView() {
                             </div>
 
                             {/* עיסוק */}
-                            <div style={styles.infoBox('#eff6ff', '#3b82f6')}>
+                            <div style={styles.infoBox('#f0f9ff', '#1e3a5f')}>
                                 <h4 style={styles.boxTitle}>💼 עיסוק</h4>
                                 <div style={styles.detailsGrid}>
                                     <div style={styles.detailItem}><span>עיסוק:</span> <strong>{tr('current_occupation', user.current_occupation)}</strong></div>
@@ -238,7 +238,7 @@ function ProfileView() {
 const styles = {
     pageWrapper: {
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
+        background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)',
         fontFamily: "'Heebo', 'Segoe UI', sans-serif",
         direction: 'rtl',
         padding: '20px'
@@ -249,7 +249,7 @@ const styles = {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+        background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 100%)',
         color: 'white'
     },
     spinner: {
@@ -328,7 +328,7 @@ const styles = {
         padding: '15px',
         background: '#fff',
         border: 'none',
-        borderBottom: '3px solid #6366f1',
+        borderBottom: '3px solid #c9a227',
         cursor: 'pointer',
         fontSize: '0.95rem',
         color: '#1e3a5f',

@@ -5,6 +5,8 @@ function Matches() {
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 6;
     const navigate = useNavigate();
 
     // שליפת הטוקן (התיקון החדש)
@@ -47,19 +49,23 @@ function Matches() {
         })
             .then(res => {
                 if (res.status === 401) {
-                    navigate('/login'); // אם הטוקן פג תוקף
+                    navigate('/login');
                     return null;
+                }
+                if (!res.ok) {
+                    console.error('Server error:', res.status);
+                    return [];
                 }
                 return res.json();
             })
             .then(data => {
-                if (data) {
-                    setMatches(data);
-                }
+                // הגנה: וודא שזה מערך
+                setMatches(Array.isArray(data) ? data : []);
                 setLoading(false);
             })
             .catch(err => {
                 console.error("Error fetching matches:", err);
+                setMatches([]);
                 setLoading(false);
             });
 
@@ -96,6 +102,11 @@ function Matches() {
             alert("תקלה בתקשורת עם השרת");
         }
     };
+
+    // דפדוף
+    const totalPages = Math.ceil(matches.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedMatches = matches.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     if (loading) return (
         <div style={styles.loadingContainer}>
@@ -140,13 +151,16 @@ function Matches() {
                     <>
                         <div style={styles.headerSection}>
                             <h2 style={styles.pageTitle}>ההתאמות שלך להיום</h2>
-                            <p style={styles.subTitle}>מצאנו עבורך מועמדים על בסיס ההעדפות שלך</p>
+                            <p style={styles.subTitle}>
+                                מצאנו עבורך {matches.length} מועמדים מתאימים
+                                {totalPages > 1 && ` (עמוד ${currentPage} מתוך ${totalPages})`}
+                            </p>
                         </div>
 
                         <div style={styles.grid}>
-                            {matches.length > 0 ? (
-                                matches.map((match, index) => (
-                                    <div key={index} style={styles.card}>
+                            {paginatedMatches.length > 0 ? (
+                                paginatedMatches.map((match, index) => (
+                                    <div key={match.id || index} style={styles.card}>
                                         <div style={styles.cardHeader}>
                                             <div style={styles.matchBadge}>{match.sector}</div>
                                             {/* תג תמונות */}
@@ -232,6 +246,39 @@ function Matches() {
                                 </div>
                             )}
                         </div>
+
+                        {/* כפתורי דפדוף */}
+                        {totalPages > 1 && (
+                            <div style={styles.pagination}>
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                    style={currentPage === 1 ? styles.pageButtonDisabled : styles.pageButton}
+                                >
+                                    → הקודם
+                                </button>
+
+                                <div style={styles.pageNumbers}>
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            style={page === currentPage ? styles.pageButtonActive : styles.pageButton}
+                                        >
+                                            {page}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <button
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                    style={currentPage === totalPages ? styles.pageButtonDisabled : styles.pageButton}
+                                >
+                                    הבא ←
+                                </button>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -243,8 +290,8 @@ function Matches() {
 const styles = {
     pageWrapper: {
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)',
-        fontFamily: "'Segoe UI', sans-serif",
+        background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)',
+        fontFamily: "'Heebo', 'Segoe UI', sans-serif",
         direction: 'rtl',
         color: '#1f2937'
     },
@@ -254,7 +301,7 @@ const styles = {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        background: '#6366f1',
+        background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 100%)',
         color: 'white'
     },
     navbar: {
@@ -277,7 +324,7 @@ const styles = {
     logo: {
         margin: 0,
         fontSize: '1.5rem',
-        background: 'linear-gradient(to right, #6366f1, #ec4899)',
+        background: 'linear-gradient(to right, #1e3a5f, #c9a227)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         fontWeight: 'bold'
@@ -333,14 +380,14 @@ const styles = {
     },
     cardHeader: {
         height: '100px',
-        background: 'linear-gradient(to right, #a855f7, #ec4899)',
+        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)',
         position: 'relative'
     },
     matchBadge: {
         position: 'absolute',
         top: '15px',
         right: '15px',
-        background: 'rgba(255,255,255,0.2)',
+        background: 'rgba(201, 162, 39, 0.3)',
         color: 'white',
         padding: '4px 12px',
         borderRadius: '12px',
@@ -435,15 +482,14 @@ const styles = {
     },
     outlineButton: {
         background: 'transparent',
-        border: '2px solid #6366f1',
-        color: '#6366f1',
+        border: '2px solid #1e3a5f',
+        color: '#1e3a5f',
         padding: '10px 20px',
         borderRadius: '10px',
         fontWeight: 'bold',
         marginTop: '15px',
         cursor: 'pointer'
     },
-    // הסבר: עיצוב להודעה שמופיעה למשתמש שמחכה לאישור
     pendingApproval: {
         background: 'white',
         padding: '60px 40px',
@@ -452,6 +498,48 @@ const styles = {
         boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
         maxWidth: '500px',
         margin: '40px auto'
+    },
+    // סגנונות דפדוף
+    pagination: {
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: '15px',
+        marginTop: '40px',
+        flexWrap: 'wrap'
+    },
+    pageNumbers: {
+        display: 'flex',
+        gap: '8px'
+    },
+    pageButton: {
+        background: 'white',
+        color: '#1e3a5f',
+        border: '2px solid #1e3a5f',
+        padding: '10px 18px',
+        borderRadius: '10px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        transition: 'all 0.2s'
+    },
+    pageButtonActive: {
+        background: 'linear-gradient(135deg, #c9a227, #f59e0b)',
+        color: '#1a1a1a',
+        border: 'none',
+        padding: '10px 18px',
+        borderRadius: '10px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        boxShadow: '0 4px 15px rgba(201, 162, 39, 0.4)'
+    },
+    pageButtonDisabled: {
+        background: '#e5e7eb',
+        color: '#9ca3af',
+        border: 'none',
+        padding: '10px 18px',
+        borderRadius: '10px',
+        fontWeight: 'bold',
+        cursor: 'not-allowed'
     }
 };
 

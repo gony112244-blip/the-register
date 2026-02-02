@@ -86,7 +86,18 @@ app.get('/api/stats', async (req, res) => {
         const result = await pool.query('SELECT COUNT(*) FROM users');
         res.json({ totalUsers: result.rows[0].count });
     } catch (err) {
-        res.status(500).json({ message: "שגיאת שרת" });
+        console.error("DB Error:", err.message);
+        res.status(500).json({ message: "שגיאת שרת", error: err.message });
+    }
+});
+
+// בדיקת בריאות DB
+app.get('/health', async (req, res) => {
+    try {
+        await pool.query('SELECT 1');
+        res.json({ status: 'ok', db: 'connected' });
+    } catch (err) {
+        res.json({ status: 'error', db: 'disconnected', error: err.message });
     }
 });
 
@@ -158,6 +169,124 @@ app.post('/register', async (req, res) => {
     } catch (err) {
         if (err.code === '23505') return res.status(400).json({ message: "המספר כבר רשום במערכת" });
         res.status(500).json({ message: "שגיאת שרת פנימית" });
+    }
+});
+
+// ==========================================
+// 🔐 שכחתי סיסמה
+// ==========================================
+
+// אחסון קודי איפוס (בזיכרון - בפרודקשן צריך Redis)
+const resetCodes = new Map();
+
+// שלב 1: שליחת קוד איפוס
+app.post('/forgot-password', async (req, res) => {
+    const { phone, method, email } = req.body;
+
+    try {
+        // בדיקה אם המשתמש קיים
+        const result = await pool.query('SELECT id, email FROM users WHERE phone = $1', [phone]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "מספר הטלפון לא נמצא במערכת" });
+        }
+
+        // יצירת קוד 6 ספרות
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // שמירת הקוד עם תוקף של 10 דקות
+        resetCodes.set(phone, {
+            code,
+            expires: Date.now() + 10 * 60 * 1000,
+            attempts: 0,
+            method
+        });
+
+        if (method === 'email') {
+            // TODO: בפרודקשן - לשלוח מייל אמיתי עם nodemailer
+            console.log(`📧 קוד איפוס נשלח למייל ${email}: ${code}`);
+            // לצרכי פיתוח - מחזירים את הקוד
+            res.json({
+                message: "קוד אימות נשלח למייל",
+                code: code // הסר בפרודקשן!
+            });
+        } else if (method === 'call') {
+            // TODO: בפרודקשן - להתחבר לשירות IVR (כמו Twilio)
+            console.log(`📞 שיחה קולית לטלפון ${phone} עם הקוד: ${code}`);
+            // לצרכי פיתוח - מחזירים את הקוד
+            res.json({
+                message: "שיחה קולית יוצאת אליך עכשיו",
+                code: code // הסר בפרודקשן!
+            });
+        } else {
+            res.status(400).json({ message: "נא לבחור שיטת קבלת קוד" });
+        }
+
+    } catch (err) {
+        console.error("Forgot password error:", err);
+        res.status(500).json({ message: "שגיאת שרת" });
+    }
+});
+
+// שלב 2: אימות הקוד
+app.post('/verify-reset-code', async (req, res) => {
+    const { phone, code } = req.body;
+
+    const stored = resetCodes.get(phone);
+
+    if (!stored) {
+        return res.status(400).json({ message: "לא נמצא קוד איפוס. בקש קוד חדש." });
+    }
+
+    if (Date.now() > stored.expires) {
+        resetCodes.delete(phone);
+        return res.status(400).json({ message: "הקוד פג תוקף. בקש קוד חדש." });
+    }
+
+    stored.attempts++;
+    if (stored.attempts > 5) {
+        resetCodes.delete(phone);
+        return res.status(429).json({ message: "יותר מדי ניסיונות. בקש קוד חדש." });
+    }
+
+    if (stored.code !== code) {
+        return res.status(400).json({ message: "קוד שגוי. נסה שוב." });
+    }
+
+    // הקוד נכון - מסמנים שאומת
+    stored.verified = true;
+    res.json({ message: "הקוד אומת בהצלחה" });
+});
+
+// שלב 3: איפוס הסיסמה
+app.post('/reset-password', async (req, res) => {
+    const { phone, code, newPassword } = req.body;
+
+    const stored = resetCodes.get(phone);
+
+    if (!stored || !stored.verified || stored.code !== code) {
+        return res.status(400).json({ message: "תהליך האימות לא הושלם. התחל מחדש." });
+    }
+
+    if (Date.now() > stored.expires) {
+        resetCodes.delete(phone);
+        return res.status(400).json({ message: "פג תוקף. התחל מחדש." });
+    }
+
+    try {
+        const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+        await pool.query(
+            'UPDATE users SET password = $1 WHERE phone = $2',
+            [hashedPassword, phone]
+        );
+
+        resetCodes.delete(phone);
+
+        res.json({ message: "הסיסמה שונתה בהצלחה!" });
+    } catch (err) {
+        console.error("Reset password error:", err);
+        res.status(500).json({ message: "שגיאת שרת" });
     }
 });
 
@@ -763,9 +892,31 @@ app.get('/matches', authenticateToken, async (req, res) => {
             return res.json([]);
         }
 
-        // הסבר: בניית שאילתה דינמית לסינון
         // מחפשים את המגדר ההפוך
         const targetGender = currentUser.gender === 'male' ? 'female' : 'male';
+
+        // שאילתה פשוטה - רק מגדר הפוך ומאושרים
+        try {
+            const simpleResult = await pool.query(`
+                SELECT id, full_name, last_name, age, height, gender,
+                       family_background, heritage_sector, body_type, appearance,
+                       current_occupation, about_me, 
+                       COALESCE(profile_images_count, 0) as profile_images_count
+                FROM users
+                WHERE id != $1 
+                  AND is_approved = true 
+                  AND gender = $2
+                ORDER BY id DESC
+                LIMIT 20
+            `, [userId, targetGender]);
+
+            console.log(`Found ${simpleResult.rows.length} matches for user ${userId}`);
+            return res.json(simpleResult.rows);
+        } catch (queryErr) {
+            console.error("Simple query failed:", queryErr.message);
+            // אם גם השאילתה הפשוטה נכשלת, נחזיר מערך ריק
+            return res.json([]);
+        }
 
         // שלב 2: בניית תנאי הסינון
         let conditions = [
@@ -916,7 +1067,9 @@ app.get('/matches', authenticateToken, async (req, res) => {
         res.json(result.rows);
 
     } catch (err) {
-        console.error("Match error:", err);
+        console.error("Match error:", err.message);
+        console.error("Query params:", params);
+        console.error("Full error:", err);
         res.status(500).json({ message: "תקלה בטעינת השידוכים" });
     }
 });

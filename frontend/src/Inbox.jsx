@@ -340,9 +340,9 @@ const styles = {
         cursor: 'pointer', fontWeight: 'bold'
     },
     actionBtn: {
-        background: '#3b82f6', color: '#fff',
+        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)', color: '#fff',
         border: 'none', padding: '10px 25px', borderRadius: '10px',
-        cursor: 'pointer', marginTop: '15px'
+        cursor: 'pointer', marginTop: '15px', fontWeight: 'bold'
     },
     emptyState: { textAlign: 'center', padding: '40px', color: '#666' }
 };
