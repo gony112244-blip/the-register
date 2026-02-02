@@ -304,7 +304,9 @@ const styles = {
         padding: '15px 20px',
         cursor: 'pointer',
         transition: 'all 0.2s',
-        border: '3px solid transparent'
+        borderWidth: '3px',
+        borderStyle: 'solid',
+        borderColor: 'transparent'
     },
     blockedCard: { background: '#fef2f2', borderColor: '#ef4444' },
     selectedCard: { borderColor: '#c9a227', boxShadow: '0 0 20px rgba(201, 162, 39, 0.5)' },

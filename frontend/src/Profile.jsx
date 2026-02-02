@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from './components/ToastProvider';
 
 function Profile() {
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
     const savedUser = JSON.parse(localStorage.getItem('user'));
+    const { showToast } = useToast();
 
     // מצב הטופס - כל השדות
     const [user, setUser] = useState({
@@ -35,7 +37,7 @@ function Profile() {
         about_me: '', home_style: '', partner_description: '', important_in_life: '',
 
         // חלק ב - פרטים נסתרים
-        full_address: '', father_full_name: '', mother_full_name: '', siblings_details: '',
+        email: '', full_address: '', father_full_name: '', mother_full_name: '', siblings_details: '',
         reference_1_name: '', reference_1_phone: '',
         reference_2_name: '', reference_2_phone: '',
         reference_3_name: '', reference_3_phone: '',
@@ -56,7 +58,6 @@ function Profile() {
     });
 
     const [activeSection, setActiveSection] = useState(1); // איזה חלק פתוח
-    const [message, setMessage] = useState('');
     const [uploading, setUploading] = useState(false);
 
     // טעינת פרטי משתמש
@@ -104,13 +105,13 @@ function Profile() {
 
                 if (res.ok) {
                     const data = await res.json();
-                    setMessage(`✅ ${data.message}\n${data.info}`);
+                    showToast(`${data.message}\n${data.info}`, "info");
                     // עדכון מצב ממתין
                     setUser(prev => ({ ...prev, is_profile_pending: true }));
                     setTimeout(() => navigate('/my-profile'), 2000);
                 } else {
                     const error = await res.json();
-                    setMessage(`❌ ${error.message}`);
+                    showToast(error.message, "error");
                 }
             } else {
                 // משתמש חדש - שמירה ישירה
@@ -126,14 +127,13 @@ function Profile() {
                 if (res.ok) {
                     const data = await res.json();
                     localStorage.setItem('user', JSON.stringify(data.user));
-                    setMessage("✅ הפרטים נשמרו בהצלחה!");
-                    setTimeout(() => setMessage(''), 3000);
+                    showToast("הפרטים נשמרו בהצלחה!", "success");
                 } else {
-                    setMessage("❌ שגיאה בשמירה");
+                    showToast("שגיאה בשמירה", "error");
                 }
             }
         } catch (err) {
-            setMessage("❌ שגיאה בתקשורת לשרת");
+            showToast("שגיאה בתקשורת לשרת", "error");
         }
     };
 
@@ -156,12 +156,12 @@ function Profile() {
             const data = await res.json();
             if (res.ok) {
                 setUser(prev => ({ ...prev, id_card_image_url: data.imageUrl }));
-                setMessage("✅ תמונת ת.ז. הועלתה!");
+                showToast("תמונת ת.ז. הועלתה!", "success");
             } else {
-                setMessage("❌ " + data.message);
+                showToast(data.message, "error");
             }
         } catch (err) {
-            setMessage("❌ שגיאה בהעלאה");
+            showToast("שגיאה בהעלאה", "error");
         }
         setUploading(false);
     };
@@ -177,7 +177,7 @@ function Profile() {
                     <p style={styles.subtitle}>ככל שתמלא יותר פרטים - כך נוכל להציע לך הצעות מדויקות יותר</p>
                 </div>
 
-                {message && <div style={styles.alert}>{message}</div>}
+
 
                 {/* סטטוס אישור - מתוקן */}
                 <div style={{
@@ -572,6 +572,10 @@ function Profile() {
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>כתובת מלאה</label>
                                     <input name="full_address" value={user.full_address || ''} onChange={handleChange} style={styles.input} placeholder="עיר, רחוב, מספר" />
+                                </div>
+                                <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
+                                    <label>אימייל (לקבלת התראות ושחזור סיסמה)</label>
+                                    <input name="email" type="email" value={user.email || ''} onChange={handleChange} style={styles.input} placeholder="your@email.com" />
                                 </div>
                                 <div style={styles.field}>
                                     <label>שם מלא של האבא</label>

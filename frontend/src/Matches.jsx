@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from './components/ToastProvider';
 
 function Matches() {
+    const navigate = useNavigate();
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [user, setUser] = useState(null);
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user'));
+    const { showToast } = useToast();
+
+    // מצב דפדוף
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 6;
-    const navigate = useNavigate();
-
-    // שליפת הטוקן (התיקון החדש)
-    const token = localStorage.getItem('token');
 
     useEffect(() => {
         const savedUser = localStorage.getItem('user');
@@ -22,7 +24,7 @@ function Matches() {
         }
 
         const currentUser = JSON.parse(savedUser);
-        setUser(currentUser);
+        // setUser(currentUser); // הוסר כי user נקרא כבר למעלה
 
         // הסבר: בדיקה אם המשתמש מאושר
         // אם הוא עדיין לא אושר - לא נטען התאמות, נציג הודעה
@@ -33,7 +35,7 @@ function Matches() {
 
         // --- הוספתי הגנה קטנה למניעת מסך ריק ---
         if (!currentUser.gender) {
-            alert("חובה לעדכן מגדר בפרופיל כדי לקבל התאמות!");
+            showToast("חובה לעדכן מגדר בפרופיל כדי לקבל התאמות!", "warning");
             navigate('/profile');
             return;
         }
@@ -90,16 +92,16 @@ function Matches() {
             const data = await response.json();
 
             if (response.ok) {
-                alert(`🎉 ${data.message}`);
+                showToast(`🎉 ${data.message}`, "success");
                 // עדכון הרשימה המקומית (אופציונלי - להסיר את מי שעשינו לו לייק)
                 // setMatches(matches.filter(m => m.id !== matchId)); 
             } else {
-                alert(`⚠️ שים לב: ${data.message}`);
+                showToast(`⚠️ שים לב: ${data.message}`, "warning");
             }
 
         } catch (err) {
             console.error("Connection error:", err);
-            alert("תקלה בתקשורת עם השרת");
+            showToast("תקלה בתקשורת עם השרת", "error");
         }
     };
 
@@ -117,17 +119,7 @@ function Matches() {
 
     return (
         <div style={styles.pageWrapper}>
-            <nav style={styles.navbar}>
-                <div style={styles.navContent}>
-                    <h1 style={styles.logo}>הפנקס 📋</h1>
-                    <div style={styles.userInfo}>
-                        <span>שלום, {user?.full_name}</span>
-                        <button onClick={() => navigate('/profile')} style={styles.iconButton}>
-                            ⚙ פרופיל
-                        </button>
-                    </div>
-                </div>
-            </nav>
+
 
             <div style={styles.container}>
                 {/* הסבר: בדיקה אם המשתמש מאושר - אם לא, מציגים הודעה */}

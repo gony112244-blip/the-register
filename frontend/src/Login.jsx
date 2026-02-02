@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from './components/ToastProvider';
 
 function Login() {
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false); // הסבר: מצב הצגת סיסמה
-    const [message, setMessage] = useState('');
+    const { showToast } = useToast();
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
@@ -21,7 +22,7 @@ function Login() {
             const data = await response.json();
 
             if (!response.ok) {
-                setMessage(data.message || "שגיאה בהתחברות");
+                showToast(data.message || "שגיאה בהתחברות", "error");
                 return;
             }
 
@@ -29,20 +30,24 @@ function Login() {
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
 
+            showToast(`ברוך הבא, ${data.user.full_name}! 👋`, "success");
+
             const loggedUser = data.user;
 
             // ניתוב לפי סוג משתמש
-            if (loggedUser.is_admin) {
-                navigate('/admin');
-            } else if (loggedUser.gender && loggedUser.age) {
-                navigate('/matches');
-            } else {
-                navigate('/profile');
-            }
+            setTimeout(() => {
+                if (loggedUser.is_admin) {
+                    navigate('/admin');
+                } else if (loggedUser.gender && loggedUser.age) {
+                    navigate('/matches');
+                } else {
+                    navigate('/profile');
+                }
+            }, 1000); // השהייה קטנה כדי לראות את ה-toast
 
         } catch (err) {
             console.error("Login error:", err);
-            setMessage("תקלה בתקשורת עם השרת");
+            showToast("תקלה בתקשורת עם השרת", "error");
         }
     };
 
@@ -89,7 +94,7 @@ function Login() {
                         </div>
                     </div>
 
-                    {message && <p style={messageStyle}>{message}</p>}
+
 
                     <button type="submit" style={buttonStyle}>התחבר</button>
                 </form>

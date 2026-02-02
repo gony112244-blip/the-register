@@ -6,6 +6,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer'); // הסבר: ספרייה להעלאת קבצים
 const path = require('path'); // הסבר: לעבודה עם נתיבי קבצים
+const nodemailer = require('nodemailer'); // ספרייה לשליחת מיילים
 
 const app = express();
 
@@ -18,6 +19,71 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const port = process.env.PORT || 3000;
 const saltRounds = 10;
+
+// ==========================================
+// 📧 הגדרת שירות המיילים
+// ==========================================
+let transporter = null;
+
+// פונקציה לאתחול ה-Mailer (נקראת כשהשרת עולה)
+async function initMailer() {
+    try {
+        if (!process.env.EMAIL_SERVICE || process.env.EMAIL_SERVICE === 'ethereal') {
+            // יצירת חשבון טסט אוטומטי (לפיתוח)
+            const testAccount = await nodemailer.createTestAccount();
+            transporter = nodemailer.createTransport({
+                host: "smtp.ethereal.email",
+                port: 587,
+                secure: false, // true for 465, false for other ports
+                auth: {
+                    user: testAccount.user,
+                    pass: testAccount.pass,
+                },
+            });
+            console.log('📧 Mailer initialized: Using Ethereal (Development Mode)');
+        } else {
+            // שימוש בשירות אמיתי (Gmail וכו')
+            transporter = nodemailer.createTransport({
+                service: process.env.EMAIL_SERVICE, // 'gmail'
+                auth: {
+                    user: process.env.EMAIL_USER,
+                    pass: process.env.EMAIL_PASS,
+                },
+            });
+            console.log(`📧 Mailer initialized: Using ${process.env.EMAIL_SERVICE}`);
+        }
+    } catch (err) {
+        console.error("❌ Mailer initialization failed:", err);
+    }
+}
+
+// הפעלת האתחול
+initMailer();
+
+// פונקציית עזר לשליחת מייל
+async function sendEmail(to, subject, htmlContent) {
+    if (!transporter) await initMailer();
+
+    try {
+        const info = await transporter.sendMail({
+            from: '"הפנקס - שידוכים" <noreply@hapinkas.com>',
+            to: to,
+            subject: subject,
+            html: htmlContent,
+        });
+
+        console.log("📨 Email sent: %s", info.messageId);
+
+        // ב-Dev מציגים לינק לצפייה
+        if (!process.env.EMAIL_SERVICE || process.env.EMAIL_SERVICE === 'ethereal') {
+            console.log("🔗 Preview URL: %s", nodemailer.getTestMessageUrl(info));
+        }
+        return true;
+    } catch (err) {
+        console.error("❌ Error sending email:", err);
+        return false;
+    }
+}
 
 // ==========================================
 // 📁 הגדרת Multer להעלאת קבצים
@@ -141,30 +207,43 @@ app.post('/login', async (req, res) => {
 // הסבר: אחרי הרשמה מוצלחת, מייצרים טוקן ומחזירים אותו
 // כך המשתמש נכנס מיד בלי צורך להתחבר שוב
 app.post('/register', async (req, res) => {
-    const { phone, password, full_name } = req.body;
+    const { phone, password, full_name, email } = req.body;
     try {
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
         // שמירת המשתמש החדש - is_approved=false כי צריך אישור אחרי מילוי פרטים
+        // הוספנו את שדה ה-email
         const result = await pool.query(
-            'INSERT INTO users (phone, password, full_name, is_approved, is_admin) VALUES ($1, $2, $3, false, false) RETURNING *',
-            [phone, hashedPassword, full_name]
+            'INSERT INTO users (phone, password, full_name, email, is_approved, is_admin) VALUES ($1, $2, $3, $4, false, false) RETURNING *',
+            [phone, hashedPassword, full_name, email]
         );
 
         const newUser = result.rows[0];
-        delete newUser.password; // לא מחזירים סיסמה ללקוח!
+        delete newUser.password;
 
-        // יצירת טוקן - כך המשתמש יוכל להיכנס מיד
+        // יצירת טוקן
         const token = jwt.sign(
             { id: newUser.id, is_admin: newUser.is_admin },
             process.env.JWT_SECRET,
-            { expiresIn: '7d' } // תוקף שבוע למילוי פרטים
+            { expiresIn: '7d' }
         );
 
+        // שליחת מייל ברוך הבא (אם הוזן)
+        if (email) {
+            sendEmail(email, "ברוכים הבאים לפנקס! 🎉", `
+                <div style="direction: rtl; text-align: right; font-family: sans-serif;">
+                    <h2 style="color: #1e3a5f;">שלום ${full_name}!</h2>
+                    <p>שמחים שהצטרפת לפנקס השידוכים.</p>
+                    <p>כדי שנוכל להתחיל להציע לך שידוכים, נא להיכנס למערכת ולהשלים את פרטי הפרופיל שלך.</p>
+                    <a href="http://localhost:5173/profile" style="background: #c9a227; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">למעבר לפרופיל</a>
+                </div>
+            `);
+        }
+
         res.status(201).json({
-            message: "נרשמת בהצלחה! עכשיו נשלים את הפרטים",
+            message: "נרשמת בהצלחה! מייל אישור נשלח.",
             user: newUser,
-            token: token // מחזירים טוקן לכניסה אוטומטית
+            token: token
         });
     } catch (err) {
         if (err.code === '23505') return res.status(400).json({ message: "המספר כבר רשום במערכת" });
@@ -203,12 +282,21 @@ app.post('/forgot-password', async (req, res) => {
         });
 
         if (method === 'email') {
-            // TODO: בפרודקשן - לשלוח מייל אמיתי עם nodemailer
-            console.log(`📧 קוד איפוס נשלח למייל ${email}: ${code}`);
-            // לצרכי פיתוח - מחזירים את הקוד
+            const htmlContent = `
+                <div style="direction: rtl; font-family: sans-serif; padding: 20px; background: #f9f9f9;">
+                    <h2 style="color: #1e3a5f;">שחזור סיסמה - הפנקס</h2>
+                    <p>קיבלנו בקשה לאיפוס הסיסמה שלך.</p>
+                    <p>קוד האימות שלך הוא:</p>
+                    <h1 style="color: #c9a227; letter-spacing: 5px;">${code}</h1>
+                    <p>הקוד תקף ל-10 דקות.</p>
+                </div>
+            `;
+
+            const sent = await sendEmail(email, '🔑 קוד לאיפוס סיסמה', htmlContent);
+
             res.json({
-                message: "קוד אימות נשלח למייל",
-                code: code // הסר בפרודקשן!
+                message: sent ? "קוד אימות נשלח למייל!" : "שגיאה בשליחת המייל (בדוק לוגים)",
+                // code: code // למפתחים - אפשר להשאיר או למחוק
             });
         } else if (method === 'call') {
             // TODO: בפרודקשן - להתחבר לשירות IVR (כמו Twilio)
@@ -1151,7 +1239,7 @@ app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, re
     const { id } = req.params;
 
     try {
-        // שליפת השינויים הממתינים
+        // שליפת השינויים הממתינים והמייל של המשתמש
         const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
         if (userResult.rows.length === 0) {
             return res.status(404).json({ message: "משתמש לא נמצא" });
@@ -1159,27 +1247,52 @@ app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, re
         const user = userResult.rows[0];
         const pendingChanges = user.pending_changes || {};
 
-        // יישום השינויים
-        const updateFields = Object.keys(pendingChanges).map((key, i) => `${key} = $${i + 1}`).join(', ');
-        const updateValues = Object.values(pendingChanges);
+        // 1. עדכון השדות (אם יש שינויים)
+        const keys = Object.keys(pendingChanges);
+        if (keys.length > 0) {
+            const updateFields = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+            const updateValues = Object.values(pendingChanges);
 
-        if (updateFields) {
+            // זהירות: אם יש שדה שלא קיים בטבלה, זה יקרוס. לכן בודקים existence או סומכים על ה-Frontend
             await pool.query(
-                `UPDATE users SET ${updateFields}, is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $${updateValues.length + 1}`,
+                `UPDATE users SET ${updateFields} WHERE id = $${updateValues.length + 1}`,
                 [...updateValues, id]
             );
         }
 
-        // הודעה למשתמש
+        // 2. איפוס הדגל (תמיד!)
+        await pool.query(
+            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1`,
+            [id]
+        );
+
+        // 3. הודעה פנימית למשתמש
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
             [id, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
         );
 
+        // 4. שליחת מייל למשתמש (אם יש לו מייל)
+        if (user.email) {
+            sendEmail(user.email, '✅ הפרופיל שלך אושר!', `
+                <div style="direction: rtl; text-align: right; font-family: sans-serif;">
+                    <h2 style="color: #22c55e;">הפרופיל אושר בהצלחה!</h2>
+                    <p>שלום ${user.full_name},</p>
+                    <p>מנהל המערכת עבר על השינויים שביצעת ואישר אותם.</p>
+                    <p>הכרטיס שלך מעודכן כעת.</p>
+                    <a href="http://localhost:5173/profile" style="background: #1e3a5f; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">לצפייה בפרופיל</a>
+                </div>
+            `);
+        }
+
         res.json({ message: "השינויים אושרו בהצלחה!" });
     } catch (err) {
         console.error("Approve changes error:", err);
-        res.status(500).json({ message: "שגיאה באישור השינויים" });
+        // אם השגיאה היא על שדה לא קיים, נחזיר הודעה ברורה יותר
+        if (err.code === '42703') { // undefined_column
+            return res.status(400).json({ message: "שגיאה: אחד השדות לעדכון לא קיים בבסיס הנתונים." });
+        }
+        res.status(500).json({ message: "שגיאה באישור השינויים (" + err.message + ")" });
     }
 });
 

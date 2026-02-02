@@ -1,31 +1,35 @@
 import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from './components/ToastProvider';
 
 function Register() {
     const [phone, setPhone] = useState("");
     const [fullName, setFullName] = useState("");
     const [password, setPassword] = useState("");
-    const [message, setMessage] = useState("");
-    const [errors, setErrors] = useState({}); // אובייקט שגיאות
-    const [showPassword, setShowPassword] = useState(false); // הסבר: מצב הצגת סיסמה
+    const [email, setEmail] = useState(""); // שדה חדש
+    const [errors, setErrors] = useState({});
+    const [showPassword, setShowPassword] = useState(false);
+    const { showToast } = useToast();
     const navigate = useNavigate();
 
     // פונקציות בדיקה (Validation)
     const validateName = (name) => {
-        // לפחות 2 אותיות (עברית או אנגלית)
         const letterCount = (name.match(/[a-zA-Zא-ת]/g) || []).length;
         return letterCount >= 2;
     };
 
     const validatePhone = (phone) => {
-        // מספר טלפון ישראלי תקין (10 ספרות, מתחיל ב-05 או 07 או 02-04 או 08-09)
         const phoneRegex = /^0[2-9]\d{7,8}$/;
         return phoneRegex.test(phone.replace(/-/g, ''));
     };
 
     const validatePassword = (password) => {
-        // לפחות 4 תווים
         return password.length >= 4;
+    };
+
+    const validateEmail = (email) => { // ולידציה למייל
+        if (!email) return true; // אופציונלי
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     };
 
     // בדיקה בזמן אמת
@@ -59,15 +63,24 @@ function Register() {
         }
     };
 
+    const handleEmailChange = (e) => {
+        const value = e.target.value;
+        setEmail(value);
+        if (value && !validateEmail(value)) {
+            setErrors(prev => ({ ...prev, email: "כתובת מייל לא תקינה" }));
+        } else {
+            setErrors(prev => ({ ...prev, email: null }));
+        }
+    };
+
     // האם הטופס תקין?
     const isFormValid = useMemo(() => {
-        return validateName(fullName) && validatePhone(phone) && validatePassword(password);
-    }, [fullName, phone, password]);
+        return validateName(fullName) && validatePhone(phone) && validatePassword(password) && validateEmail(email);
+    }, [fullName, phone, password, email]);
 
     const handleRegister = async () => {
-        // בדיקה סופית לפני שליחה
         if (!isFormValid) {
-            setMessage("נא למלא את כל השדות כראוי");
+            showToast("נא למלא את כל השדות כראוי", "warning");
             return;
         }
 
@@ -78,25 +91,26 @@ function Register() {
                 body: JSON.stringify({
                     phone,
                     password,
-                    full_name: fullName
+                    full_name: fullName,
+                    email // שליחת המייל לשרת
                 })
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                // הסבר: השרת מחזיר טוקן - נשמור אותו ונעבור לפרופיל
-                // כך המשתמש נכנס מיד בלי להתחבר שוב!
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
 
+                showToast("נרשמת בהצלחה! ברוך הבא 🎉", "success");
+
                 // מעבר ישיר לדף הפרופיל למילוי פרטים
-                navigate('/profile');
+                setTimeout(() => navigate('/profile'), 1500);
             } else {
-                setMessage(`שגיאה: ${data.message}`);
+                showToast(`שגיאה: ${data.message}`, "error");
             }
         } catch (err) {
-            setMessage("לא ניתן להתחבר לשרת. וודא שה-Backend רץ");
+            showToast("לא ניתן להתחבר לשרת", "error");
         }
     };
 
@@ -142,6 +156,19 @@ function Register() {
                     {errors.phone && <span style={errorStyle}>{errors.phone}</span>}
                 </div>
 
+                {/* אימייל (אופציונלי) */}
+                <div style={fieldWrapper}>
+                    <label style={labelStyle}>אימייל (אופציונלי - לשחזור סיסמה)</label>
+                    <input
+                        type="email"
+                        placeholder="your@email.com"
+                        value={email}
+                        onChange={handleEmailChange}
+                        style={getInputStyle('email')}
+                    />
+                    {errors.email && <span style={errorStyle}>{errors.email}</span>}
+                </div>
+
                 {/* סיסמה עם כפתור הצגה */}
                 <div style={fieldWrapper}>
                     <label style={labelStyle}>בחר סיסמה</label>
@@ -178,7 +205,7 @@ function Register() {
                     הירשם והמתן לאישור
                 </button>
 
-                {message && <p style={messageStyle}>{message}</p>}
+
 
                 <p style={linkStyle}>
                     כבר רשום? <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
