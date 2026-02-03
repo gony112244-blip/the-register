@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
+import { Doughnut, Bar } from 'react-chartjs-2';
+
+// רישום רכיבי הגרפים
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
 function AdminDashboard() {
     const navigate = useNavigate();
     const [stats, setStats] = useState({
         total: 0,
-        approved: 0,
         pending: 0,
-        blocked: 0,
-        waitingMatches: 0,
-        pendingProfiles: 0
+        matches: 0,
+        sectors: [],
+        monthly: []
     });
     const [loading, setLoading] = useState(true);
 
@@ -27,34 +31,17 @@ function AdminDashboard() {
 
     const fetchStats = async (token) => {
         try {
-            // שליפת כל המשתמשים לסטטיסטיקה
-            const usersRes = await fetch('http://localhost:3000/admin/all-users', {
+            // קריאה אחת יעילה לכל הנתונים
+            const res = await fetch('http://localhost:3000/admin/stats', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            const users = await usersRes.json();
+            const data = await res.json();
 
-            // שליפת שידוכים ממתינים
-            const matchesRes = await fetch('http://localhost:3000/admin/matches-to-handle', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const matches = await matchesRes.json();
-
-            // שליפת פרופילים ממתינים
-            const profilesRes = await fetch('http://localhost:3000/admin/pending-profiles', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const profiles = await profilesRes.json();
-
-            setStats({
-                total: Array.isArray(users) ? users.length : 0,
-                approved: Array.isArray(users) ? users.filter(u => u.is_approved && !u.is_blocked).length : 0,
-                pending: Array.isArray(users) ? users.filter(u => !u.is_approved).length : 0,
-                blocked: Array.isArray(users) ? users.filter(u => u.is_blocked).length : 0,
-                waitingMatches: Array.isArray(matches) ? matches.length : 0,
-                pendingProfiles: Array.isArray(profiles) ? profiles.length : 0
-            });
+            if (res.ok) {
+                setStats(data);
+            }
         } catch (err) {
-            console.error(err);
+            console.error("שגיאה בטעינת דשבורד", err);
         }
         setLoading(false);
     };
@@ -62,76 +49,93 @@ function AdminDashboard() {
     if (loading) return (
         <div style={styles.loadingContainer}>
             <div style={styles.spinner}></div>
-            <h2>טוען נתונים...</h2>
+            <h2>טוען דשבורד...</h2>
         </div>
     );
+
+    // נתוני גרף עוגה (מגזרים)
+    const pieData = {
+        labels: stats.sectors.map(s => s.sector || 'לא מוגדר'),
+        datasets: [{
+            data: stats.sectors.map(s => s.count),
+            backgroundColor: ['#36A2EB', '#FF6384', '#FFCE56', '#4BC0C0', '#9966FF', '#C9CBCF'],
+            borderWidth: 2,
+            borderColor: '#fff'
+        }],
+    };
+
+    // נתוני גרף עמודות (הרשמות חודשיות)
+    const barData = {
+        labels: stats.monthly.map(m => m.month),
+        datasets: [{
+            label: 'נרשמים חדשים',
+            data: stats.monthly.map(m => m.count),
+            backgroundColor: '#c9a227',
+            borderRadius: 5
+        }]
+    };
+
+    const barOptions = {
+        responsive: true,
+        plugins: {
+            legend: { display: false },
+            title: { display: true, text: 'מגמת הצטרפות (חצי שנה אחרונה)' }
+        }
+    };
 
     return (
         <div style={styles.page}>
             <div style={styles.container}>
-                <h1 style={styles.title}>📊 לוח בקרה</h1>
-                <p style={styles.subtitle}>סקירה כללית של המערכת</p>
+                <h1 style={styles.title}>📊 דשבורד מנהל</h1>
+                <p style={styles.subtitle}>תמונת מצב בזמן אמת</p>
 
-                {/* סטטיסטיקות */}
+                {/* KPI Cards */}
                 <div style={styles.statsGrid}>
                     <div style={styles.statCard}>
                         <div style={styles.statIcon}>👥</div>
                         <div style={styles.statNumber}>{stats.total}</div>
                         <div style={styles.statLabel}>סה"כ משתמשים</div>
                     </div>
-                    <div style={{ ...styles.statCard, background: 'linear-gradient(135deg, #d4edda, #c3e6cb)' }}>
-                        <div style={styles.statIcon}>✅</div>
-                        <div style={styles.statNumber}>{stats.approved}</div>
-                        <div style={styles.statLabel}>מאושרים</div>
-                    </div>
-                    <div style={{ ...styles.statCard, background: 'linear-gradient(135deg, #fff3cd, #ffeeba)' }}>
+                    <div style={{ ...styles.statCard, borderRight: '5px solid #ffc107' }}>
                         <div style={styles.statIcon}>⏳</div>
                         <div style={styles.statNumber}>{stats.pending}</div>
                         <div style={styles.statLabel}>ממתינים לאישור</div>
                     </div>
-                    <div style={{ ...styles.statCard, background: 'linear-gradient(135deg, #f8d7da, #f5c6cb)' }}>
-                        <div style={styles.statIcon}>🚫</div>
-                        <div style={styles.statNumber}>{stats.blocked}</div>
-                        <div style={styles.statLabel}>חסומים</div>
+                    <div style={{ ...styles.statCard, borderRight: '5px solid #28a745' }}>
+                        <div style={styles.statIcon}>💍</div>
+                        <div style={styles.statNumber}>{stats.matches}</div>
+                        <div style={styles.statLabel}>שידוכים פעילים</div>
                     </div>
                 </div>
 
-                {/* התראות */}
-                <div style={styles.alertsSection}>
-                    <h2 style={styles.sectionTitle}>🔔 דורשים טיפול</h2>
-                    <div style={styles.alertsGrid}>
-                        <div
-                            style={styles.alertCard}
-                            onClick={() => navigate('/admin/matches')}
-                        >
-                            <div style={styles.alertBadge}>{stats.waitingMatches}</div>
-                            <span>💍 שידוכים ממתינים לשדכנית</span>
+                {/* Charts Section */}
+                <div style={styles.chartsGrid}>
+                    <div style={styles.chartCard}>
+                        <h3 style={styles.chartTitle}>פילוח לפי מגזר</h3>
+                        <div style={{ height: '250px', display: 'flex', justifyContent: 'center' }}>
+                            <Doughnut data={pieData} options={{ maintainAspectRatio: false }} />
                         </div>
-                        <div
-                            style={styles.alertCard}
-                            onClick={() => navigate('/admin/pending-profiles')}
-                        >
-                            <div style={styles.alertBadge}>{stats.pendingProfiles}</div>
-                            <span>📝 שינויי פרופיל לאישור</span>
+                    </div>
+                    <div style={styles.chartCard}>
+                        <h3 style={styles.chartTitle}>צמיחה חודשית</h3>
+                        <div style={{ height: '250px' }}>
+                            <Bar data={barData} options={{ ...barOptions, maintainAspectRatio: false }} />
                         </div>
                     </div>
                 </div>
 
-                {/* ניווט מהיר */}
+                {/* Quick Navigation */}
                 <div style={styles.quickNav}>
-                    <h2 style={styles.sectionTitle}>⚡ ניווט מהיר</h2>
+                    <h2 style={styles.sectionTitle}>⚡ פעולות מהירות</h2>
                     <div style={styles.navGrid}>
                         <button style={styles.navBtn} onClick={() => navigate('/admin/users')}>
-                            👥 ניהול משתמשים
+                            👥 משתמשים
                         </button>
                         <button style={styles.navBtn} onClick={() => navigate('/admin/matches')}>
-                            💍 ניהול שידוכים
+                            💍 שידוכים ({stats.matches})
                         </button>
                         <button style={styles.navBtn} onClick={() => navigate('/admin/pending-profiles')}>
-                            📝 אישור שינויים
-                        </button>
-                        <button style={styles.navBtnSecondary} onClick={() => navigate('/matches')}>
-                            🔍 חיפוש שידוכים
+                            📝 אישורים ({stats.pending})
                         </button>
                     </div>
                 </div>
@@ -145,18 +149,17 @@ const styles = {
         minHeight: '100vh',
         background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)',
         padding: '20px',
-        direction: 'rtl',
-        fontFamily: "'Heebo', 'Segoe UI', sans-serif"
+        fontFamily: "'Heebo', sans-serif",
+        direction: 'rtl'
     },
-    container: { maxWidth: '1000px', margin: '0 auto' },
+    container: { maxWidth: '1200px', margin: '0 auto' },
     loadingContainer: {
         height: '100vh',
+        color: 'white',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        alignItems: 'center',
-        background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 100%)',
-        color: 'white'
+        alignItems: 'center'
     },
     spinner: {
         width: '50px', height: '50px',
@@ -165,86 +168,55 @@ const styles = {
         borderRadius: '50%',
         animation: 'spin 1s linear infinite'
     },
-    title: { color: '#fff', margin: '0 0 5px', fontSize: '2.2rem' },
-    subtitle: { color: 'rgba(255,255,255,0.7)', margin: '0 0 30px' },
+    title: { color: 'white', fontSize: '2.5rem', margin: '0 0 10px' },
+    subtitle: { color: '#cbd5e1', marginBottom: '30px' },
 
-    // סטטיסטיקות
     statsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-        gap: '15px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '20px',
         marginBottom: '30px'
     },
     statCard: {
-        background: 'linear-gradient(135deg, #fff, #f9fafb)',
+        background: 'white',
+        padding: '25px',
         borderRadius: '15px',
-        padding: '20px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
         textAlign: 'center',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-    },
-    statIcon: { fontSize: '2rem', marginBottom: '10px' },
-    statNumber: { fontSize: '2.5rem', fontWeight: 'bold', color: '#1e3a5f' },
-    statLabel: { color: '#6b7280', fontSize: '0.9rem' },
-
-    // התראות
-    alertsSection: { marginBottom: '30px' },
-    sectionTitle: { color: '#fff', margin: '0 0 15px', fontSize: '1.3rem' },
-    alertsGrid: { display: 'flex', gap: '15px', flexWrap: 'wrap' },
-    alertCard: {
-        background: '#fff',
-        borderRadius: '12px',
-        padding: '15px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        cursor: 'pointer',
-        boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
         transition: 'transform 0.2s',
-        flex: '1',
-        minWidth: '250px'
+        cursor: 'default'
     },
-    alertBadge: {
-        background: '#c9a227',
-        color: '#1a1a1a',
-        width: '40px',
-        height: '40px',
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontWeight: 'bold',
-        fontSize: '1.2rem'
-    },
+    statIcon: { fontSize: '2.5rem', marginBottom: '10px' },
+    statNumber: { fontSize: '3rem', fontWeight: '800', color: '#1e3a5f', lineHeight: 1 },
+    statLabel: { color: '#64748b', fontSize: '1rem', marginTop: '5px' },
 
-    // ניווט מהיר
-    quickNav: { marginBottom: '30px' },
-    navGrid: {
+    chartsGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '15px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+        gap: '20px',
+        marginBottom: '30px'
     },
+    chartCard: {
+        background: 'white',
+        padding: '20px',
+        borderRadius: '15px',
+        boxShadow: '0 5px 20px rgba(0,0,0,0.1)'
+    },
+    chartTitle: { textAlign: 'center', color: '#1e3a5f', marginBottom: '20px' },
+
+    sectionTitle: { color: 'white', marginBottom: '15px' },
+    navGrid: { display: 'flex', gap: '15px', flexWrap: 'wrap' },
     navBtn: {
-        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)',
-        color: '#fff',
-        border: 'none',
-        padding: '18px 25px',
-        borderRadius: '12px',
-        fontSize: '1rem',
-        fontWeight: 'bold',
+        flex: 1,
+        padding: '15px',
+        background: 'rgba(255,255,255,0.1)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        color: 'white',
+        borderRadius: '10px',
+        fontSize: '1.1rem',
         cursor: 'pointer',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-        transition: 'transform 0.2s'
-    },
-    navBtnSecondary: {
-        background: 'linear-gradient(135deg, #c9a227, #d4a72c)',
-        color: '#1a1a1a',
-        border: 'none',
-        padding: '18px 25px',
-        borderRadius: '12px',
-        fontSize: '1rem',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        boxShadow: '0 4px 15px rgba(201, 162, 39, 0.3)'
+        transition: 'background 0.2s',
+        minWidth: '200px'
     }
 };
 

@@ -8,10 +8,43 @@ const multer = require('multer'); // הסבר: ספרייה להעלאת קבצ�
 const path = require('path'); // הסבר: לעבודה עם נתיבי קבצים
 const nodemailer = require('nodemailer'); // ספרייה לשליחת מיילים
 
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
+
 const app = express();
 
+// ==========================================
+// 🛡️ הגדרות אבטחה (Security)
+// ==========================================
+
+// 1. Helmet - הגנה על כותרות HTTP
+app.use(helmet());
+
+// הגדרת חריגה ל-Helmet כדי לאפשר הצגת תמונות מקומית (Cross-Origin Resource Policy)
+app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
+
+// 2. Rate Limiting - הגבלת בקשות כללית
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 דקות
+    max: 100, // מקסימום 100 בקשות לכל IP
+    message: "יותר מדי בקשות מכתובת זו, נא לנסות שוב מאוחר יותר."
+});
+app.use(limiter);
+
+// 3. הגבלה מחמירה לניסיונות התחברות (Brute Force Protection)
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5, // רק 5 ניסיונות כושלים
+    message: "יותר מדי ניסיונות התחברות, החשבון ננעל זמנית ל-15 דקות."
+});
+
 app.use(express.json());
-app.use(cors());
+// הגדרת CORS מורחבת (כדי לאפשר גישה גם מה-PWA בפורט 4173)
+app.use(cors({
+    origin: ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173'],
+    credentials: true
+}));
 
 // הסבר: הגדרת תיקיית uploads כסטטית - כך אפשר לגשת לתמונות מהדפדפן
 // לדוגמא: http://localhost:3000/uploads/image-123.jpg
@@ -172,7 +205,7 @@ app.get('/health', async (req, res) => {
 // ==========================================
 
 // כניסה (Login)
-app.post('/login', async (req, res) => {
+app.post('/login', loginLimiter, async (req, res) => {
     const { phone, password } = req.body;
     try {
         const result = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
@@ -1721,6 +1754,49 @@ app.get('/api/my-hidden-profiles', authenticateToken, async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ message: "שגיאה בטעינת מוסתרים" });
+    }
+});
+
+// ==========================================
+// 📊 דשבורד מנהל - סטטיסטיקות
+// ==========================================
+app.get('/admin/stats', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).send("גישה נדחתה");
+
+    try {
+        // 1. ספירות כלליות
+        const totalUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = false');
+        const pendingUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_approved = false AND is_admin = false');
+        const activeMatches = await pool.query("SELECT COUNT(*) FROM connections WHERE status = 'active' OR status = 'waiting_for_shadchan'");
+
+        // 2. פילוח לפי מגזר (לגרף עוגה)
+        const sectors = await pool.query(`
+            SELECT sector, COUNT(*) as count 
+            FROM users 
+            WHERE is_admin = false AND sector IS NOT NULL 
+            GROUP BY sector
+        `);
+
+        // 3. הרשמות לפי חודשים (לגרף עמודות) - 6 חודשים אחרונים
+        const monthly = await pool.query(`
+            SELECT to_char(created_at, 'Mon') as month, COUNT(*) as count
+            FROM users 
+            WHERE created_at > NOW() - INTERVAL '6 months'
+            GROUP BY 1, date_part('month', created_at)
+            ORDER BY date_part('month', created_at)
+        `);
+
+        res.json({
+            total: parseInt(totalUsers.rows[0].count),
+            pending: parseInt(pendingUsers.rows[0].count),
+            matches: parseInt(activeMatches.rows[0].count),
+            sectors: sectors.rows,
+            monthly: monthly.rows
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "שגיאה בטעינת סטטיסטיקות" });
     }
 });
 
