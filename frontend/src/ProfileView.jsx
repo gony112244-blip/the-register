@@ -152,11 +152,21 @@ function ProfileView() {
 
                             {/* עיסוק */}
                             <div style={styles.infoBox('#f0f9ff', '#1e3a5f')}>
-                                <h4 style={styles.boxTitle}>💼 עיסוק</h4>
+                                <h4 style={styles.boxTitle}>💼 עיסוק ושאיפות</h4>
                                 <div style={styles.detailsGrid}>
-                                    <div style={styles.detailItem}><span>עיסוק:</span> <strong>{tr('current_occupation', user.current_occupation)}</strong></div>
+                                    <div style={styles.detailItem}><span>עיסוק כעת:</span> <strong>{tr('current_occupation', user.current_occupation)}</strong></div>
+
+                                    {/* לגברים - ישיבות */}
                                     {user.yeshiva_name && <div style={styles.detailItem}><span>ישיבה:</span> <strong>{user.yeshiva_name}</strong></div>}
-                                    {user.work_field && <div style={styles.detailItem}><span>תחום:</span> <strong>{user.work_field}</strong></div>}
+                                    {user.yeshiva_ketana_name && <div style={styles.detailItem}><span>ישיבה קטנה:</span> <strong>{user.yeshiva_ketana_name}</strong></div>}
+
+                                    {/* לנשים - סמינר/לימודים */}
+                                    {user.study_place && <div style={styles.detailItem}><span>סמינר/לימודים:</span> <strong>{user.study_place}</strong></div>}
+                                    {user.study_field && <div style={styles.detailItem}><span>תחום לימודים:</span> <strong>{user.study_field}</strong></div>}
+
+                                    {/* כללי */}
+                                    {user.work_field && <div style={styles.detailItem}><span>תחום עבודה:</span> <strong>{user.work_field}</strong></div>}
+                                    {user.life_aspiration && <div style={styles.detailItem}><span>שאיפה:</span> <strong>{tr('life_aspiration', user.life_aspiration) || user.life_aspiration}</strong></div>}
                                 </div>
                             </div>
 

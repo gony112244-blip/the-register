@@ -123,6 +123,9 @@ function Register() {
 
     return (
         <div style={pageStyle}>
+            {/* רקע דקורטיבי עדין מאחור */}
+            <div style={glowEffect}></div>
+
             <div style={containerStyle}>
                 <div style={headerStyle}>
                     <span style={logoStyle}>📋</span>
@@ -135,7 +138,7 @@ function Register() {
                     <label style={labelStyle}>שם מלא</label>
                     <input
                         type="text"
-                        placeholder="לפחות 2 אותיות"
+                        placeholder="ישראל ישראלי"
                         value={fullName}
                         onChange={handleNameChange}
                         style={getInputStyle('name')}
@@ -147,11 +150,12 @@ function Register() {
                 <div style={fieldWrapper}>
                     <label style={labelStyle}>מספר טלפון</label>
                     <input
-                        type="text"
+                        type="tel"
                         placeholder="05X-XXXXXXX"
                         value={phone}
                         onChange={handlePhoneChange}
                         style={getInputStyle('phone')}
+                        dir="ltr"
                     />
                     {errors.phone && <span style={errorStyle}>{errors.phone}</span>}
                 </div>
@@ -165,6 +169,7 @@ function Register() {
                         value={email}
                         onChange={handleEmailChange}
                         style={getInputStyle('email')}
+                        dir="ltr"
                     />
                     {errors.email && <span style={errorStyle}>{errors.email}</span>}
                 </div>
@@ -178,14 +183,18 @@ function Register() {
                             placeholder="לפחות 4 תווים"
                             value={password}
                             onChange={handlePasswordChange}
-                            style={{ ...getInputStyle('password'), flex: 1 }}
+                            style={{ ...getInputStyle('password'), paddingLeft: '50px' }}
+                            dir="ltr"
                         />
                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
                             style={showPasswordBtn}
                         >
-                            {showPassword ? '🔓' : '🔒'}
+                            {showPassword ?
+                                <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg> :
+                                <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            }
                         </button>
                     </div>
                     {errors.password && <span style={errorStyle}>{errors.password}</span>}
@@ -197,47 +206,68 @@ function Register() {
                     disabled={!isFormValid}
                     style={{
                         ...buttonStyle,
-                        backgroundColor: isFormValid ? '#c9a227' : '#ccc',
+                        background: isFormValid ? 'linear-gradient(135deg, #c9a227 0%, #b08d1f 100%)' : '#cbd5e1',
                         cursor: isFormValid ? 'pointer' : 'not-allowed',
-                        opacity: isFormValid ? 1 : 0.7
+                        boxShadow: isFormValid ? '0 4px 15px rgba(201, 162, 39, 0.3)' : 'none',
+                        color: isFormValid ? '#fff' : '#64748b'
                     }}
                 >
                     הירשם והמתן לאישור
                 </button>
 
-
-
-                <p style={linkStyle}>
-                    כבר רשום? <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
-                </p>
-
-                <p style={phoneInfoStyle}>
-                    📞 אפשר להירשם גם בטלפון: <strong>072-XXX-XXXX</strong>
-                </p>
+                <div style={footerStyle}>
+                    <p style={linkStyle}>
+                        כבר רשום? <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
+                    </p>
+                </div>
             </div>
         </div>
     );
 }
 
-// עיצוב מותאם לסגנון הפנקס
+// --- עיצוב יוקרתי (Premium Design) ---
+// תואם ב-100% לדף ההתחברות
+
 const pageStyle = {
     minHeight: '100vh',
-    background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)',
+    // רקע כחול מקורי עם הילה עדינה של זהב מלמעלה
+    background: '#1e3a5f',
+    backgroundImage: `
+        radial-gradient(circle at 50% 0%, rgba(201, 162, 39, 0.2) 0%, transparent 60%),
+        linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)
+    `,
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     padding: '20px',
-    direction: 'rtl',
-    fontFamily: "'Heebo', 'Segoe UI', sans-serif"
+    fontFamily: "'Heebo', sans-serif",
+    position: 'relative',
+    overflow: 'hidden'
+};
+
+const glowEffect = {
+    position: 'absolute',
+    width: '600px',
+    height: '600px',
+    background: 'radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0) 70%)',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    zIndex: 0,
+    pointerEvents: 'none'
 };
 
 const containerStyle = {
-    background: '#fff',
-    padding: '40px 35px',
-    borderRadius: '20px',
-    boxShadow: '0 15px 50px rgba(0, 0, 0, 0.2)',
+    position: 'relative',
+    zIndex: 1,
+    background: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(20px)',
+    padding: '40px',
+    borderRadius: '24px',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.1)',
     width: '100%',
-    maxWidth: '400px'
+    maxWidth: '420px', // קצת רחב יותר בגלל שיש יותר שדות
+    borderTop: '4px solid #c9a227'
 };
 
 const headerStyle = {
@@ -251,109 +281,139 @@ const logoStyle = {
     marginBottom: '10px'
 };
 
+const iconContainerStyle = {
+    background: 'rgba(201, 162, 39, 0.1)',
+    width: '70px',
+    height: '70px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 15px auto'
+};
+
 const titleStyle = {
-    margin: '0 0 5px',
-    color: '#1e3a5f',
+    margin: '0 0 8px',
+    color: '#1e293b',
     fontSize: '1.8rem',
-    fontWeight: '700'
+    fontWeight: '800',
+    letterSpacing: '-.025em'
 };
 
 const subtitleStyle = {
     margin: 0,
-    color: '#6b7280',
-    fontSize: '1rem'
+    color: '#64748b',
+    fontSize: '1rem',
+    fontWeight: '400'
 };
 
 const fieldWrapper = {
-    marginBottom: '20px'
+    marginBottom: '18px'
 };
 
 const labelStyle = {
     display: 'block',
-    marginBottom: '8px',
-    color: '#374151',
+    marginBottom: '6px',
+    color: '#334155',
     fontWeight: '600',
-    fontSize: '0.95rem'
+    fontSize: '0.9rem'
 };
 
 const inputStyle = {
     width: '100%',
-    padding: '14px 16px',
-    borderRadius: '10px',
-    border: '2px solid #cbd5e1',
+    padding: '12px 16px',
+    borderRadius: '12px',
+    border: '1px solid #cbd5e1',
+    background: '#f8fafc',
     fontSize: '1rem',
-    boxSizing: 'border-box',
-    transition: 'all 0.3s ease',
-    outline: 'none'
+    transition: 'all 0.2s',
+    outline: 'none',
+    boxSizing: 'border-box'
 };
 
 const errorStyle = {
-    color: '#dc3545',
+    color: '#ef4444', // אדום מודרני יותר
     fontSize: '0.85rem',
     marginTop: '6px',
     display: 'block',
     fontWeight: '500'
 };
 
+const passwordWrapper = {
+    display: 'flex',
+    alignItems: 'center',
+    position: 'relative'
+};
+
+const showPasswordBtn = {
+    position: 'absolute',
+    left: '8px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '5px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+};
+
 const buttonStyle = {
     width: '100%',
-    padding: '15px',
+    padding: '16px',
     border: 'none',
-    borderRadius: '10px',
+    borderRadius: '12px',
     fontSize: '1.1rem',
     fontWeight: '700',
-    color: '#1a1a1a',
-    transition: 'all 0.3s ease',
+    transition: 'transform 0.1s, box-shadow 0.2s',
     marginTop: '10px'
 };
 
-const messageStyle = {
-    color: '#dc3545',
+const footerStyle = {
+    marginTop: '25px',
     textAlign: 'center',
-    marginTop: '15px',
-    padding: '10px',
-    background: '#fff5f5',
-    borderRadius: '8px'
+    borderTop: '1px solid #e2e8f0',
+    paddingTop: '20px'
 };
 
 const linkStyle = {
-    textAlign: 'center',
-    marginTop: '20px',
-    color: '#6b7280',
-    fontSize: '0.95rem'
+    color: '#64748b',
+    fontSize: '0.95rem',
+    margin: '0'
 };
 
 const linkTextStyle = {
     color: '#c9a227',
     cursor: 'pointer',
-    fontWeight: '600'
+    fontWeight: '700',
+    textDecoration: 'none'
+};
+
+const dividerStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    textAlign: 'center',
+    color: '#cbd5e1',
+    margin: '20px 0',
+    fontSize: '0.85rem',
+    fontWeight: '500',
+    gap: '10px',
+    before: { content: '""', flex: 1, borderBottom: '1px solid #e2e8f0' },
+    after: { content: '""', flex: 1, borderBottom: '1px solid #e2e8f0' }
 };
 
 const phoneInfoStyle = {
-    textAlign: 'center',
-    marginTop: '25px',
-    padding: '15px',
-    background: '#f8f5f0',
-    borderRadius: '10px',
-    color: '#4a4540',
-    fontSize: '0.9rem'
-};
-
-// הסבר: עיצוב לשורת הסיסמה עם כפתור הצגה
-const passwordWrapper = {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px'
-};
-
-const showPasswordBtn = {
-    padding: '14px 16px',
-    borderRadius: '10px',
-    border: '2px solid #cbd5e1',
-    background: '#f8fafc',
-    cursor: 'pointer',
-    fontSize: '1.2rem',
-    transition: 'all 0.3s ease'
+    justifyContent: 'center',
+    gap: '10px',
+    padding: '12px',
+    background: '#eff6ff',
+    borderRadius: '12px',
+    color: '#1e3a5f',
+    fontSize: '0.9rem',
+    border: '1px solid #dbeafe'
 };
 
 export default Register;

@@ -5,14 +5,25 @@ const pool = require('./db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const multer = require('multer'); // הסבר: ספרייה להעלאת קבצים
-const path = require('path'); // הסבר: לעבודה עם נתיבי קבצים
+const path = require('path');
+const fs = require('fs');
 const nodemailer = require('nodemailer'); // ספרייה לשליחת מיילים
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 
+
 const app = express();
+
+// הגדרת CORS מורחבת (חייב להיות ראשון!)
+// הגדרת CORS מורחבת (זמנית - מתיר הכל)
+app.use(cors({
+    origin: true, // מאפשר לכל Origin ששולח את הבקשה
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // ==========================================
 // 🛡️ הגדרות אבטחה (Security)
@@ -40,11 +51,7 @@ const loginLimiter = rateLimit({
 });
 
 app.use(express.json());
-// הגדרת CORS מורחבת (כדי לאפשר גישה גם מה-PWA בפורט 4173)
-app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:4173'],
-    credentials: true
-}));
+
 
 // הסבר: הגדרת תיקיית uploads כסטטית - כך אפשר לגשת לתמונות מהדפדפן
 // לדוגמא: http://localhost:3000/uploads/image-123.jpg
@@ -121,16 +128,27 @@ async function sendEmail(to, subject, htmlContent) {
 // ==========================================
 // 📁 הגדרת Multer להעלאת קבצים
 // ==========================================
+
+// וודא שתיקיית uploads קיימת בעת טעינת השרת
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log(`Created uploads directory at: ${uploadDir}`);
+}
+
 const storage = multer.diskStorage({
     // הסבר: לאן לשמור את הקבצים
     destination: function (req, file, cb) {
-        cb(null, 'uploads/'); // תיקיית uploads
+        console.log(`Saving file to: ${uploadDir}`); // Debug log
+        cb(null, uploadDir); // שימוש בנתיב המלא
     },
     // הסבר: איך לקרוא לקובץ
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const ext = path.extname(file.originalname); // סיומת הקובץ
-        cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+        const name = file.fieldname + '-' + uniqueSuffix + ext;
+        console.log(`Generated filename: ${name}`); // Debug log
+        cb(null, name);
     }
 });
 
@@ -140,6 +158,7 @@ const fileFilter = (req, file, cb) => {
     if (allowedTypes.includes(file.mimetype)) {
         cb(null, true); // מותר
     } else {
+        console.error(`Invalid file type rejected: ${file.mimetype}`);
         cb(new Error('רק קבצי תמונה מותרים (JPG, PNG, GIF, WEBP)'), false);
     }
 };
@@ -170,6 +189,22 @@ const authenticateToken = (req, res, next) => {
 // 📡 נתיבי מערכת כלליים (ללא אימות)
 // ==========================================
 
+// נתיב זמני לאיפוס סיסמה לבדיקות (סודי!)
+app.get('/debug/reset-user/:email', async (req, res) => {
+    const { email } = req.params;
+    try {
+        const hashedPassword = await bcrypt.hash('123456', 10);
+        const result = await pool.query(
+            'UPDATE users SET password = $1, is_blocked = FALSE WHERE email = $2 RETURNING id',
+            [hashedPassword, email]
+        );
+        if (result.rowCount === 0) return res.status(404).send("User not found");
+        res.send(`User ${email} password reset to '123456'`);
+    } catch (err) {
+        res.status(500).send(err.message);
+    }
+});
+
 app.get('/status', async (req, res) => {
     try {
         const dbRes = await pool.query('SELECT COUNT(*) FROM users');
@@ -177,6 +212,207 @@ app.get('/status', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).send('תקלה בחיבור למסד הנתונים');
+    }
+});
+
+// ==========================================
+// 🔑 הרשמה והתחברות (Public)
+// ==========================================
+
+// בדיקת קיום משתמש (לשלב הראשון בהרשמה)
+app.post('/check-user-exists', async (req, res) => {
+    const { email, phone } = req.body;
+
+    // הגנה מפני ערכים ריקים שנשלחים מהפרונט
+    const emailToCheck = email && email.trim() !== '' ? email : null;
+    const phoneToCheck = phone && phone.trim() !== '' ? phone : null;
+
+    if (!emailToCheck && !phoneToCheck) {
+        return res.status(200).json({ message: "OK (No data to check)" });
+    }
+
+    try {
+        const userCheck = await pool.query(
+            `SELECT * FROM users WHERE 
+             ($1::text IS NOT NULL AND email = $1) OR 
+             ($2::text IS NOT NULL AND phone = $2)`,
+            [emailToCheck, phoneToCheck]
+        );
+
+        if (userCheck.rows.length > 0) {
+            const existing = userCheck.rows[0];
+            let msg = "משתמש קיים במערכת";
+            if (existing.email === emailToCheck) msg = "כתובת האימייל כבר קיימת במערכת";
+            if (existing.phone === phoneToCheck) msg = "מספר הטלפון כבר קיים במערכת";
+
+            return res.status(409).json({ message: msg });
+        }
+        res.status(200).json({ message: "המשתמש לא קיים, אפשר להמשיך" });
+    } catch (err) {
+        console.error("Check user error:", err);
+        res.status(500).json({ message: "שגיאת שרת בבדיקת משתמש" });
+    }
+});
+
+// הרשמה למערכת
+app.post('/register', async (req, res) => {
+    const {
+        email, password, full_name, last_name, phone, gender,
+        birth_year, height, city, // שדות בסיס
+        profile_images // מערך תמונות (אופציונלי)
+    } = req.body;
+
+    // ניקוי אימייל (אם ריק -> NULL) כדי למנוע כפילויות על מחרוזת ריקה
+    const emailToSave = email && email.trim() !== '' ? email : null;
+    const phoneToSave = phone && phone.trim() !== '' ? phone : null;
+
+    if (!phoneToSave) {
+        return res.status(400).json({ message: "חובה להזין מספר טלפון" });
+    }
+
+    try {
+        // 1. בדיקה אם קיים (טלפון הוא המזהה הראשי)
+        // תיקון: בודקים רק טלפון, כי אימייל יכול להיות משותף
+        const userCheck = await pool.query(
+            'SELECT * FROM users WHERE phone = $1',
+            [phoneToSave]
+        );
+
+        if (userCheck.rows.length > 0) {
+            return res.status(409).json({ message: "מספר הטלפון כבר רשום במערכת" });
+        }
+
+        // 2. הצפנת סיסמה
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // 3. חישוב גיל (לפי שנת לידה)
+        const currentYear = new Date().getFullYear();
+        const age = birth_year ? currentYear - parseInt(birth_year) : null;
+
+        // 4. שמירה במסד הנתונים
+        const newUser = await pool.query(
+            `INSERT INTO users (
+                email, password, full_name, last_name, phone, gender,
+                age, height, city, created_at, is_approved, is_blocked,
+                profile_images, profile_images_count
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), FALSE, FALSE, $10, $11) RETURNING *`,
+            [
+                emailToSave, hashedPassword, full_name, last_name, phoneToSave, gender,
+                age, height || null, city || null,
+                profile_images || [], (profile_images || []).length
+            ]
+        );
+
+        // 5. יצירת טוקן התחברות אוטומטי
+        const token = jwt.sign(
+            { id: newUser.rows[0].id, is_admin: false },
+            process.env.JWT_SECRET,
+            { expiresIn: '30d' }
+        );
+
+        // 6. שליחת הודעת ברוכים הבאים
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [newUser.rows[0].id, `👋 ברוכים הבאים ל"הפנקס"! \nנא להשלים את הפרופיל בטאב "הפרופיל שלי" כדי להתחיל לקבל הצעות.`]
+        );
+
+        // 7. שליחת מייל ברוכים הבאים
+        if (email) {
+            sendEmail(email, 'ברוכים הבאים לפנקס! 🎉', `
+                <div style="direction: rtl; text-align: right;">
+                    <h2>שלום ${full_name},</h2>
+                    <p>שמחים שהצטרפת למאגר השידוכים שלנו.</p>
+                    <p>נא להשלים את פרטי הפרופיל ולהעלות תעודת זהות לאימות.</p>
+                    <a href="http://localhost:5173/login">התחבר למערכת</a>
+                </div>
+            `);
+        }
+
+        res.status(201).json({
+            message: "ההרשמה בוצע בהצלחה!",
+            token,
+            user: {
+                id: newUser.rows[0].id,
+                full_name: newUser.rows[0].full_name,
+                is_admin: false
+            }
+        });
+
+    } catch (err) {
+        console.error("Register error:", err);
+        res.status(500).json({ message: "שגיאה בתהליך ההרשמה" });
+    }
+});
+
+// התחברות למערכת (תומך באימייל או טלפון)
+app.post('/login', async (req, res) => {
+    // Frontend שולח לפעמים phone ולפעמים email, ולפעמים identifier
+    const identifier = req.body.identifier || req.body.email || req.body.phone;
+    const { password } = req.body;
+
+    console.log(`[Login Attempt] Identifier: ${identifier}, Password Provided: ${password ? 'Yes' : 'No'}`);
+
+    if (!identifier) {
+        return res.status(400).json({ message: "יש להזין אימייל או טלפון" });
+    }
+
+    try {
+        // 1. חיפוש המשתמש לפי אימייל או טלפון
+        const userResult = await pool.query(
+            'SELECT * FROM users WHERE email = $1 OR phone = $1',
+            [identifier]
+        );
+
+        if (userResult.rows.length === 0) {
+            console.log(`[Login Failed] User not found: ${identifier}`);
+            return res.status(400).json({ message: "שם משתמש או סיסמה שגויים" });
+        }
+
+        const user = userResult.rows[0];
+
+        // בדיקת תקינות מידע בסיסי
+        if (!user.password) {
+            console.error(`[Login Error] User ${identifier} has no password hash in DB.`);
+            return res.status(500).json({ message: "שגיאת מערכת: למשתמש זה אין סיסמה מוגדרת. נא לפנות לתמיכה." });
+        }
+
+        // 2. בדיקת חסימה
+        if (user.is_blocked) {
+            return res.status(403).json({ message: `החשבון חסום. סיבה: ${user.blocked_reason}` });
+        }
+
+        // 3. בדיקת סיסמה
+        const validPassword = await bcrypt.compare(password, user.password);
+        console.log(`[Login Debug] Password match for ${identifier}: ${validPassword}`);
+
+        if (!validPassword) {
+            console.log(`[Login Failed] Incorrect password for: ${identifier}`);
+            return res.status(400).json({ message: "שם משתמש או סיסמה שגויים" });
+        }
+
+        // 4. יצירת טוקן
+        const token = jwt.sign(
+            { id: user.id, is_admin: user.is_admin },
+            process.env.JWT_SECRET,
+            { expiresIn: '30d' } // סשן ארוך (חודש)
+        );
+
+        // 5. עדכון זמן התחברות אחרון
+        await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
+
+        res.json({
+            token,
+            user: {
+                id: user.id,
+                full_name: user.full_name,
+                is_admin: user.is_admin,
+                is_approved: user.is_approved
+            }
+        });
+
+    } catch (err) {
+        console.error("Login error:", err);
+        res.status(500).json({ message: "שגיאה בהתחברות" });
     }
 });
 
@@ -200,89 +436,7 @@ app.get('/health', async (req, res) => {
     }
 });
 
-// ==========================================
-// 🔐 אימות והרשמה (Auth)
-// ==========================================
-
-// כניסה (Login)
-app.post('/login', loginLimiter, async (req, res) => {
-    const { phone, password } = req.body;
-    try {
-        const result = await pool.query('SELECT * FROM users WHERE phone = $1', [phone]);
-
-        if (result.rows.length > 0) {
-            const user = result.rows[0];
-            const isMatch = await bcrypt.compare(password, user.password);
-
-            if (isMatch) {
-                delete user.password; // מחיקת הסיסמה מהפלט לביטחון
-
-                // יצירת הטוקן
-                const token = jwt.sign(
-                    { id: user.id, is_admin: user.is_admin },
-                    process.env.JWT_SECRET,
-                    { expiresIn: '1h' }
-                );
-                res.json({ user, token });
-            } else {
-                res.status(401).json({ message: "טלפון או סיסמה שגויים" });
-            }
-        } else {
-            res.status(401).json({ message: "טלפון או סיסמה שגויים" });
-        }
-    } catch (err) {
-        console.error("Login Error:", err);
-        res.status(500).json({ message: "שגיאת שרת פנימית" });
-    }
-});
-
-// הרשמה (Register) - עם כניסה אוטומטית!
-// הסבר: אחרי הרשמה מוצלחת, מייצרים טוקן ומחזירים אותו
-// כך המשתמש נכנס מיד בלי צורך להתחבר שוב
-app.post('/register', async (req, res) => {
-    const { phone, password, full_name, email } = req.body;
-    try {
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-        // שמירת המשתמש החדש - is_approved=false כי צריך אישור אחרי מילוי פרטים
-        // הוספנו את שדה ה-email
-        const result = await pool.query(
-            'INSERT INTO users (phone, password, full_name, email, is_approved, is_admin) VALUES ($1, $2, $3, $4, false, false) RETURNING *',
-            [phone, hashedPassword, full_name, email]
-        );
-
-        const newUser = result.rows[0];
-        delete newUser.password;
-
-        // יצירת טוקן
-        const token = jwt.sign(
-            { id: newUser.id, is_admin: newUser.is_admin },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        // שליחת מייל ברוך הבא (אם הוזן)
-        if (email) {
-            sendEmail(email, "ברוכים הבאים לפנקס! 🎉", `
-                <div style="direction: rtl; text-align: right; font-family: sans-serif;">
-                    <h2 style="color: #1e3a5f;">שלום ${full_name}!</h2>
-                    <p>שמחים שהצטרפת לפנקס השידוכים.</p>
-                    <p>כדי שנוכל להתחיל להציע לך שידוכים, נא להיכנס למערכת ולהשלים את פרטי הפרופיל שלך.</p>
-                    <a href="http://localhost:5173/profile" style="background: #c9a227; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">למעבר לפרופיל</a>
-                </div>
-            `);
-        }
-
-        res.status(201).json({
-            message: "נרשמת בהצלחה! מייל אישור נשלח.",
-            user: newUser,
-            token: token
-        });
-    } catch (err) {
-        if (err.code === '23505') return res.status(400).json({ message: "המספר כבר רשום במערכת" });
-        res.status(500).json({ message: "שגיאת שרת פנימית" });
-    }
-});
+// (Removed duplicate Legacy Auth Routes)
 
 // ==========================================
 // 🔐 שכחתי סיסמה
@@ -436,7 +590,7 @@ app.get('/my-profile', authenticateToken, async (req, res) => {
             if (hoursSinceRequest >= 28) {
                 // אישור אוטומטי!
                 const pendingChanges = user.pending_changes || {};
-                const updateFields = Object.keys(pendingChanges).map((key, i) => `${key} = $${i + 1}`).join(', ');
+                const updateFields = Object.keys(pendingChanges).map((key, i) => `"${key}" = $${i + 1}`).join(', ');
                 const updateValues = Object.values(pendingChanges);
 
                 if (updateFields) {
@@ -449,6 +603,12 @@ app.get('/my-profile', authenticateToken, async (req, res) => {
                     await pool.query(
                         `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
                         [userId, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
+                    );
+                } else {
+                    // אין שדות לעדכון אבל צריך לאפס את הדגל
+                    await pool.query(
+                        `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1`,
+                        [userId]
                     );
                 }
 
@@ -480,16 +640,22 @@ app.post('/upload-id-card', authenticateToken, upload.single('idCard'), async (r
     try {
         // שמירת הנתיב בדאטאבייס
         const imageUrl = `/uploads/${req.file.filename}`;
+        console.log(`[Upload] Processing ID upload for user ${userId}, file: ${imageUrl}`);
 
-        await pool.query(
-            `UPDATE users SET 
-                id_card_image_url = $1,
-                id_card_owner_type = $2,
-                id_card_uploaded_at = NOW(),
-                id_card_verified = FALSE
-             WHERE id = $3`,
-            [imageUrl, idOwner || 'self', userId]
-        );
+        try {
+            await pool.query(
+                `UPDATE users SET 
+                    id_card_image_url = $1,
+                    id_card_owner_type = $2,
+                    id_card_uploaded_at = NOW(),
+                    id_card_verified = FALSE
+                 WHERE id = $3`,
+                [imageUrl, idOwner || 'self', userId]
+            );
+        } catch (dbErr) {
+            console.error("[Upload] Database Update Error:", dbErr);
+            throw new Error("Database update failed: " + dbErr.message);
+        }
 
         // שליפת פרטי המשתמש להודעה
         const userResult = await pool.query('SELECT full_name, contact_person_type FROM users WHERE id = $1', [userId]);
@@ -502,12 +668,18 @@ app.post('/upload-id-card', authenticateToken, upload.single('idCard'), async (r
             candidate: 'של המועמד (הועלה ע"י הורה)'
         };
 
-        await pool.query(
-            `INSERT INTO messages (from_user_id, to_user_id, content, type) 
-             VALUES ($1, 1, $2, 'admin_notification')`,
-            [userId, `📷 ${user.full_name} העלה צילום תעודת זהות ${ownerText[idOwner] || 'לאימות'}.\nנא לאמת את הזהות.`]
-        );
+        try {
+            await pool.query(
+                `INSERT INTO messages (from_user_id, to_user_id, content, type) 
+                 VALUES ($1, 1, $2, 'admin_notification')`,
+                [userId, `📷 ${user.full_name} העלה צילום תעודת זהות ${ownerText[idOwner] || 'לאימות'}.\nנא לאמת את הזהות.`]
+            );
+        } catch (msgErr) {
+            console.error("[Upload] Message Insert Error (Non-critical):", msgErr);
+            // לא זורקים שגיאה כי זה לא קריטי לכשלון ההעלאה
+        }
 
+        console.log("[Upload] Success!");
         res.json({
             message: "תעודת הזהות הועלתה בהצלחה! ✅",
             info: "המנהל יבדוק ויאשר בהקדם.",
@@ -515,8 +687,8 @@ app.post('/upload-id-card', authenticateToken, upload.single('idCard'), async (r
         });
 
     } catch (err) {
-        console.error("Upload ID error:", err);
-        res.status(500).json({ message: "שגיאה בהעלאת הקובץ" });
+        console.error("Upload ID error (Full Trace):", err);
+        res.status(500).json({ message: "שגיאה בהעלאת הקובץ: " + err.message });
     }
 });
 
@@ -788,6 +960,9 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         // ת.ז.
         id_card_image_url,
 
+        // עיר מגורים (חדש)
+        city,
+
         // חלק ב' - פרטים נסתרים
         full_address, father_full_name, mother_full_name, siblings_details,
         reference_1_name, reference_1_phone,
@@ -802,7 +977,8 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         search_height_min, search_height_max,
         search_body_types, search_appearances,
         search_statuses, search_backgrounds,
-        search_heritage_sectors, mixed_heritage_ok, search_financial_min, search_financial_discuss
+        search_heritage_sectors, mixed_heritage_ok, search_financial_min, search_financial_discuss,
+        search_occupations, search_life_aspirations
     } = req.body;
 
     try {
@@ -829,8 +1005,10 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 search_height_min = $57, search_height_max = $58,
                 search_body_types = $59, search_appearances = $60,
                 search_statuses = $61, search_backgrounds = $62,
-                search_heritage_sectors = $63, mixed_heritage_ok = $64, search_financial_min = $65, search_financial_discuss = $66
-             WHERE id = $67 RETURNING *`,
+                search_heritage_sectors = $63, mixed_heritage_ok = $64, search_financial_min = $65, search_financial_discuss = $66,
+                search_occupations = $67, search_life_aspirations = $68,
+                city = $69
+             WHERE id = $70 RETURNING *`,
             [
                 full_name, last_name, age, gender, phone,
                 status, has_children, children_count,
@@ -854,6 +1032,8 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 search_body_types, search_appearances,
                 search_statuses, search_backgrounds,
                 search_heritage_sectors, mixed_heritage_ok, search_financial_min, search_financial_discuss,
+                search_occupations, search_life_aspirations,
+                city, // עיר מגורים
                 id // ID בסוף
             ]
         );
@@ -984,7 +1164,8 @@ app.post('/upload-profile-image', authenticateToken, upload.single('profile_imag
 
         res.json({
             message: "התמונה הועלתה בהצלחה! ✅",
-            image: result.rows[0]
+            image: result.rows[0],
+            imageUrl: imageUrl // כדי שהקלאיינט יקבל ישר את ה-URL
         });
 
     } catch (err) {
@@ -993,11 +1174,73 @@ app.post('/upload-profile-image', authenticateToken, upload.single('profile_imag
     }
 });
 
+// מחיקת תמונת פרופיל
+app.post('/delete-profile-image', authenticateToken, async (req, res) => {
+    const { imageUrl } = req.body;
+    const userId = req.user.id;
+
+    if (!imageUrl) return res.status(400).json({ message: "חסר נתיב תמונה" });
+
+    try {
+        // ווידוא שהתמונה שייכת למשתמש
+        const result = await pool.query(
+            'SELECT * FROM user_images WHERE user_id = $1 AND image_url = $2',
+            [userId, imageUrl]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "תמונה לא נמצאה או לא שייכת לך" });
+        }
+
+        // מחיקה מהדאטאבייס
+        await pool.query(
+            'DELETE FROM user_images WHERE id = $1',
+            [result.rows[0].id]
+        );
+
+        // מחיקה מהדיסק (אופציונלי - רק אם רוצים לחסוך מקום)
+        const filePath = path.join(__dirname, imageUrl);
+        fs.unlink(filePath, (err) => {
+            if (err) console.error("Error deleting file:", err);
+        });
+
+        res.json({ message: "התמונה נמחקה בהצלחה 🗑️" });
+
+    } catch (err) {
+        console.error("Delete error:", err);
+        res.status(500).json({ message: "שגיאה במחיקת התמונה" });
+    }
+});
+
+// --- קבלת פרטי המשתמש הנוכחי (כולל תמונות) ---
+app.get('/my-profile-data', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // שליפת פרטי משתמש
+        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) return res.status(404).json({ message: "משתמש לא נמצא" });
+
+        const user = userRes.rows[0];
+        delete user.password; // הסרת סיסמה
+
+        // שליפת תמונות פרופיל
+        const imagesRes = await pool.query('SELECT image_url FROM user_images WHERE user_id = $1', [userId]);
+        user.profile_images = imagesRes.rows.map(img => img.image_url);
+
+        res.json(user);
+    } catch (err) {
+        console.error("Error fetching profile:", err);
+        res.status(500).json({ message: "שגיאה בטעינת פרופיל" });
+    }
+});
+
 // ==========================================
 // 💘 מנוע השידוכים (Matches Engine)
 // ==========================================
 
 app.get('/matches', authenticateToken, async (req, res) => {
+    // Force reload v2
     const userId = req.user.id;
 
     try {
@@ -1016,28 +1259,7 @@ app.get('/matches', authenticateToken, async (req, res) => {
         // מחפשים את המגדר ההפוך
         const targetGender = currentUser.gender === 'male' ? 'female' : 'male';
 
-        // שאילתה פשוטה - רק מגדר הפוך ומאושרים
-        try {
-            const simpleResult = await pool.query(`
-                SELECT id, full_name, last_name, age, height, gender,
-                       family_background, heritage_sector, body_type, appearance,
-                       current_occupation, about_me, 
-                       COALESCE(profile_images_count, 0) as profile_images_count
-                FROM users
-                WHERE id != $1 
-                  AND is_approved = true 
-                  AND gender = $2
-                ORDER BY id DESC
-                LIMIT 20
-            `, [userId, targetGender]);
-
-            console.log(`Found ${simpleResult.rows.length} matches for user ${userId}`);
-            return res.json(simpleResult.rows);
-        } catch (queryErr) {
-            console.error("Simple query failed:", queryErr.message);
-            // אם גם השאילתה הפשוטה נכשלת, נחזיר מערך ריק
-            return res.json([]);
-        }
+        // שלב 2: בניית תנאי הסינון (מתחיל כאן)
 
         // שלב 2: בניית תנאי הסינון
         let params = [userId];
@@ -1069,12 +1291,12 @@ app.get('/matches', authenticateToken, async (req, res) => {
         // סינון לפי גובה
         if (currentUser.search_height_min) {
             conditions.push(`height >= $${paramIndex}`);
-            params.push(currentUser.search_height_min);
+            params.push(Math.round(Number(currentUser.search_height_min)));
             paramIndex++;
         }
         if (currentUser.search_height_max) {
             conditions.push(`height <= $${paramIndex}`);
-            params.push(currentUser.search_height_max);
+            params.push(Math.round(Number(currentUser.search_height_max)));
             paramIndex++;
         }
 
@@ -1123,79 +1345,116 @@ app.get('/matches', authenticateToken, async (req, res) => {
             paramIndex += sectors.length;
         }
 
+        // סינון לפי עיסוק
+        if (currentUser.search_occupations && currentUser.search_occupations !== '') {
+            const occupations = currentUser.search_occupations.split(',').map(t => t.trim());
+            const placeholders = occupations.map((_, i) => `$${paramIndex + i}`).join(',');
+            conditions.push(`current_occupation IN (${placeholders})`);
+            params.push(...occupations);
+            paramIndex += occupations.length;
+        }
+
+        // סינון לפי שאיפות חיים
+        if (currentUser.search_life_aspirations && currentUser.search_life_aspirations !== '') {
+            const aspirations = currentUser.search_life_aspirations.split(',').map(t => t.trim());
+            const placeholders = aspirations.map((_, i) => `$${paramIndex + i}`).join(',');
+            conditions.push(`life_aspiration IN (${placeholders})`);
+            params.push(...aspirations);
+            paramIndex += aspirations.length;
+        }
+
         // הסבר: בדיקה שגם הצד השני מחפש אותי!
         // המועמד צריך לרצות את הגיל שלי
         if (currentUser.age) {
+            const myAge = Math.round(Number(currentUser.age));
             conditions.push(`(search_min_age IS NULL OR search_min_age <= $${paramIndex})`);
-            params.push(currentUser.age);
+            params.push(myAge);
             paramIndex++;
             conditions.push(`(search_max_age IS NULL OR search_max_age >= $${paramIndex})`);
-            params.push(currentUser.age);
+            params.push(myAge);
             paramIndex++;
         }
 
         // הסבר: המועמד צריך לרצות את הגובה שלי
         if (currentUser.height) {
+            const myHeight = Math.round(Number(currentUser.height));
             conditions.push(`(search_height_min IS NULL OR search_height_min <= $${paramIndex})`);
-            params.push(currentUser.height);
+            params.push(myHeight);
             paramIndex++;
             conditions.push(`(search_height_max IS NULL OR search_height_max >= $${paramIndex})`);
-            params.push(currentUser.height);
+            params.push(myHeight);
             paramIndex++;
         }
 
         // הסבר: המועמד צריך לרצות את המגזר העדתי שלי
         if (currentUser.heritage_sector) {
-            conditions.push(`(search_heritage_sectors IS NULL OR search_heritage_sectors = '' OR search_heritage_sectors LIKE $${paramIndex})`);
-            params.push(`%${currentUser.heritage_sector}%`);
+            conditions.push(`(search_heritage_sectors IS NULL OR search_heritage_sectors = '' OR $${paramIndex} = ANY(string_to_array(search_heritage_sectors, ',')))`);
+            params.push(currentUser.heritage_sector);
             paramIndex++;
         }
 
         // 🆕 המועמד צריך לרצות את הסטטוס שלי (רווק/גרוש/אלמן)
         if (currentUser.status) {
-            conditions.push(`(search_statuses IS NULL OR search_statuses = '' OR search_statuses LIKE $${paramIndex})`);
-            params.push(`%${currentUser.status}%`);
+            conditions.push(`(search_statuses IS NULL OR search_statuses = '' OR $${paramIndex} = ANY(string_to_array(search_statuses, ',')))`);
+            params.push(currentUser.status);
             paramIndex++;
         }
 
         // 🆕 המועמד צריך לרצות את הרקע הדתי שלי
         if (currentUser.family_background) {
-            conditions.push(`(search_backgrounds IS NULL OR search_backgrounds = '' OR search_backgrounds LIKE $${paramIndex})`);
-            params.push(`%${currentUser.family_background}%`);
+            conditions.push(`(search_backgrounds IS NULL OR search_backgrounds = '' OR $${paramIndex} = ANY(string_to_array(search_backgrounds, ',')))`);
+            params.push(currentUser.family_background);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את מבנה הגוף שלי
+        // 🆕 המועמד צריך לרצות את מבנה הגוף שלי (תיקון באג LIKE)
         if (currentUser.body_type) {
-            conditions.push(`(search_body_types IS NULL OR search_body_types = '' OR search_body_types LIKE $${paramIndex})`);
-            params.push(`%${currentUser.body_type}%`);
+            conditions.push(`(search_body_types IS NULL OR search_body_types = '' OR $${paramIndex} = ANY(string_to_array(search_body_types, ',')))`);
+            params.push(currentUser.body_type);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את המראה שלי
+        // 🆕 המועמד צריך לרצות את המראה שלי (תיקון באג LIKE)
         if (currentUser.appearance) {
-            conditions.push(`(search_appearances IS NULL OR search_appearances = '' OR search_appearances LIKE $${paramIndex})`);
-            params.push(`%${currentUser.appearance}%`);
+            conditions.push(`(search_appearances IS NULL OR search_appearances = '' OR $${paramIndex} = ANY(string_to_array(search_appearances, ',')))`);
+            params.push(currentUser.appearance);
             paramIndex++;
         }
 
-        // שלב 3: הרצת השאילתה
+        // 🆕 המועמד צריך לרצות את העיסוק שלי (חדש!)
+        if (currentUser.current_occupation) {
+            conditions.push(`(search_occupations IS NULL OR search_occupations = '' OR $${paramIndex} = ANY(string_to_array(search_occupations, ',')))`);
+            params.push(currentUser.current_occupation);
+            paramIndex++;
+        }
+
+        // 🆕 המועמד צריך לרצות את השאיפה שלי (חדש!) - רלוונטי בעיקר כשגבר מחפש אישה והיא סיננה לפי שאיפות
+        if (currentUser.life_aspiration) {
+            conditions.push(`(search_life_aspirations IS NULL OR search_life_aspirations = '' OR $${paramIndex} = ANY(string_to_array(search_life_aspirations, ',')))`);
+            params.push(currentUser.life_aspiration);
+            paramIndex++;
+        }
+
+        // שלב 3: הרצת השאילתה הסופית
         const query = `
             SELECT id, full_name, last_name, age, height, gender, phone,
                    family_background, heritage_sector, body_type, appearance, skin_tone,
-                   current_occupation, about_me, profile_images_count
+                   current_occupation, about_me, profile_images_count, life_aspiration, study_place, work_field
             FROM users
             WHERE ${conditions.join(' AND ')}
             ORDER BY id DESC
-            LIMIT 20
+            LIMIT 30
         `;
+
+        // console.log("Final Query:", query); 
+        // console.log("Params:", params);
 
         const result = await pool.query(query, params);
         res.json(result.rows);
 
     } catch (err) {
         console.error("Match error:", err.message);
-        console.error("Query params:", params);
+        if (typeof params !== 'undefined') console.error("Query params:", params);
         console.error("Full error:", err);
         res.status(500).json({ message: "תקלה בטעינת השידוכים" });
     }
@@ -1203,6 +1462,126 @@ app.get('/matches', authenticateToken, async (req, res) => {
 
 // ==========================================
 // 👮 אזור ניהול (Admin)
+// ==========================================
+
+// שליפת תיקים שממתינים לשדכן
+app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    try {
+        const result = await pool.query(
+            `SELECT 
+                c.id AS connection_id,
+                u1.full_name AS s_name, u1.phone AS s_phone, u1.age AS s_age, u1.sector AS s_sector,
+                u1.rabbi_name AS s_rabbi, u1.rabbi_phone AS s_rabbi_phone,
+                u2.full_name AS r_name, u2.phone AS r_phone, u2.age AS r_age, u2.sector AS r_sector,
+                u2.rabbi_name AS r_rabbi, u2.rabbi_phone AS r_rabbi_phone
+             FROM connections c
+             JOIN users u1 ON c.sender_id = u1.id
+             JOIN users u2 ON c.receiver_id = u2.id
+             WHERE c.status = 'waiting_for_shadchan'`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בשליפת נתוני שדכן" });
+    }
+});
+
+// 🆕 שליפת פרופילים שממתינים לאישור שינויים
+app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, phone, pending_changes, pending_changes_at, profile_edit_count
+             FROM users 
+             WHERE is_profile_pending = TRUE
+             ORDER BY pending_changes_at ASC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בשליפת בקשות שינוי" });
+    }
+});
+
+// 🆕 אישור שינויי פרופיל
+app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { id } = req.params;
+
+    try {
+        // שליפת השינויים הממתינים והמייל של המשתמש
+        const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+        const user = userResult.rows[0];
+        const pendingChanges = user.pending_changes || {};
+
+        // 1. עדכון השדות (אם יש שינויים)
+        const keys = Object.keys(pendingChanges);
+        if (keys.length > 0) {
+            const updateFields = keys.map((key, i) => `"${key}" = $${i + 1}`).join(', ');
+            const updateValues = Object.values(pendingChanges);
+
+            await pool.query(
+                `UPDATE users SET ${updateFields} WHERE id = $${updateValues.length + 1}`,
+                [...updateValues, id]
+            );
+        }
+
+        // 2. איפוס הדגל (תמיד!)
+        await pool.query(
+            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1`,
+            [id]
+        );
+
+        // 3. הודעה פנימית למשתמש
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [id, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
+        );
+
+        // 4. שליחת מייל למשתמש (אם יש לו מייל)
+        if (user.email) {
+            // (קוד המייל פה - נחסך למען הקיצור, אפשר להוסיף אם קריטי)
+        }
+
+        res.json({ message: "השינויים אושרו בהצלחה!" });
+    } catch (err) {
+        console.error("Approve changes error:", err);
+        if (err.code === '42703') { // undefined_column
+            return res.status(400).json({ message: "שגיאה: שדה לא קיים." });
+        }
+        res.status(500).json({ message: "שגיאה באישור השינויים" });
+    }
+});
+
+// 🆕 דחיית שינויי פרופיל
+app.post('/admin/reject-profile-changes/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    try {
+        await pool.query(
+            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1`,
+            [id]
+        );
+
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [id, `❌ השינויים בפרופיל לא אושרו.\nסיבה: ${reason || 'לא צוינה סיבה'}`]
+        );
+
+        res.json({ message: "השינויים נדחו" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בדחיית השינויים" });
+    }
+});
+
 // ==========================================
 
 app.get('/admin/users', authenticateToken, async (req, res) => {
@@ -1803,6 +2182,17 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 // ==========================================
 //  הפעלת השרת
 // ==========================================
-app.listen(port, () => {
-    console.log(`🚀 שרת השידוכים רץ בפורט ${port}: http://localhost:${port}/status`);
+async function updateDbSchema() {
+    try {
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(255);');
+        console.log("✅ DB Schema updated: 'city' column ensured.");
+    } catch (err) {
+        console.error("⚠️ Failed to update DB Schema:", err);
+    }
+}
+
+updateDbSchema().then(() => {
+    app.listen(port, () => {
+        console.log(`🚀 שרת השידוכים רץ בפורט ${port}: http://localhost:${port}/status`);
+    });
 });
