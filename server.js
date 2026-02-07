@@ -106,7 +106,7 @@ async function sendEmail(to, subject, htmlContent) {
 
     try {
         const info = await transporter.sendMail({
-            from: '"הפנקס - שידוכים" <noreply@hapinkas.com>',
+            from: '"הפנקס - שידוכים" <hapinkas.contact@gmail.com>',
             to: to,
             subject: subject,
             html: htmlContent,
