@@ -38,7 +38,7 @@ app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 // 2. Rate Limiting - הגבלת בקשות כללית
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 דקות
-    max: 100, // מקסימום 100 בקשות לכל IP
+    max: 300, // מקסימום 300 בקשות לכל IP (הוגדל מ-100)
     message: "יותר מדי בקשות מכתובת זו, נא לנסות שוב מאוחר יותר."
 });
 app.use(limiter);
@@ -1523,7 +1523,19 @@ app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, re
         const keys = Object.keys(pendingChanges);
         if (keys.length > 0) {
             const updateFields = keys.map((key, i) => `"${key}" = $${i + 1}`).join(', ');
-            const updateValues = Object.values(pendingChanges);
+            const updateValues = Object.values(pendingChanges).map(val => val === '' ? null : val);
+
+            // לוג 디באג זמני
+            console.log("🛠️ Attempting update with keys:", keys);
+            keys.forEach((k, i) => {
+                if (typeof updateValues[i] === 'number' && updateValues[i] > 2147483647) {
+                    console.error(`⚠️ POTENTIAL ERROR: Key '${k}' has large value: ${updateValues[i]}`);
+                }
+                // בדיקת מחרוזות שנראות כמו מספרים גדולים
+                if (typeof updateValues[i] === 'string' && /^\d+$/.test(updateValues[i]) && updateValues[i].length > 9) {
+                    console.error(`⚠️ POTENTIAL ERROR: Key '${k}' is a long string number: ${updateValues[i]}`);
+                }
+            });
 
             await pool.query(
                 `UPDATE users SET ${updateFields} WHERE id = $${updateValues.length + 1}`,
@@ -1552,7 +1564,7 @@ app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, re
     } catch (err) {
         console.error("Approve changes error:", err);
         if (err.code === '42703') { // undefined_column
-            return res.status(400).json({ message: "שגיאה: שדה לא קיים." });
+            return res.status(400).json({ message: `שגיאה: שדה לא קיים במסד הנתונים (${err.message})` });
         }
         res.status(500).json({ message: "שגיאה באישור השינויים" });
     }
@@ -2185,7 +2197,136 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 async function updateDbSchema() {
     try {
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(255);');
-        console.log("✅ DB Schema updated: 'city' column ensured.");
+        // 7. הוספת עמודות לוויזארד החדש (אם חסרות)
+        // birth_date
+        await pool.query(`
+        DO $$ 
+        BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='birth_date') THEN 
+                ALTER TABLE users ADD COLUMN birth_date DATE; 
+            END IF;
+        END $$;
+    `);
+
+        // אנשי קשר
+        await pool.query(`
+        DO $$ 
+        BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='contact_person_type') THEN 
+                ALTER TABLE users ADD COLUMN contact_person_type VARCHAR(50); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='contact_person_name') THEN 
+                ALTER TABLE users ADD COLUMN contact_person_name VARCHAR(100); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='contact_phone_1') THEN 
+                ALTER TABLE users ADD COLUMN contact_phone_1 VARCHAR(50); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='contact_phone_2') THEN 
+                ALTER TABLE users ADD COLUMN contact_phone_2 VARCHAR(50); 
+            END IF;
+
+            -- עמודות טלפון נוספות
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reference_1_phone') THEN 
+                ALTER TABLE users ADD COLUMN reference_1_phone VARCHAR(50); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reference_2_phone') THEN 
+                ALTER TABLE users ADD COLUMN reference_2_phone VARCHAR(50); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reference_3_phone') THEN 
+                ALTER TABLE users ADD COLUMN reference_3_phone VARCHAR(50); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='family_reference_phone') THEN 
+                ALTER TABLE users ADD COLUMN family_reference_phone VARCHAR(50); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='rabbi_phone') THEN 
+                ALTER TABLE users ADD COLUMN rabbi_phone VARCHAR(50); 
+            END IF;
+             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='mechutanim_phone') THEN 
+                ALTER TABLE users ADD COLUMN mechutanim_phone VARCHAR(50); 
+            END IF;
+
+            -- המרת עמודות טלפון ל-VARCHAR (למקרה שהן הוגדרו כ-INTEGER בטעות)
+             BEGIN
+                ALTER TABLE users ALTER COLUMN contact_phone_1 TYPE VARCHAR(50);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+            BEGIN
+                ALTER TABLE users ALTER COLUMN contact_phone_2 TYPE VARCHAR(50);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+            BEGIN
+                ALTER TABLE users ALTER COLUMN reference_1_phone TYPE VARCHAR(50);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+            BEGIN
+                ALTER TABLE users ALTER COLUMN reference_2_phone TYPE VARCHAR(50);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+            BEGIN
+                ALTER TABLE users ALTER COLUMN reference_3_phone TYPE VARCHAR(50);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+            BEGIN
+                ALTER TABLE users ALTER COLUMN family_reference_phone TYPE VARCHAR(50);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+            BEGIN
+                ALTER TABLE users ALTER COLUMN rabbi_phone TYPE VARCHAR(50);
+             EXCEPTION WHEN OTHERS THEN NULL; END;
+            BEGIN
+                ALTER TABLE users ALTER COLUMN mechutanim_phone TYPE VARCHAR(50);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+            
+            BEGIN
+                ALTER TABLE users ALTER COLUMN search_financial_min TYPE VARCHAR(100);
+            EXCEPTION WHEN OTHERS THEN NULL; END;
+
+            -- עמודות ישיבה ודירה
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='apartment_amount') THEN 
+                ALTER TABLE users ADD COLUMN apartment_amount VARCHAR(100); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='apartment_help') THEN 
+                ALTER TABLE users ADD COLUMN apartment_help VARCHAR(100); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='yeshiva_name') THEN 
+                ALTER TABLE users ADD COLUMN yeshiva_name VARCHAR(255); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='yeshiva_ketana_name') THEN 
+                ALTER TABLE users ADD COLUMN yeshiva_ketana_name VARCHAR(255); 
+            END IF;
+             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='occupation_details') THEN 
+                ALTER TABLE users ADD COLUMN occupation_details TEXT; 
+            END IF;
+
+            -- עמודות רקע ומשפחה
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='country_of_birth') THEN 
+                ALTER TABLE users ADD COLUMN country_of_birth VARCHAR(100); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='father_heritage') THEN 
+                ALTER TABLE users ADD COLUMN father_heritage VARCHAR(100); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='mother_heritage') THEN 
+                ALTER TABLE users ADD COLUMN mother_heritage VARCHAR(100); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='siblings_count') THEN 
+                ALTER TABLE users ADD COLUMN siblings_count INTEGER; 
+            END IF;
+             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='sibling_position') THEN 
+                ALTER TABLE users ADD COLUMN sibling_position INTEGER; 
+            END IF;
+
+             -- עמודות נוספות לוויזארד
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='skin_tone') THEN 
+                ALTER TABLE users ADD COLUMN skin_tone VARCHAR(50); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='life_aspiration') THEN 
+                ALTER TABLE users ADD COLUMN life_aspiration VARCHAR(255); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='favorite_study') THEN 
+                ALTER TABLE users ADD COLUMN favorite_study VARCHAR(255); 
+            END IF;
+             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='study_place') THEN 
+                ALTER TABLE users ADD COLUMN study_place VARCHAR(255); 
+            END IF;
+        END $$;
+    `);
+
+        console.log("✅ DB Schema updated: Wizard columns ensured.");
+
     } catch (err) {
         console.error("⚠️ Failed to update DB Schema:", err);
     }

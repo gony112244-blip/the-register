@@ -12,23 +12,33 @@ function AdminPendingProfiles() {
     const [rejectReason, setRejectReason] = useState('');
 
     useEffect(() => {
-        if (!user?.is_admin) {
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        if (!storedUser?.is_admin) {
             navigate('/');
             return;
         }
         fetchPending();
-    }, [navigate, user]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [navigate]);
 
     const fetchPending = async () => {
         try {
             const res = await fetch('http://localhost:3000/admin/pending-profiles', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+
+            if (!res.ok) {
+                const text = await res.text();
+                console.error(`Status: ${res.status}, Text: ${text}`);
+                setLoading(false);
+                return;
+            }
+
             const data = await res.json();
             setPending(data);
             setLoading(false);
         } catch (err) {
-            console.error(err);
+            console.error("Fetch error:", err);
             setLoading(false);
         }
     };
@@ -88,12 +98,40 @@ function AdminPendingProfiles() {
 
     const translateField = (field) => {
         const translations = {
-            full_name: 'שם', last_name: 'שם משפחה', age: 'גיל', gender: 'מגדר',
+            full_name: 'שם מלא', last_name: 'שם משפחה', age: 'גיל', gender: 'מגדר',
             status: 'סטטוס', family_background: 'רקע משפחתי', heritage_sector: 'מגזר עדתי',
-            height: 'גובה', body_type: 'מבנה גוף', appearance: 'מראה',
-            about_me: 'על עצמי', partner_description: 'תיאור השידוך',
+            father_heritage: 'עדות האב', mother_heritage: 'עדות האם',
+            height: 'גובה', body_type: 'מבנה גוף', skin_tone: 'גוון עור', appearance: 'מראה כללי',
+
+            // עיסוק ולימודים
+            current_occupation: 'עיסוק נוכחי', occupation_details: 'פרטי עיסוק',
+            work_field: 'תחום עיסוק', study_field: 'תחום לימודים', study_place: 'מקום לימודים',
+            yeshiva_name: 'ישיבה', yeshiva_ketana_name: 'ישיבה קטנה',
+            life_aspiration: 'שאיפה בחיים', favorite_study: 'לימוד מועדף',
+
+            // משפחה ורקע
+            country_of_birth: 'ארץ לידה', city: 'עיר מגורים', address: 'כתובת',
+            father_full_name: 'שם האב', mother_full_name: 'שם האם',
             father_occupation: 'עיסוק האב', mother_occupation: 'עיסוק האם',
-            has_children: 'ילדים', children_count: 'מספר ילדים'
+            siblings_count: 'מספר אחים/אחיות', sibling_position: 'מיקום במשפחה',
+            siblings_details: 'פרטי אחים',
+
+            // דרישות ושידוך
+            about_me: 'על עצמי', partner_description: 'תיאור השידוך',
+            home_style: 'סגנון בית', important_in_life: 'חשוב בחיים',
+            has_children: 'יש ילדים', children_count: 'מספר ילדים',
+
+            // כספים
+            apartment_help: 'עזרה בדירה', apartment_amount: 'סכום לדירה',
+            search_financial_min: 'דרישה כספית מינימלית', search_financial_discuss: 'פתוח לדיון כספי',
+
+            // אנשי קשר
+            contact_person_name: 'איש קשר ראשי', contact_person_type: 'סוג קשר',
+            contact_phone_1: 'טלפון קשר 1', contact_phone_2: 'טלפון קשר 2',
+            reference_1_name: 'ממליץ 1', reference_1_phone: 'טלפון ממליץ 1',
+            reference_2_name: 'ממליץ 2', reference_2_phone: 'טלפון ממליץ 2',
+            rabbi_name: 'שם הרב', rabbi_phone: 'טלפון הרב',
+            mechutanim_name: 'מחותנים', mechutanim_phone: 'טלפון מחותנים'
         };
         return translations[field] || field;
     };
