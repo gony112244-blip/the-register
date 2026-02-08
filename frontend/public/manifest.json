@@ -1,0 +1,28 @@
+{
+    "name": "הפנקס - שידוכים",
+    "short_name": "הפנקס",
+    "description": "מערכת שידוכים לבני תורה",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1e3a5f",
+    "theme_color": "#c9a227",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/logo.svg?v=3",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/logo.svg?v=3",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "/logo.svg?v=3",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ]
+}
