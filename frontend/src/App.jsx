@@ -14,6 +14,7 @@ import Connections from './Connections';
 import PhotoRequests from './PhotoRequests';
 import HiddenProfiles from './HiddenProfiles';
 import ForgotPassword from './ForgotPassword';
+import PWAInstallPrompt from './components/PWAInstallPrompt'; // התקנת PWA
 
 import AdminMatches from './AdminMatches';
 import AdminPendingProfiles from './AdminPendingProfiles';
@@ -80,6 +81,7 @@ function App() {
     <ToastProvider>
       <Router>
         <AppContent />
+        <PWAInstallPrompt />
       </Router>
     </ToastProvider>
   );

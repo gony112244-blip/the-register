@@ -100,9 +100,30 @@ async function initMailer() {
 // הפעלת האתחול
 initMailer();
 
-// פונקציית עזר לשליחת מייל
-async function sendEmail(to, subject, htmlContent) {
+// ייבוא תבניות המייל
+const { getEmailTemplate } = require('./emailTemplates');
+
+// פונקציית עזר מתקדמת לשליחת מייל
+async function sendEmail(to, subject, htmlContent, userId = null) {
     if (!transporter) await initMailer();
+
+    // אם יש userId, בדוק אם המשתמש רוצה לקבל מיילים
+    if (userId) {
+        try {
+            const userPrefs = await pool.query(
+                'SELECT email_notifications_enabled FROM users WHERE id = $1',
+                [userId]
+            );
+
+            if (userPrefs.rows.length > 0 && !userPrefs.rows[0].email_notifications_enabled) {
+                console.log(`📧 Email skipped for user ${userId} - notifications disabled`);
+                return false;
+            }
+        } catch (err) {
+            console.error('Error checking email preferences:', err);
+            // במקרה של שגיאה, נמשיך לשלוח (fail-safe)
+        }
+    }
 
     try {
         const info = await transporter.sendMail({
@@ -123,6 +144,17 @@ async function sendEmail(to, subject, htmlContent) {
         console.error("❌ Error sending email:", err);
         return false;
     }
+}
+
+// פונקציה מקוצרת לשליחת מייל עם תבנית
+async function sendTemplateEmail(to, templateType, data, userId = null) {
+    const template = getEmailTemplate(templateType, data);
+    if (!template) {
+        console.error(`❌ Unknown email template: ${templateType}`);
+        return false;
+    }
+
+    return await sendEmail(to, template.subject, template.html, userId);
 }
 
 // ==========================================
@@ -259,7 +291,8 @@ app.post('/register', async (req, res) => {
     const {
         email, password, full_name, last_name, phone, gender,
         birth_year, height, city, // שדות בסיס
-        profile_images // מערך תמונות (אופציונלי)
+        profile_images, // מערך תמונות (אופציונלי)
+        email_notifications_enabled // העדפת התראות (ברירת מחדל: true)
     } = req.body;
 
     // ניקוי אימייל (אם ריק -> NULL) כדי למנוע כפילויות על מחרוזת ריקה
@@ -294,12 +327,13 @@ app.post('/register', async (req, res) => {
             `INSERT INTO users (
                 email, password, full_name, last_name, phone, gender,
                 age, height, city, created_at, is_approved, is_blocked,
-                profile_images, profile_images_count
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), FALSE, FALSE, $10, $11) RETURNING *`,
+                profile_images, profile_images_count, email_notifications_enabled
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), FALSE, FALSE, $10, $11, $12) RETURNING *`,
             [
                 emailToSave, hashedPassword, full_name, last_name, phoneToSave, gender,
                 age, height || null, city || null,
-                profile_images || [], (profile_images || []).length
+                profile_images || [], (profile_images || []).length,
+                email_notifications_enabled !== false // ברירת מחדל true
             ]
         );
 
@@ -316,16 +350,14 @@ app.post('/register', async (req, res) => {
             [newUser.rows[0].id, `👋 ברוכים הבאים ל"הפנקס"! \nנא להשלים את הפרופיל בטאב "הפרופיל שלי" כדי להתחיל לקבל הצעות.`]
         );
 
-        // 7. שליחת מייל ברוכים הבאים
+        // 7. שליחת מייל ברוכים הבאים (עם תבנית מקצועית)
         if (email) {
-            sendEmail(email, 'ברוכים הבאים לפנקס! 🎉', `
-                <div style="direction: rtl; text-align: right;">
-                    <h2>שלום ${full_name},</h2>
-                    <p>שמחים שהצטרפת למאגר השידוכים שלנו.</p>
-                    <p>נא להשלים את פרטי הפרופיל ולהעלות תעודת זהות לאימות.</p>
-                    <a href="http://localhost:5173/login">התחבר למערכת</a>
-                </div>
-            `);
+            await sendTemplateEmail(
+                email,
+                'welcome',
+                { fullName: full_name },
+                newUser.rows[0].id
+            );
         }
 
         res.status(201).json({

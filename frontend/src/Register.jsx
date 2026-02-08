@@ -7,6 +7,7 @@ function Register() {
     const [fullName, setFullName] = useState("");
     const [password, setPassword] = useState("");
     const [email, setEmail] = useState(""); // שדה חדש
+    const [emailNotifications, setEmailNotifications] = useState(true); // העדפת התראות במייל
     const [errors, setErrors] = useState({});
     const [showPassword, setShowPassword] = useState(false);
     const { showToast } = useToast();
@@ -92,7 +93,8 @@ function Register() {
                     phone,
                     password,
                     full_name: fullName,
-                    email // שליחת המייל לשרת
+                    email, // שליחת המייל לשרת
+                    email_notifications_enabled: emailNotifications // העדפת התראות
                 })
             });
 
@@ -198,6 +200,40 @@ function Register() {
                         </button>
                     </div>
                     {errors.password && <span style={errorStyle}>{errors.password}</span>}
+                </div>
+
+                {/* העדפת התראות במייל */}
+                <div style={{ marginBottom: '20px', textAlign: 'right' }}>
+                    <label style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        cursor: 'pointer',
+                        fontSize: '15px',
+                        color: '#475569',
+                        userSelect: 'none'
+                    }}>
+                        <input
+                            type="checkbox"
+                            checked={emailNotifications}
+                            onChange={(e) => setEmailNotifications(e.target.checked)}
+                            style={{
+                                width: '18px',
+                                height: '18px',
+                                cursor: 'pointer',
+                                accentColor: '#c9a227'
+                            }}
+                        />
+                        <span>אני מעוניין/ת לקבל התראות במייל על הודעות חדשות ופעילות במערכת</span>
+                    </label>
+                    <p style={{
+                        fontSize: '13px',
+                        color: '#64748b',
+                        margin: '5px 0 0 28px',
+                        lineHeight: '1.5'
+                    }}>
+                        ניתן לשנות העדפה זו בכל עת דרך הגדרות הפרופיל
+                    </p>
                 </div>
 
                 {/* כפתור הרשמה */}
