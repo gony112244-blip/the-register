@@ -4,8 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon server.js"
+    "start": "node server.js",
+    "db:setup": "node setup_database.js",
+    "db:backup": "node backup_database.js",
+    "db:restore": "node restore_from_backup.js"
   },
   "keywords": [],
   "author": "",

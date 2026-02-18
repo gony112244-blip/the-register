@@ -5,7 +5,13 @@ import { useToast } from './components/ToastProvider';
 function Profile() {
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
-    const savedUser = JSON.parse(localStorage.getItem('user'));
+    let savedUser = null;
+    try {
+        const stored = localStorage.getItem('user');
+        if (stored) savedUser = JSON.parse(stored);
+    } catch (e) {
+        console.error("Error parsing saved user:", e);
+    }
     const { showToast } = useToast();
 
     // מצב הטופס - כל השדות
@@ -161,12 +167,105 @@ function Profile() {
     // שמירה אוטומטית ל-localStorage בכל שינוי כדי למנוע איבוד מידע ברענון
     useEffect(() => {
         if (user) {
-            // שומרים את המצב הנוכחי, אך נזהרים לא לדרוס מידע קיים אם ה-user הנוכחי ריק חלקית
+            // שומרים את המצב הנוכחי, אך נזהרים לא לדרוס מידע קיים אם ال-user הנוכחי ריק חלקית
             const currentStored = JSON.parse(localStorage.getItem('user') || '{}');
             const merged = { ...currentStored, ...user };
             localStorage.setItem('user', JSON.stringify(merged));
         }
     }, [user]);
+
+    // פונקציית מילוי אוטומטי לבדיקות (Magic Fill)
+    const fillRandomData = () => {
+        const firstNames = ['ישראל', 'אברהם', 'יצחק', 'יעקב', 'משה', 'אהרון', 'שמואל', 'דוד', 'שלמה', 'רחל', 'לאה', 'רבקה', 'שרה', 'חנה', 'מרים'];
+        const lastNames = ['כהן', 'לוי', 'מזרחי', 'שפירא', 'פרידמן', 'וייס', 'גולדברג', 'כץ', 'אדלר', 'שור', 'קנייבסקי', 'שטרן'];
+        const cities = ['ירושלים', 'בני ברק', 'אלעד', 'מודיעין עילית', 'בית שמש', 'ביתר עילית', 'נתניה', 'אשדוד', 'צפת'];
+        const yeshivot = ['חברון', 'פוניבז\'', 'מיר', 'עטרת ישראל', 'בית מתתיהו', 'קול תורה', 'אור ישראל', 'תושיה בתפרח'];
+        const occupations = ['חינוך', 'הייטק', 'חשבונאות', 'עבודה סוציאלית', 'אמנות', 'שיווק', 'ייעוץ', 'מנהל'];
+
+        const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const randNum = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+        const isMale = user.gender === 'male' || (user.gender === '' && Math.random() > 0.5);
+        const gender = isMale ? 'male' : 'female';
+
+        const randomData = {
+            gender: gender,
+            full_name: pick(firstNames),
+            last_name: pick(lastNames),
+            age: randNum(19, 40),
+            birth_date: `19${randNum(85, 99)}-0${randNum(1, 9)}-${randNum(10, 28)}`,
+            country_of_birth: 'israel',
+            city: pick(cities),
+            status: 'single',
+            has_children: false,
+            children_count: 0,
+            contact_person_type: 'parent',
+            contact_person_name: pick(firstNames) + ' ' + pick(lastNames),
+            contact_phone_1: `05${randNum(0, 8)}-${randNum(1000000, 9999999)}`,
+            contact_phone_2: `05${randNum(0, 8)}-${randNum(1000000, 9999999)}`,
+            family_background: 'משפחה תורנית, חמה ותומכת.',
+            heritage_sector: pick(['ashkenazi', 'sephardi', 'teimani']),
+            father_occupation: 'אברך כולל',
+            mother_occupation: 'מורה',
+            father_heritage: pick(['ashkenazi', 'sephardi']),
+            mother_heritage: pick(['ashkenazi', 'sephardi']),
+            siblings_count: randNum(3, 10),
+            sibling_position: randNum(1, 5),
+            height: randNum(155, 190),
+            body_type: pick(['slim', 'average', 'athletic']),
+            skin_tone: pick(['fair', 'medium', 'olive']),
+            appearance: 'לבוש ישיבתי/חסידי שמור ומכובד.',
+            apartment_help: 'yes',
+            apartment_amount: randNum(20, 100) * 10000,
+            current_occupation: isMale ? 'studying' : 'working',
+            yeshiva_name: isMale ? pick(yeshivot) : '',
+            yeshiva_ketana_name: isMale ? 'סלבודקה' : '',
+            work_field: isMale ? '' : pick(occupations),
+            life_aspiration: 'בית של תורה וחסד.',
+            favorite_study: 'גמרא בעיון',
+            study_place: 'ירושלים',
+            study_field: 'הלכה',
+            occupation_details: 'עובד במשרד גדול.',
+            about_me: 'בחור רציני, אוהב ללמוד, בעל מידות טובות ושמחת חיים.',
+            home_style: 'תורני מודרני',
+            partner_description: 'בחורה יראת שמיים, בעלת מידות טובות.',
+            important_in_life: 'יושר, נאמנות וקביעת עיתים לתורה.',
+            full_address: pick(cities) + ', רחוב השומר ' + randNum(1, 100),
+            father_full_name: pick(firstNames) + ' ' + pick(lastNames),
+            mother_full_name: pick(firstNames) + ' ' + pick(lastNames),
+            siblings_details: 'אח בכור נשוי, אחות לומדת בסמינר...',
+            reference_1_name: 'הרב ' + pick(lastNames),
+            reference_1_phone: '050-1234567',
+            reference_2_name: 'מר ' + pick(lastNames),
+            reference_2_phone: '052-7654321',
+            reference_3_name: 'חבר קרוב',
+            reference_3_phone: '054-0000000',
+            family_reference_name: 'בן דוד',
+            family_reference_phone: '058-1111111',
+            rabbi_name: 'הרב שפירא',
+            rabbi_phone: '02-1234567',
+            mechutanim_name: 'משפחת גולדשטיין',
+            mechutanim_phone: '03-9876543',
+            search_min_age: randNum(18, 22),
+            search_max_age: randNum(25, 30),
+            search_height_min: 150,
+            search_height_max: 200,
+            search_body_types: 'slim,average',
+            search_appearances: 'נאה,מכובד',
+            search_statuses: 'single',
+            search_backgrounds: 'למדני,חסידי',
+            search_heritage_sectors: 'ashkenazi,sephardi',
+            mixed_heritage_ok: true,
+            search_financial_min: 50000,
+            search_financial_discuss: true,
+            search_occupations: 'studying,working',
+            search_life_aspirations: 'בית תורני',
+            id_card_image_url: '/uploads/dummy_id.jpg' // דמה לצורך בדיקה
+        };
+
+        setUser(prev => ({ ...prev, ...randomData }));
+        showToast("הפרופיל מולא בנתוני קסם! 🪄✨", "success");
+    };
 
     // שמירה לשרת
     const handleSave = async () => {
@@ -227,7 +326,7 @@ function Profile() {
                     const updatedUser = (await res.json()).user;
                     setUser(prev => ({ ...prev, ...updatedUser }));
                     localStorage.setItem('user', JSON.stringify(updatedUser)); // עדכון גם בלוקאל
-                    showToast("הפרופיל עודכן בהצלחה!", "success");
+                    showToast("הפרופיל עודכן בהצלחה! כעת המתן לאישור המנהל.", "success");
                     navigate('/matches'); // העברה לדף הראשי
                 } else {
                     showToast("שגיאה בעדכון הפרופיל", "error");
@@ -334,8 +433,34 @@ function Profile() {
             <div style={styles.container}>
                 {/* כותרת */}
                 <div style={styles.header}>
-                    <h1 style={styles.title}>📋 הפנקס שלי</h1>
-                    <p style={styles.subtitle}>שלב {activeSection} מתוך 4</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h1 style={styles.title}>📋 הפנקס שלי</h1>
+                            <p style={styles.subtitle}>שלב {activeSection} מתוך 4</p>
+                        </div>
+                        {/* כפתור למילוי אוטומטי לבדיקה */}
+                        <button
+                            onClick={fillRandomData}
+                            style={{
+                                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 18px',
+                                borderRadius: '12px',
+                                fontWeight: '700',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}
+                            onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                            onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+                        >
+                            🪄 מילוי קסם (לבדיקה)
+                        </button>
+                    </div>
 
                     {/* סרגל התקדמות */}
                     <div style={{ display: 'flex', gap: '5px', justifyContent: 'center', marginTop: '10px' }}>

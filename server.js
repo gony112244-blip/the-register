@@ -84,13 +84,20 @@ async function initMailer() {
         } else {
             // שימוש בשירות אמיתי (Gmail וכו')
             transporter = nodemailer.createTransport({
-                service: process.env.EMAIL_SERVICE, // 'gmail'
+                host: "smtp.gmail.com",
+                port: 465,
+                secure: true, // true for 465
+                family: 4, // Force IPv4 to avoid ECONNREFUSED on some systems
                 auth: {
                     user: process.env.EMAIL_USER,
                     pass: process.env.EMAIL_PASS,
                 },
+                // הגדרת TLS לשיפור תאימות
+                tls: {
+                    rejectUnauthorized: false
+                }
             });
-            console.log(`📧 Mailer initialized: Using ${process.env.EMAIL_SERVICE}`);
+            console.log(`📧 Mailer initialized: Using ${process.env.EMAIL_SERVICE} (Direct SMTP)`);
         }
     } catch (err) {
         console.error("❌ Mailer initialization failed:", err);
@@ -257,7 +264,7 @@ app.post('/check-user-exists', async (req, res) => {
 
     // הגנה מפני ערכים ריקים שנשלחים מהפרונט
     const emailToCheck = email && email.trim() !== '' ? email : null;
-    const phoneToCheck = phone && phone.trim() !== '' ? phone : null;
+    const phoneToCheck = phone ? phone.replace(/[-\s]/g, '').trim() : null;
 
     if (!emailToCheck && !phoneToCheck) {
         return res.status(200).json({ message: "OK (No data to check)" });
@@ -274,10 +281,12 @@ app.post('/check-user-exists', async (req, res) => {
         if (userCheck.rows.length > 0) {
             const existing = userCheck.rows[0];
             let msg = "משתמש קיים במערכת";
-            if (existing.email === emailToCheck) msg = "כתובת האימייל כבר קיימת במערכת";
-            if (existing.phone === phoneToCheck) msg = "מספר הטלפון כבר קיים במערכת";
 
-            return res.status(409).json({ message: msg });
+            // אימייל כבר לא חוסם כי הוא יכול להיות משותף לכמה אנשים
+            if (existing.phone === phoneToCheck) {
+                msg = "מספר הטלפון כבר קיים במערכת";
+                return res.status(409).json({ message: msg });
+            }
         }
         res.status(200).json({ message: "המשתמש לא קיים, אפשר להמשיך" });
     } catch (err) {
@@ -297,15 +306,15 @@ app.post('/register', async (req, res) => {
 
     // ניקוי אימייל (אם ריק -> NULL) כדי למנוע כפילויות על מחרוזת ריקה
     const emailToSave = email && email.trim() !== '' ? email : null;
-    const phoneToSave = phone && phone.trim() !== '' ? phone : null;
+    // ניקוי טלפון - הסרת מקפים ורווחים כדי למנוע טעויות בזיהוי
+    const phoneToSave = phone ? phone.replace(/[-\s]/g, '').trim() : null;
 
     if (!phoneToSave) {
         return res.status(400).json({ message: "חובה להזין מספר טלפון" });
     }
 
     try {
-        // 1. בדיקה אם קיים (טלפון הוא המזהה הראשי)
-        // תיקון: בודקים רק טלפון, כי אימייל יכול להיות משותף
+        // 1. בדיקה אם קיים (טלפון הוא המזהה הראשי הייחודי)
         const userCheck = await pool.query(
             'SELECT * FROM users WHERE phone = $1',
             [phoneToSave]
@@ -1013,6 +1022,19 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         search_occupations, search_life_aspirations
     } = req.body;
 
+    // פונקציית עזר לניקוי ערכים מספריים (ריק הופך ל-null)
+    const toNum = (val) => (val === '' || val === undefined || val === null) ? null : Number(val);
+
+    const cleanAge = toNum(age);
+    const cleanChildrenCount = toNum(children_count);
+    const cleanSiblingsCount = toNum(siblings_count);
+    const cleanSiblingPosition = toNum(sibling_position);
+    const cleanHeight = toNum(height);
+    const cleanSearchMinAge = toNum(search_min_age);
+    const cleanSearchMaxAge = toNum(search_max_age);
+    const cleanSearchHeightMin = toNum(search_height_min);
+    const cleanSearchHeightMax = toNum(search_height_max);
+
     try {
         const result = await pool.query(
             `UPDATE users SET 
@@ -1039,15 +1061,16 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 search_statuses = $61, search_backgrounds = $62,
                 search_heritage_sectors = $63, mixed_heritage_ok = $64, search_financial_min = $65, search_financial_discuss = $66,
                 search_occupations = $67, search_life_aspirations = $68,
-                city = $69
+                city = $69,
+                is_profile_pending = TRUE
              WHERE id = $70 RETURNING *`,
             [
-                full_name, last_name, age, gender, phone,
-                status, has_children, children_count,
+                full_name, last_name, cleanAge, gender, phone,
+                status, has_children, cleanChildrenCount,
                 contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
                 family_background, heritage_sector, father_occupation, mother_occupation,
-                father_heritage, mother_heritage, siblings_count, sibling_position,
-                height, body_type, skin_tone, appearance,
+                father_heritage, mother_heritage, cleanSiblingsCount, cleanSiblingPosition,
+                cleanHeight, body_type, skin_tone, appearance,
                 apartment_help, current_occupation, yeshiva_name, work_field,
                 life_aspiration, favorite_study, study_place, study_field, occupation_details,
                 about_me, home_style, partner_description, important_in_life,
@@ -1059,8 +1082,8 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 family_reference_name, family_reference_phone,
                 rabbi_name, rabbi_phone,
                 mechutanim_name, mechutanim_phone,
-                search_min_age, search_max_age,
-                search_height_min, search_height_max,
+                cleanSearchMinAge, cleanSearchMaxAge,
+                cleanSearchHeightMin, cleanSearchHeightMax,
                 search_body_types, search_appearances,
                 search_statuses, search_backgrounds,
                 search_heritage_sectors, mixed_heritage_ok, search_financial_min, search_financial_discuss,
@@ -1496,163 +1519,10 @@ app.get('/matches', authenticateToken, async (req, res) => {
 // 👮 אזור ניהול (Admin)
 // ==========================================
 
-// שליפת תיקים שממתינים לשדכן
-app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    try {
-        const result = await pool.query(
-            `SELECT 
-                c.id AS connection_id,
-                u1.full_name AS s_name, u1.phone AS s_phone, u1.age AS s_age, u1.sector AS s_sector,
-                u1.rabbi_name AS s_rabbi, u1.rabbi_phone AS s_rabbi_phone,
-                u2.full_name AS r_name, u2.phone AS r_phone, u2.age AS r_age, u2.sector AS r_sector,
-                u2.rabbi_name AS r_rabbi, u2.rabbi_phone AS r_rabbi_phone
-             FROM connections c
-             JOIN users u1 ON c.sender_id = u1.id
-             JOIN users u2 ON c.receiver_id = u2.id
-             WHERE c.status = 'waiting_for_shadchan'`
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ message: "שגיאה בשליפת נתוני שדכן" });
-    }
-});
-
-// 🆕 שליפת פרופילים שממתינים לאישור שינויים
-app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    try {
-        const result = await pool.query(
-            `SELECT id, full_name, phone, pending_changes, pending_changes_at, profile_edit_count
-             FROM users 
-             WHERE is_profile_pending = TRUE
-             ORDER BY pending_changes_at ASC`
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ message: "שגיאה בשליפת בקשות שינוי" });
-    }
-});
-
-// 🆕 אישור שינויי פרופיל
-app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    const { id } = req.params;
-
-    try {
-        // שליפת השינויים הממתינים והמייל של המשתמש
-        const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({ message: "משתמש לא נמצא" });
-        }
-        const user = userResult.rows[0];
-        const pendingChanges = user.pending_changes || {};
-
-        // 1. עדכון השדות (אם יש שינויים)
-        const keys = Object.keys(pendingChanges);
-        if (keys.length > 0) {
-            const updateFields = keys.map((key, i) => `"${key}" = $${i + 1}`).join(', ');
-            const updateValues = Object.values(pendingChanges).map(val => val === '' ? null : val);
-
-            // לוג 디באג זמני
-            console.log("🛠️ Attempting update with keys:", keys);
-            keys.forEach((k, i) => {
-                if (typeof updateValues[i] === 'number' && updateValues[i] > 2147483647) {
-                    console.error(`⚠️ POTENTIAL ERROR: Key '${k}' has large value: ${updateValues[i]}`);
-                }
-                // בדיקת מחרוזות שנראות כמו מספרים גדולים
-                if (typeof updateValues[i] === 'string' && /^\d+$/.test(updateValues[i]) && updateValues[i].length > 9) {
-                    console.error(`⚠️ POTENTIAL ERROR: Key '${k}' is a long string number: ${updateValues[i]}`);
-                }
-            });
-
-            await pool.query(
-                `UPDATE users SET ${updateFields} WHERE id = $${updateValues.length + 1}`,
-                [...updateValues, id]
-            );
-        }
-
-        // 2. איפוס הדגל (תמיד!)
-        await pool.query(
-            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1`,
-            [id]
-        );
-
-        // 3. הודעה פנימית למשתמש
-        await pool.query(
-            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
-            [id, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
-        );
-
-        // 4. שליחת מייל למשתמש (אם יש לו מייל)
-        if (user.email) {
-            // (קוד המייל פה - נחסך למען הקיצור, אפשר להוסיף אם קריטי)
-        }
-
-        res.json({ message: "השינויים אושרו בהצלחה!" });
-    } catch (err) {
-        console.error("Approve changes error:", err);
-        if (err.code === '42703') { // undefined_column
-            return res.status(400).json({ message: `שגיאה: שדה לא קיים במסד הנתונים (${err.message})` });
-        }
-        res.status(500).json({ message: "שגיאה באישור השינויים" });
-    }
-});
-
-// 🆕 דחיית שינויי פרופיל
-app.post('/admin/reject-profile-changes/:id', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    const { id } = req.params;
-    const { reason } = req.body;
-
-    try {
-        await pool.query(
-            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1`,
-            [id]
-        );
-
-        await pool.query(
-            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
-            [id, `❌ השינויים בפרופיל לא אושרו.\nסיבה: ${reason || 'לא צוינה סיבה'}`]
-        );
-
-        res.json({ message: "השינויים נדחו" });
-    } catch (err) {
-        res.status(500).json({ message: "שגיאה בדחיית השינויים" });
-    }
-});
-
+// ==========================================
+// 🛡️ ניהול מנהל (Admin Management)
 // ==========================================
 
-app.get('/admin/users', authenticateToken, async (req, res) => {
-    // וידוא הרשאות ניהול
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    try {
-        const result = await pool.query(
-            'SELECT id, phone, full_name, age, sector, height, is_approved FROM users WHERE is_admin = false ORDER BY id DESC'
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ message: "שגיאת שרת פנימית" });
-    }
-});
-
-app.put('/admin/approve/:id', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    const { id } = req.params;
-    try {
-        await pool.query('UPDATE users SET is_approved = true WHERE id = $1', [id]);
-        res.json({ message: "המשתמש אושר בהצלחה" });
-    } catch (err) {
-        res.status(500).json({ message: "שגיאה באישור המשתמש" });
-    }
-});
 
 // שליפת תיקים שממתינים לשדכן
 app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
@@ -1662,9 +1532,9 @@ app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
         const result = await pool.query(
             `SELECT 
                 c.id AS connection_id,
-                u1.full_name AS s_name, u1.phone AS s_phone, u1.age AS s_age, u1.sector AS s_sector,
+                u1.full_name AS s_name, u1.phone AS s_phone, u1.age AS s_age, u1.heritage_sector AS s_sector,
                 u1.rabbi_name AS s_rabbi, u1.rabbi_phone AS s_rabbi_phone,
-                u2.full_name AS r_name, u2.phone AS r_phone, u2.age AS r_age, u2.sector AS r_sector,
+                u2.full_name AS r_name, u2.phone AS r_phone, u2.age AS r_age, u2.heritage_sector AS r_sector,
                 u2.rabbi_name AS r_rabbi, u2.rabbi_phone AS r_rabbi_phone
              FROM connections c
              JOIN users u1 ON c.sender_id = u1.id
@@ -1677,22 +1547,7 @@ app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
     }
 });
 
-// 🆕 שליפת פרופילים שממתינים לאישור שינויים
-app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    try {
-        const result = await pool.query(
-            `SELECT id, full_name, phone, pending_changes, pending_changes_at, profile_edit_count
-             FROM users 
-             WHERE is_profile_pending = TRUE
-             ORDER BY pending_changes_at ASC`
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ message: "שגיאה בשליפת בקשות שינוי" });
-    }
-});
+// (Duplicate version removed)
 
 // 🆕 אישור שינויי פרופיל
 app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, res) => {
@@ -1712,8 +1567,15 @@ app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, re
         // 1. עדכון השדות (אם יש שינויים)
         const keys = Object.keys(pendingChanges);
         if (keys.length > 0) {
+            const numericFields = ['age', 'children_count', 'siblings_count', 'sibling_position', 'height', 'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max'];
             const updateFields = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-            const updateValues = Object.values(pendingChanges);
+            const updateValues = keys.map(key => {
+                let val = pendingChanges[key];
+                if (numericFields.includes(key)) {
+                    return (val === '' || val === undefined || val === null) ? null : Number(val);
+                }
+                return val;
+            });
 
             // זהירות: אם יש שדה שלא קיים בטבלה, זה יקרוס. לכן בודקים existence או סומכים על ה-Frontend
             await pool.query(
@@ -1917,7 +1779,7 @@ app.get('/my-requests', authenticateToken, async (req, res) => {
     const { userId } = req.query;
     try {
         const result = await pool.query(
-            `SELECT c.id AS connection_id, c.created_at, u.full_name, u.age, u.height, u.sector 
+            `SELECT c.id AS connection_id, c.created_at, u.full_name, u.age, u.height, u.heritage_sector 
              FROM connections c
              JOIN users u ON c.sender_id = u.id
              WHERE c.receiver_id = $1 AND c.status = 'pending'`,
@@ -2181,6 +2043,264 @@ app.get('/api/my-hidden-profiles', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
+// 🛡️ ניהול מנהל - Admin Routes
+// ==========================================
+
+// שליפת כל המשתמשים (לניהול)
+app.get('/admin/all-users', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, last_name, phone, email, gender, age, city,
+                    is_approved, is_blocked, blocked_reason, is_admin,
+                    created_at, last_login, admin_notes, profile_images,
+                    is_profile_pending, pending_changes, pending_changes_at,
+                    profile_edit_count
+             FROM users
+             WHERE is_admin = FALSE
+             ORDER BY created_at DESC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error fetching all users:", err);
+        res.status(500).json({ message: "שגיאה בטעינת משתמשים" });
+    }
+});
+
+// אישור משתמש
+app.put('/admin/approve/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId } = req.params;
+    try {
+        await pool.query('UPDATE users SET is_approved = TRUE WHERE id = $1', [userId]);
+
+        // הודעה למשתמש
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [userId, '✅ הפרופיל שלך אושר! כעת תוכל לגלוש ולחפש שידוכים.']
+        );
+
+        res.json({ message: "המשתמש אושר בהצלחה" });
+    } catch (err) {
+        console.error("Error approving user:", err);
+        res.status(500).json({ message: "שגיאה באישור" });
+    }
+});
+
+// חסימה/שחרור משתמש
+app.post('/admin/block-user', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId, block, reason } = req.body;
+    try {
+        await pool.query(
+            'UPDATE users SET is_blocked = $1, blocked_reason = $2 WHERE id = $3',
+            [block, reason || null, userId]
+        );
+
+        if (block) {
+            await pool.query(
+                `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+                [userId, `🚫 חשבונך נחסם. סיבה: ${reason || 'לא צוינה'}`]
+            );
+        }
+
+        res.json({ message: block ? "המשתמש נחסם" : "החסימה הוסרה" });
+    } catch (err) {
+        console.error("Error blocking user:", err);
+        res.status(500).json({ message: "שגיאה בחסימה" });
+    }
+});
+
+// שמירת הערת מנהל
+app.post('/admin/user-note', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId, note } = req.body;
+    try {
+        await pool.query('UPDATE users SET admin_notes = $1 WHERE id = $2', [note, userId]);
+        res.json({ message: "ההערה נשמרה" });
+    } catch (err) {
+        console.error("Error saving note:", err);
+        res.status(500).json({ message: "שגיאה בשמירת הערה" });
+    }
+});
+
+// שליחת הודעה למשתמש (מהמנהל)
+app.post('/admin/send-message', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId, message } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'admin')`,
+            [userId, message]
+        );
+        res.json({ message: "ההודעה נשלחה" });
+    } catch (err) {
+        console.error("Error sending message:", err);
+        res.status(500).json({ message: "שגיאה בשליחת הודעה" });
+    }
+});
+
+// מחיקת משתמש
+app.delete('/admin/delete-user/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId } = req.params;
+    try {
+        // מחיקת נתונים קשורים לפני מחיקת המשתמש
+        await pool.query('DELETE FROM messages WHERE from_user_id = $1 OR to_user_id = $1', [userId]);
+        await pool.query('DELETE FROM connections WHERE sender_id = $1 OR receiver_id = $1', [userId]);
+        await pool.query('DELETE FROM hidden_profiles WHERE user_id = $1 OR hidden_user_id = $1', [userId]);
+        await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+        res.json({ message: "המשתמש נמחק בהצלחה" });
+    } catch (err) {
+        console.error("Error deleting user:", err);
+        res.status(500).json({ message: "שגיאה במחיקת המשתמש" });
+    }
+});
+
+// שליפת פרופילים ממתינים לאישור שינויים
+app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, phone, pending_changes, pending_changes_at,
+                    COALESCE(profile_edit_count, 0) AS profile_edit_count
+             FROM users
+             WHERE is_profile_pending = TRUE
+             ORDER BY pending_changes_at ASC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Error fetching pending profiles:", err);
+        res.status(500).json({ message: "שגיאה בטעינת פרופילים ממתינים" });
+    }
+});
+
+// אישור שינויי פרופיל
+app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId } = req.params;
+    try {
+        // שליפת השינויים הממתינים
+        const userResult = await pool.query(
+            'SELECT pending_changes, email FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+
+        const pendingChanges = userResult.rows[0].pending_changes || {};
+        const userEmail = userResult.rows[0].email;
+
+        if (Object.keys(pendingChanges).length > 0) {
+            // שליפת עמודות קיימות בטבלה כדי לסנן שדות לא תקינים
+            const colsResult = await pool.query(
+                `SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`
+            );
+            const validCols = new Set(colsResult.rows.map(r => r.column_name));
+
+            // סינון שדות שלא קיימים בטבלה
+            const safeChanges = Object.entries(pendingChanges).filter(([key]) => {
+                if (!validCols.has(key)) {
+                    console.warn(`[Approve] Skipping unknown column: ${key}`);
+                    return false;
+                }
+                return true;
+            });
+
+            if (safeChanges.length > 0) {
+                const setClause = safeChanges.map(([key], i) => `"${key}" = $${i + 1}`).join(', ');
+                // המרת ערכים מורכבים (מערכים/אובייקטים) למחרוזת JSON
+                const values = safeChanges.map(([, val]) =>
+                    (Array.isArray(val) || (val !== null && typeof val === 'object'))
+                        ? JSON.stringify(val)
+                        : val
+                );
+
+                console.log(`[Approve] Updating user ${userId} with fields:`, safeChanges.map(([k]) => k));
+                await pool.query(
+                    `UPDATE users SET ${setClause}, is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $${values.length + 1}`,
+                    [...values, userId]
+                );
+            } else {
+                // אין שדות תקינים לעדכן - רק מאפסים את הדגל
+                await pool.query(
+                    'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1',
+                    [userId]
+                );
+            }
+        } else {
+            await pool.query(
+                'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1',
+                [userId]
+            );
+        }
+
+        // הודעה למשתמש
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [userId, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
+        );
+
+        // מייל למשתמש (אם יש כתובת)
+        if (userEmail) {
+            await sendEmail(userEmail, '✅ השינויים בפרופיל אושרו', `
+                <div style="direction:rtl;font-family:sans-serif;padding:20px;">
+                    <h2 style="color:#1e3a5f;">השינויים בפרופיל אושרו!</h2>
+                    <p>המנהל אישר את השינויים שביקשת בפרופיל שלך.</p>
+                </div>
+            `, userId);
+        }
+
+        res.json({ message: "השינויים אושרו בהצלחה" });
+    } catch (err) {
+        console.error("Error approving profile changes:", err.message, err.detail || '');
+        res.status(500).json({ message: "שגיאה באישור השינויים: " + err.message });
+    }
+});
+
+// דחיית שינויי פרופיל
+app.post('/admin/reject-profile-changes/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId } = req.params;
+    const { reason } = req.body;
+    try {
+        const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+        const userEmail = userResult.rows[0]?.email;
+
+        // איפוס הבקשה הממתינה
+        await pool.query(
+            'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1',
+            [userId]
+        );
+
+        // הודעה למשתמש
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [userId, `❌ השינויים בפרופיל נדחו. סיבה: ${reason || 'לא צוינה'}`]
+        );
+
+        // מייל למשתמש
+        if (userEmail) {
+            await sendEmail(userEmail, '❌ השינויים בפרופיל נדחו', `
+                <div style="direction:rtl;font-family:sans-serif;padding:20px;">
+                    <h2 style="color:#dc2626;">השינויים בפרופיל נדחו</h2>
+                    <p>סיבה: ${reason || 'לא צוינה'}</p>
+                    <p>ניתן לפנות למנהל לפרטים נוספים.</p>
+                </div>
+            `, userId);
+        }
+
+        res.json({ message: "השינויים נדחו" });
+    } catch (err) {
+        console.error("Error rejecting profile changes:", err);
+        res.status(500).json({ message: "שגיאה בדחיית השינויים" });
+    }
+});
+
+// ==========================================
 // 📊 דשבורד מנהל - סטטיסטיקות
 // ==========================================
 app.get('/admin/stats', authenticateToken, async (req, res) => {
@@ -2194,10 +2314,10 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 
         // 2. פילוח לפי מגזר (לגרף עוגה)
         const sectors = await pool.query(`
-            SELECT sector, COUNT(*) as count 
+            SELECT heritage_sector, COUNT(*) as count 
             FROM users 
-            WHERE is_admin = false AND sector IS NOT NULL 
-            GROUP BY sector
+            WHERE is_admin = false AND heritage_sector IS NOT NULL 
+            GROUP BY heritage_sector
         `);
 
         // 3. הרשמות לפי חודשים (לגרף עמודות) - 6 חודשים אחרונים
@@ -2353,6 +2473,32 @@ async function updateDbSchema() {
             END IF;
              IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='study_place') THEN 
                 ALTER TABLE users ADD COLUMN study_place VARCHAR(255); 
+            END IF;
+
+            -- עמודות ניהול פרופיל ממתין
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_profile_pending') THEN 
+                ALTER TABLE users ADD COLUMN is_profile_pending BOOLEAN DEFAULT FALSE; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='pending_changes') THEN 
+                ALTER TABLE users ADD COLUMN pending_changes JSONB; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='pending_changes_at') THEN 
+                ALTER TABLE users ADD COLUMN pending_changes_at TIMESTAMP; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_approved') THEN 
+                ALTER TABLE users ADD COLUMN is_approved BOOLEAN DEFAULT FALSE; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='admin_notes') THEN 
+                ALTER TABLE users ADD COLUMN admin_notes TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='profile_edit_count') THEN 
+                ALTER TABLE users ADD COLUMN profile_edit_count INTEGER DEFAULT 0; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='profile_images') THEN 
+                ALTER TABLE users ADD COLUMN profile_images TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='profile_images_count') THEN 
+                ALTER TABLE users ADD COLUMN profile_images_count INTEGER DEFAULT 0; 
             END IF;
         END $$;
     `);

@@ -38,11 +38,20 @@ function AppContent() {
     const publicPages = ['/', '/login', '/register'];
 
     if (token && userStr && publicPages.includes(location.pathname)) {
-      const user = JSON.parse(userStr);
-      if (user.is_admin) {
-        navigate('/admin');
-      } else {
-        navigate('/matches');
+      try {
+        const user = JSON.parse(userStr);
+        if (user) {
+          if (user.is_admin) {
+            navigate('/admin');
+          } else {
+            navigate('/matches');
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing user from localStorage:", e);
+        // If garbage in localStorage, clear it
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
       }
     }
   }, [location.pathname, navigate]);

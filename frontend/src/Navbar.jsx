@@ -6,8 +6,13 @@ function Navbar() {
   const navigate = useNavigate();
 
   const user = useMemo(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.error("Error parsing user in Navbar:", e);
+      return null;
+    }
   }, []);
 
   const handleLogout = () => {

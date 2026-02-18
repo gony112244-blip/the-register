@@ -32,6 +32,28 @@ function AdminUsers() {
         setLoading(false);
     };
 
+    const handleApprove = async (userId) => {
+        if (!window.confirm('האם לאשר את המשתמש?')) return;
+        try {
+            const res = await fetch(`http://localhost:3000/admin/approve/${userId}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                alert('המשתמש אושר בהצלחה');
+                fetchUsers();
+                if (selectedUser?.id === userId) {
+                    setSelectedUser({ ...selectedUser, is_approved: true });
+                }
+            } else {
+                alert('שגיאה באישור המשתמש');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('שגיאה בתקשורת עם השרת');
+        }
+    };
+
     const handleBlock = async (userId, block) => {
         const reason = block ? prompt('סיבת החסימה (אופציונלי):') : null;
         try {
@@ -58,6 +80,26 @@ function AdminUsers() {
             fetchUsers();
         } catch (err) {
             alert('שגיאה');
+        }
+    };
+
+    const handleDelete = async (userId) => {
+        if (!window.confirm('⚠️ האם למחוק את המשתמש לצמיתות? פעולה זו אינה ניתנת לביטול!')) return;
+        try {
+            const res = await fetch(`http://localhost:3000/admin/delete-user/${userId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                alert('המשתמש נמחק בהצלחה');
+                setSelectedUser(null);
+                fetchUsers();
+            } else {
+                alert('שגיאה במחיקת המשתמש');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('שגיאה בתקשורת עם השרת');
         }
     };
 
@@ -207,6 +249,11 @@ function AdminUsers() {
 
                                 {/* פעולות */}
                                 <div style={styles.actions}>
+                                    {!selectedUser.is_approved && (
+                                        <button onClick={() => handleApprove(selectedUser.id)} style={styles.approveActionBtn}>
+                                            ✅ אשר משתמש
+                                        </button>
+                                    )}
                                     {!selectedUser.is_blocked ? (
                                         <button onClick={() => handleBlock(selectedUser.id, true)} style={styles.blockBtn}>
                                             🚫 חסום משתמש
@@ -216,6 +263,9 @@ function AdminUsers() {
                                             ✅ שחרר חסימה
                                         </button>
                                     )}
+                                    <button onClick={() => handleDelete(selectedUser.id)} style={styles.deleteBtn}>
+                                        🗑️ מחק משתמש
+                                    </button>
                                 </div>
 
                                 {selectedUser.is_blocked && selectedUser.blocked_reason && (
@@ -371,7 +421,8 @@ const styles = {
         border: 'none',
         borderRadius: '10px',
         fontWeight: 'bold',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        marginBottom: '10px'
     },
     unblockBtn: {
         width: '100%',
@@ -381,7 +432,30 @@ const styles = {
         border: 'none',
         borderRadius: '10px',
         fontWeight: 'bold',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        marginBottom: '10px'
+    },
+    deleteBtn: {
+        width: '100%',
+        padding: '12px',
+        background: 'linear-gradient(135deg, #7f1d1d, #991b1b)',
+        color: '#fff',
+        border: '2px solid #ef4444',
+        borderRadius: '10px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        marginTop: '5px'
+    },
+    approveActionBtn: {
+        width: '100%',
+        padding: '12px',
+        background: 'linear-gradient(135deg, #c9a227, #a8871d)',
+        color: '#1a1a1a',
+        border: 'none',
+        borderRadius: '10px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        marginBottom: '10px'
     },
     blockReason: {
         marginTop: '15px',
