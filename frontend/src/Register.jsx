@@ -79,12 +79,18 @@ function Register() {
         return validateName(fullName) && validatePhone(phone) && validatePassword(password) && validateEmail(email);
     }, [fullName, phone, password, email]);
 
+    const [step, setStep] = useState('register'); // register or verify
+    const [verificationCode, setVerificationCode] = useState("");
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false); // מניעת לחיצה כפולה
+
     const handleRegister = async () => {
-        if (!isFormValid) {
-            showToast("נא למלא את כל השדות כראוי", "warning");
+        if (!isFormValid || isSubmitting) {
+            if (!isSubmitting) showToast("נא למלא את כל השדות כראוי", "warning");
             return;
         }
 
+        setIsSubmitting(true);
         try {
             const response = await fetch('http://localhost:3000/register', {
                 method: 'POST',
@@ -104,15 +110,71 @@ function Register() {
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
 
-                showToast("נרשמת בהצלחה! ברוך הבא 🎉", "success");
+                showToast("החשבון נוצר בהצלחה! ברוכים הבאים 🎊", "success");
 
-                // מעבר ישיר לדף הפרופיל למילוי פרטים
-                setTimeout(() => navigate('/profile'), 1500);
+                // עוברים ישירות לפרופיל (דילוג על אימות)
+                navigate('/profile');
             } else {
                 showToast(`שגיאה: ${data.message}`, "error");
             }
         } catch (err) {
             showToast("לא ניתן להתחבר לשרת", "error");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleVerifyEmail = async () => {
+        if (verificationCode.length !== 6) {
+            showToast("נא להזין קוד תקין בן 6 ספרות", "warning");
+            return;
+        }
+
+        setIsVerifying(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('http://localhost:3000/verify-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ code: verificationCode })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast("המייל אומת בהצלחה! ברוך הבא 🎉", "success");
+                // מעבר לדף הפרופיל למילוי פרטים
+                setTimeout(() => navigate('/profile'), 1500);
+            } else {
+                showToast(`שגיאה: ${data.message}`, "error");
+            }
+        } catch (err) {
+            showToast("שגיאת תקשורת עם השרת", "error");
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
+    const handleResendCode = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('http://localhost:3000/resend-verification', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await response.json();
+            if (response.ok) {
+                showToast("קוד חדש נשלח למייל שלך", "success");
+            } else {
+                showToast(data.message, "error");
+            }
+        } catch (err) {
+            showToast("שגיאה בשליחת הקוד מחדש", "error");
         }
     };
 
@@ -129,133 +191,170 @@ function Register() {
             <div style={glowEffect}></div>
 
             <div style={containerStyle}>
-                <div style={headerStyle}>
-                    <span style={logoStyle}>📋</span>
-                    <h2 style={titleStyle}>הרשמה לפנקס</h2>
-                    <p style={subtitleStyle}>יצירת חשבון חדש</p>
-                </div>
+                {step === 'register' ? (
+                    <>
+                        <div style={headerStyle}>
+                            <span style={logoStyle}>📋</span>
+                            <h2 style={titleStyle}>הרשמה לפנקס</h2>
+                            <p style={subtitleStyle}>יצירת חשבון חדש</p>
+                        </div>
 
-                {/* שם מלא */}
-                <div style={fieldWrapper}>
-                    <label style={labelStyle}>שם מלא</label>
-                    <input
-                        type="text"
-                        placeholder="ישראל ישראלי"
-                        value={fullName}
-                        onChange={handleNameChange}
-                        style={getInputStyle('name')}
-                    />
-                    {errors.name && <span style={errorStyle}>{errors.name}</span>}
-                </div>
+                        {/* שם מלא */}
+                        <div style={fieldWrapper}>
+                            <label style={labelStyle}>שם מלא</label>
+                            <input
+                                type="text"
+                                placeholder="ישראל ישראלי"
+                                value={fullName}
+                                onChange={handleNameChange}
+                                style={getInputStyle('name')}
+                            />
+                            {errors.name && <span style={errorStyle}>{errors.name}</span>}
+                        </div>
 
-                {/* מספר טלפון */}
-                <div style={fieldWrapper}>
-                    <label style={labelStyle}>מספר טלפון</label>
-                    <input
-                        type="tel"
-                        placeholder="05X-XXXXXXX"
-                        value={phone}
-                        onChange={handlePhoneChange}
-                        style={getInputStyle('phone')}
-                        dir="ltr"
-                    />
-                    {errors.phone && <span style={errorStyle}>{errors.phone}</span>}
-                </div>
+                        {/* מספר טלפון */}
+                        <div style={fieldWrapper}>
+                            <label style={labelStyle}>מספר טלפון</label>
+                            <input
+                                type="tel"
+                                placeholder="05X-XXXXXXX"
+                                value={phone}
+                                onChange={handlePhoneChange}
+                                style={getInputStyle('phone')}
+                                dir="ltr"
+                            />
+                            {errors.phone && <span style={errorStyle}>{errors.phone}</span>}
+                        </div>
 
-                {/* אימייל (אופציונלי) */}
-                <div style={fieldWrapper}>
-                    <label style={labelStyle}>אימייל (אופציונלי - לשחזור סיסמה)</label>
-                    <input
-                        type="email"
-                        placeholder="your@email.com"
-                        value={email}
-                        onChange={handleEmailChange}
-                        style={getInputStyle('email')}
-                        dir="ltr"
-                    />
-                    {errors.email && <span style={errorStyle}>{errors.email}</span>}
-                </div>
+                        {/* אימייל */}
+                        <div style={fieldWrapper}>
+                            <label style={labelStyle}>אימייל (חובה לאימות חשבון)</label>
+                            <input
+                                type="email"
+                                placeholder="your@email.com"
+                                value={email}
+                                onChange={handleEmailChange}
+                                style={getInputStyle('email')}
+                                dir="ltr"
+                            />
+                            {errors.email && <span style={errorStyle}>{errors.email}</span>}
+                        </div>
 
-                {/* סיסמה עם כפתור הצגה */}
-                <div style={fieldWrapper}>
-                    <label style={labelStyle}>בחר סיסמה</label>
-                    <div style={passwordWrapper}>
-                        <input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="לפחות 4 תווים"
-                            value={password}
-                            onChange={handlePasswordChange}
-                            style={{ ...getInputStyle('password'), paddingLeft: '50px' }}
-                            dir="ltr"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            style={showPasswordBtn}
-                        >
-                            {showPassword ?
-                                <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg> :
-                                <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                            }
-                        </button>
-                    </div>
-                    {errors.password && <span style={errorStyle}>{errors.password}</span>}
-                </div>
+                        {/* סיסמה עם כפתור הצגה */}
+                        <div style={fieldWrapper}>
+                            <label style={labelStyle}>בחר סיסמה</label>
+                            <div style={passwordWrapper}>
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="לפחות 4 תווים"
+                                    value={password}
+                                    onChange={handlePasswordChange}
+                                    style={{ ...getInputStyle('password'), paddingLeft: '50px' }}
+                                    dir="ltr"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={showPasswordBtn}
+                                >
+                                    {showPassword ?
+                                        <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg> :
+                                        <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    }
+                                </button>
+                            </div>
+                            {errors.password && <span style={errorStyle}>{errors.password}</span>}
+                        </div>
 
-                {/* העדפת התראות במייל */}
-                <div style={{ marginBottom: '20px', textAlign: 'right' }}>
-                    <label style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        cursor: 'pointer',
-                        fontSize: '15px',
-                        color: '#475569',
-                        userSelect: 'none'
-                    }}>
-                        <input
-                            type="checkbox"
-                            checked={emailNotifications}
-                            onChange={(e) => setEmailNotifications(e.target.checked)}
-                            style={{
-                                width: '18px',
-                                height: '18px',
+                        {/* העדפת התראות במייל */}
+                        <div style={{ marginBottom: '20px', textAlign: 'right' }}>
+                            <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
                                 cursor: 'pointer',
-                                accentColor: '#c9a227'
+                                fontSize: '15px',
+                                color: '#475569',
+                                userSelect: 'none'
+                            }}>
+                                <input
+                                    type="checkbox"
+                                    checked={emailNotifications}
+                                    onChange={(e) => setEmailNotifications(e.target.checked)}
+                                    style={{
+                                        width: '18px',
+                                        height: '18px',
+                                        cursor: 'pointer',
+                                        accentColor: '#c9a227'
+                                    }}
+                                />
+                                <span>אני מעוניין/ת לקבל התראות במייל על הודעות חדשות ופעילות במערכת</span>
+                            </label>
+                        </div>
+
+                        {/* כפתור הרשמה */}
+                        <button
+                            onClick={handleRegister}
+                            disabled={!isFormValid || isSubmitting}
+                            style={{
+                                ...buttonStyle,
+                                background: (isFormValid && !isSubmitting) ? 'linear-gradient(135deg, #c9a227 0%, #b08d1f 100%)' : '#cbd5e1',
+                                cursor: (isFormValid && !isSubmitting) ? 'pointer' : 'not-allowed',
+                                boxShadow: (isFormValid && !isSubmitting) ? '0 4px 15px rgba(201, 162, 39, 0.3)' : 'none',
+                                color: (isFormValid && !isSubmitting) ? '#fff' : '#64748b'
                             }}
-                        />
-                        <span>אני מעוניין/ת לקבל התראות במייל על הודעות חדשות ופעילות במערכת</span>
-                    </label>
-                    <p style={{
-                        fontSize: '13px',
-                        color: '#64748b',
-                        margin: '5px 0 0 28px',
-                        lineHeight: '1.5'
-                    }}>
-                        ניתן לשנות העדפה זו בכל עת דרך הגדרות הפרופיל
-                    </p>
-                </div>
+                        >
+                            {isSubmitting ? "יוצר חשבון..." : "הירשם עכשיו"}
+                        </button>
 
-                {/* כפתור הרשמה */}
-                <button
-                    onClick={handleRegister}
-                    disabled={!isFormValid}
-                    style={{
-                        ...buttonStyle,
-                        background: isFormValid ? 'linear-gradient(135deg, #c9a227 0%, #b08d1f 100%)' : '#cbd5e1',
-                        cursor: isFormValid ? 'pointer' : 'not-allowed',
-                        boxShadow: isFormValid ? '0 4px 15px rgba(201, 162, 39, 0.3)' : 'none',
-                        color: isFormValid ? '#fff' : '#64748b'
-                    }}
-                >
-                    הירשם והמתן לאישור
-                </button>
+                        <div style={footerStyle}>
+                            <p style={linkStyle}>
+                                כבר רשום? <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
+                            </p>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div style={headerStyle}>
+                            <span style={logoStyle}>📧</span>
+                            <h2 style={titleStyle}>אימות אימייל</h2>
+                            <p style={subtitleStyle}>שלחנו קוד לאימייל: <b>{email}</b></p>
+                        </div>
 
-                <div style={footerStyle}>
-                    <p style={linkStyle}>
-                        כבר רשום? <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
-                    </p>
-                </div>
+                        <div style={fieldWrapper}>
+                            <label style={{ ...labelStyle, textAlign: 'center' }}>הכנס קוד בן 6 ספרות</label>
+                            <input
+                                type="text"
+                                placeholder="------"
+                                value={verificationCode}
+                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                style={{ ...inputStyle, textAlign: 'center', fontSize: '2rem', letterSpacing: '10px', fontWeight: '800' }}
+                                dir="ltr"
+                            />
+                        </div>
+
+                        <button
+                            onClick={handleVerifyEmail}
+                            disabled={verificationCode.length !== 6 || isVerifying}
+                            style={{
+                                ...buttonStyle,
+                                background: (verificationCode.length === 6 && !isVerifying) ? 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)' : '#cbd5e1',
+                                color: '#fff'
+                            }}
+                        >
+                            {isVerifying ? 'בודק...' : 'אמת קוד והמשך'}
+                        </button>
+
+                        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                            <p style={linkStyle}>
+                                לא קיבלת קוד? <span onClick={handleResendCode} style={linkTextStyle}>שלח שוב</span>
+                            </p>
+                            <p style={{ ...linkStyle, marginTop: '10px', fontSize: '0.8rem' }}>
+                                <span onClick={() => setStep('register')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>חזור לעדכון כתובת המייל</span>
+                            </p>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
@@ -359,8 +458,10 @@ const inputStyle = {
     width: '100%',
     padding: '12px 16px',
     borderRadius: '12px',
-    border: '1px solid #cbd5e1',
-    background: '#f8fafc',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
     fontSize: '1rem',
     transition: 'all 0.2s',
     outline: 'none',

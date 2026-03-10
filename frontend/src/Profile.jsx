@@ -259,8 +259,8 @@ function Profile() {
             search_financial_min: 50000,
             search_financial_discuss: true,
             search_occupations: 'studying,working',
-            search_life_aspirations: 'בית תורני',
-            id_card_image_url: '/uploads/dummy_id.jpg' // דמה לצורך בדיקה
+            search_life_aspirations: 'בית תורני'
+            // הוסר: id_card_image_url כדי לא להציג "ממתין לאישור" על תעודת זהות שקרית
         };
 
         setUser(prev => ({ ...prev, ...randomData }));
@@ -1315,46 +1315,135 @@ function Profile() {
 
                         {/* תעודת זהות */}
                         <div style={styles.idUploadCard}>
-                            <h3 style={styles.cardTitle}>🆔 אימות זהות - תעודת זהות</h3>
-                            <p style={styles.hint}>
-                                {user.contact_person_type === 'self'
-                                    ? '📌 העלה צילום של תעודת הזהות שלך (כולל ספח)'
-                                    : '📌 אפשר להעלות את תעודת הזהות שלך (ההורה) או של המועמד עם ספח'}
-                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', justifyContent: 'center' }}>
+                                <span style={{ fontSize: '2rem' }}>🆔</span>
+                                <div style={{ textAlign: 'right' }}>
+                                    <h3 style={{ ...styles.cardTitle, margin: 0 }}>אימות זהות - תעודת זהות</h3>
+                                    <p style={{ ...styles.hint, margin: 0 }}>למען ביטחון הקהילה, חובה להעלות זיהוי רשמי (כולל ספח פתוח)</p>
+                                </div>
+                            </div>
 
                             {user.id_card_image_url && (
                                 <div style={{
-                                    padding: '12px', borderRadius: '8px', marginBottom: '15px',
-                                    background: user.is_identity_approved ? '#d4edda' : '#fff3cd',
-                                    border: `1px solid ${user.is_identity_approved ? '#28a745' : '#ffc107'}`
+                                    padding: '12px 20px',
+                                    borderRadius: '12px',
+                                    marginBottom: '20px',
+                                    background: user.is_identity_approved ? 'rgba(34, 197, 94, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                                    border: `1px solid ${user.is_identity_approved ? '#22c55e' : '#f59e0b'}`,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '10px',
+                                    fontWeight: '600',
+                                    color: user.is_identity_approved ? '#166534' : '#92400e'
                                 }}>
-                                    {user.is_identity_approved ? '✅ תעודת הזהות אומתה!' : '⏳ ממתינה לאימות'}
+                                    {user.is_identity_approved ? '✅ תעודת הזהות אומתה בהצלחה' : '⏳ התעודה התקבלה וממתינה לאימות צוות האתר'}
                                 </div>
                             )}
 
-                            {user.contact_person_type && user.contact_person_type !== 'self' && (
-                                <div style={styles.field}>
-                                    <label>של מי התעודה?</label>
-                                    <select value={user.id_card_owner_type || 'candidate'} onChange={(e) => setUser(prev => ({ ...prev, id_card_owner_type: e.target.value }))} style={styles.input}>
-                                        <option value="candidate">של המועמד/ת</option>
-                                        <option value="parent">שלי (ההורה)</option>
-                                    </select>
-                                </div>
-                            )}
+                            <div style={{
+                                background: '#fff',
+                                padding: '20px',
+                                borderRadius: '15px',
+                                border: '2px dashed #cbd5e1',
+                                marginBottom: '20px'
+                            }}>
+                                <div style={{ marginBottom: '20px' }}>
+                                    {user.contact_person_type && user.contact_person_type !== 'self' ? (
+                                        <div style={{ ...styles.field, maxWidth: '300px', margin: '0 auto 15px' }}>
+                                            <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>של מי התעודה המועלית?</label>
+                                            <select
+                                                value={user.id_card_owner_type || 'candidate'}
+                                                onChange={(e) => setUser(prev => ({ ...prev, id_card_owner_type: e.target.value }))}
+                                                style={{ ...styles.input, padding: '8px 12px' }}
+                                            >
+                                                <option value="candidate">של המועמד/ת (הנרשם)</option>
+                                                <option value="parent">של ההורה</option>
+                                            </select>
+                                        </div>
+                                    ) : null}
 
-                            <input type="file" id="idCardInput" accept="image/*" style={{ display: 'none' }}
-                                onChange={handleIdCardUpload}
-                            />
-                            <button onClick={() => document.getElementById('idCardInput').click()} disabled={uploading}
-                                style={{ ...styles.saveButton, background: uploading ? '#ccc' : 'linear-gradient(135deg, #1e3a5f, #2d4a6f)' }}>
-                                {uploading ? '⏳ מעלה...' : (user.id_card_image_url ? '🔄 להחלפה' : '📤 להעלאת ת"ז')}
-                            </button>
-
-                            {user.id_card_image_url && (
-                                <div style={{ marginTop: '15px', textAlign: 'center' }}>
-                                    <img src={`http://localhost:3000${user.id_card_image_url}`} alt="ת.ז" style={{ maxWidth: '180px', borderRadius: '8px', border: '2px solid #e5e7eb' }} />
+                                    <p style={{ ...styles.hint, marginBottom: '0', fontWeight: '600', color: '#1e293b', textAlign: 'center' }}>
+                                        {(user.id_card_owner_type === 'parent')
+                                            ? '📌 חובה להעלות צילום ת"ז של ההורה הכולל ספח פתוח שבו מופיע שם המועמד ותאריך הלידה שלו.'
+                                            : '📌 העלה צילום תעודת זהות של המועמד/ת (במקרה זה אין חובה להוסיף ספח).'
+                                        }
+                                    </p>
                                 </div>
-                            )}
+
+                                <input
+                                    type="file"
+                                    id="idCardInput"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={handleIdCardUpload}
+                                />
+
+                                {user.id_card_image_url ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+                                        <div style={{ position: 'relative' }}>
+                                            <img
+                                                src={`http://localhost:3000${user.id_card_image_url}`}
+                                                alt="תצוגת ת.ז"
+                                                style={{
+                                                    maxWidth: '220px',
+                                                    maxHeight: '150px',
+                                                    borderRadius: '10px',
+                                                    boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
+                                                    border: '1px solid #e2e8f0'
+                                                }}
+                                            />
+                                            <div style={{
+                                                position: 'absolute',
+                                                bottom: '5px',
+                                                right: '5px',
+                                                background: 'rgba(255,255,255,0.9)',
+                                                padding: '2px 8px',
+                                                borderRadius: '5px',
+                                                fontSize: '0.7rem',
+                                                fontWeight: 'bold'
+                                            }}>תצוגה מקדימה</div>
+                                        </div>
+                                        <button
+                                            onClick={() => document.getElementById('idCardInput').click()}
+                                            disabled={uploading}
+                                            style={{
+                                                padding: '10px 20px',
+                                                background: '#f1f5f9',
+                                                color: '#475569',
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontWeight: '600',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseOver={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
+                                            onMouseOut={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
+                                        >
+                                            <span>🔄</span>
+                                            {uploading ? 'מעלה...' : 'החלף תמונה'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => document.getElementById('idCardInput').click()}
+                                        disabled={uploading}
+                                        style={{
+                                            ...styles.saveButton,
+                                            margin: '0 auto',
+                                            maxWidth: '300px',
+                                            background: uploading ? '#ccc' : 'linear-gradient(135deg, #1e3a5f, #334155)',
+                                            color: '#fff',
+                                            boxShadow: '0 4px 12px rgba(30, 58, 95, 0.2)'
+                                        }}
+                                    >
+                                        {uploading ? '⏳ מעלה...' : '📤 העלה צילום תעודת זהות'}
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         {/* תמונות פרופיל */}
@@ -1531,11 +1620,12 @@ const styles = {
         textAlign: 'center'
     },
     idUploadCard: {
-        background: 'linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)',
-        border: '2px solid #22c55e',
-        borderRadius: '15px',
-        padding: '25px',
-        marginBottom: '20px',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+        border: '1px solid #e2e8f0',
+        borderRadius: '20px',
+        padding: '30px',
+        marginBottom: '25px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
         textAlign: 'center'
     },
     tabs: {

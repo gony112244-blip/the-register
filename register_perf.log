@@ -1,0 +1,14 @@
+
+--- Registration Performance Profile ---
+Start-Endpoint -> Before-DB-Check: 1ms
+Before-DB-Check -> After-DB-Check: 361ms
+After-DB-Check -> Before-Bcrypt: 0ms
+Before-Bcrypt -> After-Bcrypt: 14ms
+After-Bcrypt -> Before-DB-Insert: 3ms
+Before-DB-Insert -> After-DB-Insert: 37ms
+After-DB-Insert -> Before-JWT: 0ms
+Before-JWT -> After-JWT: 15ms
+After-JWT -> Before-Insert-Message: 0ms
+Before-Insert-Message -> After-Insert-Message: 12ms
+Total Time: 443ms
+--------------------------------------

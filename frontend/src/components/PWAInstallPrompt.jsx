@@ -6,12 +6,19 @@ function PWAInstallPrompt() {
     const [showPrompt, setShowPrompt] = useState(false);
 
     useEffect(() => {
-        // בדיקה אם המשתמש כבר התקין או סרב
-        const dismissed = localStorage.getItem('pwa-install-dismissed');
+        // בדיקה אם המשתמש כבר התקין
         const installed = localStorage.getItem('pwa-installed');
+        if (installed) return;
 
-        if (dismissed || installed) {
-            return; // לא להציג אם המשתמש כבר החליט
+        // בדיקה מתי בפעם האחרונה המשתמש סגר את ההצעה
+        const lastDismissed = localStorage.getItem('pwa-install-dismissed-at');
+        if (lastDismissed) {
+            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+            const timePassed = Date.now() - parseInt(lastDismissed);
+
+            if (timePassed < sevenDaysInMs) {
+                return; // לא להציג אם עברו פחות מ-7 ימים מהסגירה האחרונה
+            }
         }
 
         // האזנה לאירוע beforeinstallprompt
@@ -19,15 +26,15 @@ function PWAInstallPrompt() {
             e.preventDefault();
             setDeferredPrompt(e);
 
-            // המתנה של 10 שניות לפני הצגת הבאנר
+            // המתנה של 30 שניות (במקום 10) כדי לתת למשתמש זמן להתרשם מהאתר
             setTimeout(() => {
                 setShowPrompt(true);
-            }, 10000);
+            }, 30000);
         };
 
         window.addEventListener('beforeinstallprompt', handler);
 
-        // בדיקה אם האפליקציה כבר מותקנת
+        // בדיקה אם האפליקציה כבר מותקנת (במצב Standalone)
         if (window.matchMedia('(display-mode: standalone)').matches) {
             localStorage.setItem('pwa-installed', 'true');
         }
@@ -43,6 +50,9 @@ function PWAInstallPrompt() {
 
         if (outcome === 'accepted') {
             localStorage.setItem('pwa-installed', 'true');
+        } else {
+            // אם סירב, נשמור את הזמן הנוכחי כדי להציע שוב רק בעוד שבוע
+            localStorage.setItem('pwa-install-dismissed-at', Date.now().toString());
         }
 
         setShowPrompt(false);
@@ -50,7 +60,8 @@ function PWAInstallPrompt() {
     };
 
     const handleDismiss = () => {
-        localStorage.setItem('pwa-install-dismissed', 'true');
+        // שמירת זמן הסגירה הנוכחי
+        localStorage.setItem('pwa-install-dismissed-at', Date.now().toString());
         setShowPrompt(false);
     };
 

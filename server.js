@@ -8,6 +8,12 @@ const multer = require('multer'); // הסבר: ספרייה להעלאת קבצ�
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer'); // ספרייה לשליחת מיילים
+const dns = require('dns');
+
+// פתרון לבעיית IPv6: מעדיף IPv4 ברמת התהליך
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -36,6 +42,7 @@ app.use(helmet());
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 
 // 2. Rate Limiting - הגבלת בקשות כללית
+/*
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 דקות
     max: 300, // מקסימום 300 בקשות לכל IP (הוגדל מ-100)
@@ -49,8 +56,10 @@ const loginLimiter = rateLimit({
     max: 5, // רק 5 ניסיונות כושלים
     message: "יותר מדי ניסיונות התחברות, החשבון ננעל זמנית ל-15 דקות."
 });
+*/
 
 app.use(express.json());
+
 
 
 // הסבר: הגדרת תיקיית uploads כסטטית - כך אפשר לגשת לתמונות מהדפדפן
@@ -85,27 +94,29 @@ async function initMailer() {
             // שימוש בשירות אמיתי (Gmail וכו')
             transporter = nodemailer.createTransport({
                 host: "smtp.gmail.com",
-                port: 465,
-                secure: true, // true for 465
-                family: 4, // Force IPv4 to avoid ECONNREFUSED on some systems
+                port: 587,
+                secure: false, // port 587 uses STARTTLS
                 auth: {
                     user: process.env.EMAIL_USER,
                     pass: process.env.EMAIL_PASS,
                 },
-                // הגדרת TLS לשיפור תאימות
+                // הגדרת TLS לשיפור תאימות (עוקף חסימות אנטי-וירוס מסוימות)
                 tls: {
-                    rejectUnauthorized: false
+                    rejectUnauthorized: false,
+                    servername: 'smtp.gmail.com'
                 }
             });
-            console.log(`📧 Mailer initialized: Using ${process.env.EMAIL_SERVICE} (Direct SMTP)`);
+            console.log(`📧 Mailer initialized: Using Gmail SMTP (Port 587, Bypass Mode)`);
         }
     } catch (err) {
         console.error("❌ Mailer initialization failed:", err);
     }
 }
 
+
 // הפעלת האתחול
 initMailer();
+
 
 // ייבוא תבניות המייל
 const { getEmailTemplate } = require('./emailTemplates');
@@ -306,21 +317,22 @@ app.post('/register', async (req, res) => {
 
     // ניקוי אימייל (אם ריק -> NULL) כדי למנוע כפילויות על מחרוזת ריקה
     const emailToSave = email && email.trim() !== '' ? email : null;
-    // ניקוי טלפון - הסרת מקפים ורווחים כדי למנוע טעויות בזיהוי
-    const phoneToSave = phone ? phone.replace(/[-\s]/g, '').trim() : null;
+    // ניקוי טלפון - הסרת כל תו שאינו ספרה כדי למנוע כפילויות וטעויות
+    const phoneToSave = phone ? phone.replace(/\D/g, '').trim() : null;
 
     if (!phoneToSave) {
         return res.status(400).json({ message: "חובה להזין מספר טלפון" });
     }
 
     try {
-        // 1. בדיקה אם קיים (טלפון הוא המזהה הראשי הייחודי)
+        // 1. בדיקה אם קיים (טלפון הוא המזהה הראשי)
         const userCheck = await pool.query(
-            'SELECT * FROM users WHERE phone = $1',
+            'SELECT id, full_name, is_admin FROM users WHERE phone = $1',
             [phoneToSave]
         );
 
         if (userCheck.rows.length > 0) {
+            console.warn(`[Register Attempt] Phone already exists: ${phoneToSave}`);
             return res.status(409).json({ message: "מספר הטלפון כבר רשום במערכת" });
         }
 
@@ -331,18 +343,23 @@ app.post('/register', async (req, res) => {
         const currentYear = new Date().getFullYear();
         const age = birth_year ? currentYear - parseInt(birth_year) : null;
 
-        // 4. שמירה במסד הנתונים
+        // 4. יצירת קוד אימות למייל (6 ספרות)
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // 5. שמירה במסד הנתונים
         const newUser = await pool.query(
             `INSERT INTO users (
                 email, password, full_name, last_name, phone, gender,
                 age, height, city, created_at, is_approved, is_blocked,
-                profile_images, profile_images_count, email_notifications_enabled
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), FALSE, FALSE, $10, $11, $12) RETURNING *`,
+                profile_images, profile_images_count, email_notifications_enabled,
+                is_email_verified, email_verification_code
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), FALSE, FALSE, $10, $11, $12, TRUE, $13) RETURNING *`,
             [
                 emailToSave, hashedPassword, full_name, last_name, phoneToSave, gender,
                 age, height || null, city || null,
                 profile_images || [], (profile_images || []).length,
-                email_notifications_enabled !== false // ברירת מחדל true
+                email_notifications_enabled !== false, // ברירת מחדל true
+                verificationCode
             ]
         );
 
@@ -359,16 +376,6 @@ app.post('/register', async (req, res) => {
             [newUser.rows[0].id, `👋 ברוכים הבאים ל"הפנקס"! \nנא להשלים את הפרופיל בטאב "הפרופיל שלי" כדי להתחיל לקבל הצעות.`]
         );
 
-        // 7. שליחת מייל ברוכים הבאים (עם תבנית מקצועית)
-        if (email) {
-            await sendTemplateEmail(
-                email,
-                'welcome',
-                { fullName: full_name },
-                newUser.rows[0].id
-            );
-        }
-
         res.status(201).json({
             message: "ההרשמה בוצע בהצלחה!",
             token,
@@ -378,12 +385,15 @@ app.post('/register', async (req, res) => {
                 is_admin: false
             }
         });
+        res.end();
 
     } catch (err) {
         console.error("Register error:", err);
         res.status(500).json({ message: "שגיאה בתהליך ההרשמה" });
+        res.end();
     }
 });
+
 
 // התחברות למערכת (תומך באימייל או טלפון)
 app.post('/login', async (req, res) => {
@@ -454,6 +464,83 @@ app.post('/login', async (req, res) => {
     } catch (err) {
         console.error("Login error:", err);
         res.status(500).json({ message: "שגיאה בהתחברות" });
+    }
+});
+
+// אימות מייל (קבלת קוד)
+app.post('/verify-email', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { code } = req.body;
+
+    if (!code) {
+        return res.status(400).json({ message: "נא להזין קוד אימות" });
+    }
+
+    try {
+        const result = await pool.query(
+            'SELECT email_verification_code, is_email_verified FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+
+        const user = result.rows[0];
+
+        if (user.is_email_verified) {
+            return res.json({ message: "המייל כבר מאומת", isVerified: true });
+        }
+
+        if (user.email_verification_code === code) {
+            await pool.query(
+                'UPDATE users SET is_email_verified = TRUE, email_verification_code = NULL WHERE id = $1',
+                [userId]
+            );
+            return res.json({ message: "המייל אומת בהצלחה! 🎉", isVerified: true });
+        } else {
+            return res.status(400).json({ message: "קוד אימות שגוי, נא לנסות שוב" });
+        }
+    } catch (err) {
+        console.error("Email verification error:", err);
+        res.status(500).json({ message: "שגיאה בתהליך האימות" });
+    }
+});
+
+// שליחת קוד אימות מחדש
+app.post('/resend-verification', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+        const result = await pool.query(
+            'SELECT email, full_name, is_email_verified FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (result.rows.length === 0) return res.status(404).json({ message: "משתמש לא נמצא" });
+        if (result.rows[0].is_email_verified) return res.status(400).json({ message: "המייל כבר מאומת" });
+
+        const { email, full_name } = result.rows[0];
+        if (!email) return res.status(400).json({ message: "לא מוגדר מייל למשתמש זה" });
+
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        await pool.query('UPDATE users SET email_verification_code = $1 WHERE id = $2', [verificationCode, userId]);
+
+        const verificationHtml = `
+            <div style="direction: rtl; font-family: sans-serif; padding: 20px; background: #f9f9f9; text-align: center;">
+                <h2 style="color: #1e3a5f;">קוד אימות חדש - הפנקס</h2>
+                <p>שלום ${full_name}, קוד האימות החדש שלך הוא:</p>
+                <h1 style="color: #c9a227; letter-spacing: 12px; font-size: 36px;">${verificationCode}</h1>
+                <p>הקוד תקף לזמן מוגבל.</p>
+            </div>
+        `;
+
+        await sendEmail(email, '🔐 קוד אימות חדש - הפנקס', verificationHtml, userId);
+        res.json({ message: "קוד חדש נשלח למייל בהצלחה" });
+
+    } catch (err) {
+        console.error("Resend error:", err);
+        res.status(500).json({ message: "שגיאה בשליחת הקוד מחדש" });
     }
 });
 
@@ -837,7 +924,7 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
 // תגובה לבקשת תמונות (אישור/לא כרגע/אישור אוטומטי)
 app.post('/respond-photo-request', authenticateToken, async (req, res) => {
     const targetId = req.user.id; // מי שמגיב הוא ה-target
-    const { requesterId, response } = req.body; // response: 'approve' / 'reject' / 'auto_approve'
+    const { requesterId, response, rejectMessage } = req.body; // response: 'approve' / 'reject' / 'auto_approve'
 
     try {
         if (response === 'reject') {
@@ -847,11 +934,13 @@ app.post('/respond-photo-request', authenticateToken, async (req, res) => {
                 [requesterId, targetId]
             );
 
+            const msgContent = rejectMessage || '📷 הבקשה לצפייה בתמונות נדחתה לעת עתה';
+
             // הודעה למבקש
             await pool.query(
                 `INSERT INTO messages (from_user_id, to_user_id, content, type) 
                  VALUES ($1, $2, $3, 'photo_response')`,
-                [targetId, requesterId, `📷 הבקשה לצפייה בתמונות נדחתה לעת עתה`]
+                [targetId, requesterId, msgContent]
             );
 
             return res.json({ message: "הבקשה נדחתה" });

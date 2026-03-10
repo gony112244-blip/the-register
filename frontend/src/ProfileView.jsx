@@ -6,399 +6,492 @@ function ProfileView() {
     const token = localStorage.getItem('token');
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState(1); // איזה חלק מוצג
+    const [activeTab, setActiveTab] = useState(1);
 
     useEffect(() => {
-        if (!token) {
-            navigate('/login');
-            return;
-        }
-
+        if (!token) { navigate('/login'); return; }
         fetch('http://localhost:3000/my-profile', {
             headers: { 'Authorization': `Bearer ${token}` }
         })
             .then(res => res.json())
-            .then(data => {
-                setUser(data);
-                setLoading(false);
-            })
+            .then(data => { setUser(data); setLoading(false); })
             .catch(() => setLoading(false));
     }, [navigate, token]);
 
     if (loading) return (
-        <div style={styles.loadingContainer}>
-            <div style={styles.spinner}></div>
-            <h2 style={{ marginTop: '20px', color: '#fff' }}>טוען את הכרטיסייה...</h2>
+        <div style={S.page}>
+            <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
+                <div style={S.spinner} />
+                <h2 style={{ color: '#fff', margin: 0 }}>טוען את הכרטיסייה...</h2>
+            </div>
         </div>
     );
 
-    if (!user) return <div style={styles.loadingContainer}><h2>❌ שגיאה בטעינה</h2></div>;
+    if (!user) return <div style={S.page}><div style={{ color: '#fff', textAlign: 'center', paddingTop: '100px', fontSize: '1.5rem' }}>❌ שגיאה בטעינה</div></div>;
 
-    // תרגומים
-    const t = {
-        gender: { male: 'גבר', female: 'אישה' },
+    // ── Translators ──
+    const T = {
+        gender: { male: '👨 גבר', female: '👩 אישה' },
         status: { single: 'רווק/ה', divorced: 'גרוש/ה', widower: 'אלמן/ה' },
         family_background: { haredi: 'חרדי', dati_leumi: 'דתי לאומי', masorti: 'מסורתי', baal_teshuva: 'חוזר בתשובה' },
         heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
-        body_type: { very_thin: 'רזה מאוד', thin: 'רזה', average: 'ממוצע', full: 'מלא' },
+        body_type: { very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה', average: 'ממוצע', athletic: 'ספורטיבי', full: 'מלא' },
+        skin_tone: { fair: 'בהיר', medium: 'בינוני', olive: 'זית', dark: 'כהה' },
         appearance: { fair: 'סביר', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד' },
         current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב', fixed_times: 'קובע עיתים' },
-        contact_person_type: { self: 'המועמד עצמו', father: 'האבא', mother: 'האמא', both_parents: 'שני ההורים', sibling: 'אח/אחות', other: 'אחר' }
+        contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', other: 'אחר' },
+        apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי' },
+        life_aspiration: { learning: 'תלמוד תורה', career: 'קריירה', family: 'בנית בית', both: 'שילוב תורה ועבודה' },
+        home_style: { quiet: 'שקטה ורגועה', active: 'פעילה וחברותית', flexible: 'גמיש' },
     };
+    const tr = (field, val) => T[field]?.[val] || val || '—';
+    const show = (val) => val && val !== '' && val !== '0' && val !== 0;
 
-    const tr = (field, value) => t[field]?.[value] || value || '-';
-    const formatDate = (d) => d ? new Date(d).toLocaleDateString('he-IL') : '-';
+    const images = Array.isArray(user.profile_images)
+        ? user.profile_images
+        : (typeof user.profile_images === 'string' && user.profile_images.startsWith('[')
+            ? JSON.parse(user.profile_images)
+            : []);
+
+    const tabs = [
+        { id: 1, label: '📝 פרטים' },
+        { id: 2, label: '💼 עיסוק' },
+        { id: 3, label: '🔒 ממליצים' },
+        { id: 4, label: '🔍 דרישות' },
+    ];
 
     return (
-        <div style={styles.pageWrapper}>
-            {/* כותרת */}
-            <div style={styles.header}>
-                <h1 style={styles.logo}>📋 הכרטיסייה שלי</h1>
-                <p style={styles.headerSub}>כך נראה הפרופיל שלך למציעים</p>
+        <div style={S.page}>
+            {/* ── Header ── */}
+            <div style={S.pageHeader}>
+                <h1 style={S.pageTitle}>📋 הכרטיסייה שלי</h1>
+                <p style={S.pageSubtitle}>כך נראה הפרופיל שלך למציעים</p>
             </div>
 
-            {/* הכרטיסייה הראשית - כמו כרטיס שידוך! */}
-            <div style={styles.mainCard}>
-                {/* חלק עליון - תמונה + פרטים בסיסיים */}
-                <div style={styles.cardTop}>
-                    <div style={styles.avatarSection}>
-                        <img
-                            src={`https://ui-avatars.com/api/?name=${user.full_name}&background=c9a227&color=fff&size=150&bold=true`}
-                            alt={user.full_name}
-                            style={styles.avatar}
-                        />
-                        <div style={styles.statusBadge(user.is_approved)}>
-                            {user.is_approved ? '✅ מאושר' : '⏳ ממתין לאישור'}
+            <div style={S.card}>
+                {/* ── Hero section ── */}
+                <div style={S.hero}>
+                    {/* Photos or avatar */}
+                    <div style={S.heroLeft}>
+                        {images.length > 0 ? (
+                            <div style={S.photosRow}>
+                                {images.slice(0, 3).map((img, i) => (
+                                    <img key={i}
+                                        src={`http://localhost:3000${img}`}
+                                        alt={`תמונה ${i + 1}`}
+                                        style={{ ...S.profilePhoto, ...(i === 0 ? S.photoPrimary : S.photoSecondary) }}
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                ))}
+                                {images.length > 3 && (
+                                    <div style={S.morePhotos}>+{images.length - 3}</div>
+                                )}
+                            </div>
+                        ) : (
+                            <img
+                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || 'מ פ')}&background=c9a227&color=fff&size=160&bold=true&font-size=0.35`}
+                                alt={user.full_name}
+                                style={S.avatarImg}
+                            />
+                        )}
+                        <div style={user.is_approved ? S.badgeGreen : S.badgeOrange}>
+                            {user.is_approved ? '✅ מאושר' : '⏳ ממתין'}
                         </div>
                     </div>
 
-                    <div style={styles.basicInfo}>
-                        <h2 style={styles.name}>{user.full_name} {user.last_name || ''}</h2>
-                        <div style={styles.keyInfo}>
-                            <span style={styles.tag}>🎂 {user.age} שנים</span>
-                            <span style={styles.tag}>📏 {user.height || '?'} ס"מ</span>
-                            <span style={styles.tag}>{tr('status', user.status)}</span>
-                            <span style={styles.tag}>{tr('heritage_sector', user.heritage_sector)}</span>
+                    {/* Basic info */}
+                    <div style={S.heroRight}>
+                        <h2 style={S.heroName}>{user.full_name} {user.last_name || ''}</h2>
+                        <div style={S.heroTags}>
+                            {show(user.age) && <span style={S.heroTag}>🎂 {user.age} שנים</span>}
+                            {show(user.gender) && <span style={S.heroTag}>{tr('gender', user.gender)}</span>}
+                            {show(user.height) && <span style={S.heroTag}>📏 {user.height} ס"מ</span>}
+                            {show(user.city) && <span style={S.heroTag}>📍 {user.city}</span>}
+                            {show(user.status) && <span style={S.heroTag}>{tr('status', user.status)}</span>}
+                            {show(user.heritage_sector) && <span style={S.heroTag}>{tr('heritage_sector', user.heritage_sector)}</span>}
+                            {show(user.family_background) && <span style={S.heroTag}>{tr('family_background', user.family_background)}</span>}
                         </div>
-                        <p style={styles.dateInfo}>📅 תאריך פתיחת כרטיס: {formatDate(user.created_at)}</p>
+                        {user.has_children && <p style={S.heroDetail}>👶 ילדים: {user.children_count || 'כן'}</p>}
+                        <p style={S.heroMeta}>📅 תאריך פתיחה: {user.created_at ? new Date(user.created_at).toLocaleDateString('he-IL') : '—'}</p>
                     </div>
                 </div>
 
-                {/* טאבים */}
-                <div style={styles.tabs}>
-                    <button onClick={() => setActiveTab(1)} style={activeTab === 1 ? styles.activeTab : styles.tab}>
-                        📝 חלק א' - פרטים
-                    </button>
-                    <button onClick={() => setActiveTab(2)} style={activeTab === 2 ? styles.activeTab : styles.tab}>
-                        🔒 חלק ב' - ממליצים
-                    </button>
-                    <button onClick={() => setActiveTab(3)} style={activeTab === 3 ? styles.activeTab : styles.tab}>
-                        🔍 חלק ג' - דרישות
-                    </button>
+                {/* ── Contact box ── */}
+                <div style={S.contactBox}>
+                    <span style={S.contactLabel}>📞 איש קשר לשידוך:</span>
+                    <span style={S.contactValue}>{tr('contact_person_type', user.contact_person_type)}</span>
+                    {show(user.contact_person_name) && <span style={S.contactValue}>— {user.contact_person_name}</span>}
+                    {show(user.contact_phone_1) && <span style={S.contactPhone}>{user.contact_phone_1}</span>}
+                    {show(user.contact_phone_2) && <span style={S.contactPhone}>| {user.contact_phone_2}</span>}
                 </div>
 
-                {/* תוכן הטאב */}
-                <div style={styles.tabContent}>
-                    {/* ======= חלק א' ======= */}
+                {/* ── Tabs ── */}
+                <div style={S.tabsBar}>
+                    {tabs.map(t => (
+                        <button key={t.id} onClick={() => setActiveTab(t.id)}
+                            style={activeTab === t.id ? S.tabActive : S.tab}>
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div style={S.tabContent}>
+
+                    {/* ════ TAB 1 - Details ════ */}
                     {activeTab === 1 && (
-                        <div>
-                            {/* איש קשר */}
-                            <div style={styles.infoBox('#fef3c7', '#f59e0b')}>
-                                <h4 style={styles.boxTitle}>📞 איש קשר לשידוך</h4>
-                                <div style={styles.infoRow}>
-                                    <span>מי מטפל:</span>
-                                    <strong>{tr('contact_person_type', user.contact_person_type)}</strong>
-                                </div>
-                                {user.contact_person_name && (
-                                    <div style={styles.infoRow}>
-                                        <span>שם:</span>
-                                        <strong>{user.contact_person_name}</strong>
-                                    </div>
-                                )}
-                                <div style={styles.infoRow}>
-                                    <span>טלפון:</span>
-                                    <strong>{user.contact_phone_1 || user.phone}</strong>
-                                </div>
-                                {user.contact_phone_2 && (
-                                    <div style={styles.infoRow}>
-                                        <span>טלפון נוסף:</span>
-                                        <strong>{user.contact_phone_2}</strong>
-                                    </div>
-                                )}
-                            </div>
+                        <div style={S.tabGrid}>
 
-                            {/* רקע משפחתי */}
-                            <div style={styles.infoBox('#f0fdf4', '#22c55e')}>
-                                <h4 style={styles.boxTitle}>👨‍👩‍👧‍👦 רקע משפחתי</h4>
-                                <div style={styles.detailsGrid}>
-                                    <div style={styles.detailItem}><span>רקע דתי:</span> <strong>{tr('family_background', user.family_background)}</strong></div>
-                                    <div style={styles.detailItem}><span>עדת האב:</span> <strong>{user.father_heritage || '-'}</strong></div>
-                                    <div style={styles.detailItem}><span>עדת האם:</span> <strong>{user.mother_heritage || '-'}</strong></div>
-                                    <div style={styles.detailItem}><span>עיסוק האב:</span> <strong>{user.father_occupation || '-'}</strong></div>
-                                    <div style={styles.detailItem}><span>עיסוק האם:</span> <strong>{user.mother_occupation || '-'}</strong></div>
-                                    <div style={styles.detailItem}><span>אחים:</span> <strong>{user.siblings_count || '-'}</strong></div>
-                                </div>
-                            </div>
+                            {/* Family background */}
+                            <Section title="👨‍👩‍👧‍👦 רקע משפחתי" color="#f0fdf4" border="#86efac">
+                                <Row label="רקע דתי" val={tr('family_background', user.family_background)} />
+                                <Row label="מגזר עדתי" val={tr('heritage_sector', user.heritage_sector)} />
+                                <Row label="עדת האב" val={user.father_heritage} />
+                                <Row label="עדת האם" val={user.mother_heritage} />
+                                <Row label="עיסוק האב" val={user.father_occupation} />
+                                <Row label="עיסוק האם" val={user.mother_occupation} />
+                                <Row label="מספר אחים" val={user.siblings_count} />
+                                <Row label="מיקום בין האחים" val={user.sibling_position} />
+                                <Row label="ארץ לידה" val={user.country_of_birth} />
+                                {show(user.siblings_details) && <Row label="פרטי אחים" val={user.siblings_details} fullWidth />}
+                                {show(user.family_background) && <Row label="רקע משפחתי" val={user.family_background} fullWidth />}
+                            </Section>
 
-                            {/* מראה */}
-                            <div style={styles.infoBox('#f0f9ff', '#1e3a5f')}>
-                                <h4 style={styles.boxTitle}>🪞 מראה חיצוני</h4>
-                                <div style={styles.detailsGrid}>
-                                    <div style={styles.detailItem}><span>גובה:</span> <strong>{user.height || '-'} ס"מ</strong></div>
-                                    <div style={styles.detailItem}><span>מבנה גוף:</span> <strong>{tr('body_type', user.body_type)}</strong></div>
-                                    <div style={styles.detailItem}><span>מראה כללי:</span> <strong>{tr('appearance', user.appearance)}</strong></div>
-                                </div>
-                            </div>
+                            {/* Appearance */}
+                            <Section title="🪞 מראה חיצוני" color="#f0f9ff" border="#93c5fd">
+                                <Row label="גובה" val={show(user.height) ? `${user.height} ס"מ` : null} />
+                                <Row label="מבנה גוף" val={tr('body_type', user.body_type)} />
+                                <Row label="גוון עור" val={tr('skin_tone', user.skin_tone)} />
+                                <Row label="מראה כללי" val={tr('appearance', user.appearance)} />
+                            </Section>
 
-                            {/* עיסוק */}
-                            <div style={styles.infoBox('#f0f9ff', '#1e3a5f')}>
-                                <h4 style={styles.boxTitle}>💼 עיסוק ושאיפות</h4>
-                                <div style={styles.detailsGrid}>
-                                    <div style={styles.detailItem}><span>עיסוק כעת:</span> <strong>{tr('current_occupation', user.current_occupation)}</strong></div>
-
-                                    {/* לגברים - ישיבות */}
-                                    {user.yeshiva_name && <div style={styles.detailItem}><span>ישיבה:</span> <strong>{user.yeshiva_name}</strong></div>}
-                                    {user.yeshiva_ketana_name && <div style={styles.detailItem}><span>ישיבה קטנה:</span> <strong>{user.yeshiva_ketana_name}</strong></div>}
-
-                                    {/* לנשים - סמינר/לימודים */}
-                                    {user.study_place && <div style={styles.detailItem}><span>סמינר/לימודים:</span> <strong>{user.study_place}</strong></div>}
-                                    {user.study_field && <div style={styles.detailItem}><span>תחום לימודים:</span> <strong>{user.study_field}</strong></div>}
-
-                                    {/* כללי */}
-                                    {user.work_field && <div style={styles.detailItem}><span>תחום עבודה:</span> <strong>{user.work_field}</strong></div>}
-                                    {user.life_aspiration && <div style={styles.detailItem}><span>שאיפה:</span> <strong>{tr('life_aspiration', user.life_aspiration) || user.life_aspiration}</strong></div>}
-                                </div>
-                            </div>
-
-                            {/* על עצמי */}
-                            {user.about_me && (
-                                <div style={styles.infoBox('#f8fafc', '#64748b')}>
-                                    <h4 style={styles.boxTitle}>💭 על עצמי</h4>
-                                    <p style={styles.freeText}>{user.about_me}</p>
-                                </div>
+                            {/* About me */}
+                            {(show(user.about_me) || show(user.home_style) || show(user.important_in_life)) && (
+                                <Section title="💭 על עצמי" color="#f8fafc" border="#94a3b8" fullWidth>
+                                    {show(user.about_me) && <FreeText label="על עצמי" text={user.about_me} />}
+                                    {show(user.home_style) && <Row label="סגנון בית" val={tr('home_style', user.home_style)} />}
+                                    {show(user.important_in_life) && <FreeText label="מה חשוב לי בחיים" text={user.important_in_life} />}
+                                </Section>
                             )}
+
+                            {/* Partner description */}
+                            {show(user.partner_description) && (
+                                <Section title="💑 בן/בת הזוג שאני מחפש" color="#fdf4ff" border="#d8b4fe" fullWidth>
+                                    <FreeText text={user.partner_description} />
+                                </Section>
+                            )}
+
+                            {/* Financial */}
+                            <Section title="🏠 דיור ומימון" color="#fef9ec" border="#fcd34d">
+                                <Row label="עזרת דירה" val={tr('apartment_help', user.apartment_help)} />
+                                {show(user.apartment_amount) && <Row label="סכום עזרה" val={`₪${Number(user.apartment_amount).toLocaleString()}`} />}
+                            </Section>
                         </div>
                     )}
 
-                    {/* ======= חלק ב' ======= */}
+                    {/* ════ TAB 2 - Occupation ════ */}
                     {activeTab === 2 && (
-                        <div>
-                            <div style={styles.lockedNote}>
-                                🔒 הפרטים הבאים נחשפים רק לאחר הסכמה הדדית
-                            </div>
-
-                            <div style={styles.infoBox('#fef2f2', '#ef4444')}>
-                                <h4 style={styles.boxTitle}>📍 פרטים מזהים</h4>
-                                <div style={styles.detailItem}><span>כתובת:</span> <strong>{user.full_address || '-'}</strong></div>
-                                <div style={styles.detailItem}><span>שם האב:</span> <strong>{user.father_full_name || '-'}</strong></div>
-                                <div style={styles.detailItem}><span>שם האם:</span> <strong>{user.mother_full_name || '-'}</strong></div>
-                            </div>
-
-                            <div style={styles.infoBox('#f0fdf4', '#22c55e')}>
-                                <h4 style={styles.boxTitle}>📞 ממליצים</h4>
-                                {user.reference_1_name && <div style={styles.detailItem}><span>חבר 1:</span> <strong>{user.reference_1_name} - {user.reference_1_phone}</strong></div>}
-                                {user.reference_2_name && <div style={styles.detailItem}><span>חבר 2:</span> <strong>{user.reference_2_name} - {user.reference_2_phone}</strong></div>}
-                                {user.reference_3_name && <div style={styles.detailItem}><span>חבר 3:</span> <strong>{user.reference_3_name} - {user.reference_3_phone}</strong></div>}
-                                {user.family_reference_name && <div style={styles.detailItem}><span>מכיר משפחה:</span> <strong>{user.family_reference_name} - {user.family_reference_phone}</strong></div>}
-                                {user.rabbi_name && <div style={styles.detailItem}><span>רב:</span> <strong>{user.rabbi_name} - {user.rabbi_phone}</strong></div>}
-                            </div>
+                        <div style={S.tabGrid}>
+                            <Section title="💼 עיסוק ולימודים" color="#f0f9ff" border="#93c5fd" fullWidth>
+                                <Row label="עיסוק כעת" val={tr('current_occupation', user.current_occupation)} />
+                                <Row label="שאיפה" val={tr('life_aspiration', user.life_aspiration)} />
+                                <Row label="מקצוע" val={user.work_field} />
+                                <Row label="פרטי עיסוק" val={user.occupation_details} fullWidth />
+                                <Row label="ישיבה" val={user.yeshiva_name} />
+                                <Row label="ישיבה קטנה" val={user.yeshiva_ketana_name} />
+                                <Row label="סמינר/מוסד" val={user.study_place} />
+                                <Row label="תחום לימוד" val={user.study_field} />
+                                <Row label="נושא לימוד אהוב" val={user.favorite_study} />
+                            </Section>
                         </div>
                     )}
 
-                    {/* ======= חלק ג' ======= */}
+                    {/* ════ TAB 3 - References ════ */}
                     {activeTab === 3 && (
                         <div>
-                            <div style={styles.infoBox('#fef3c7', '#f59e0b')}>
-                                <h4 style={styles.boxTitle}>🔍 מה אני מחפש</h4>
-                                <div style={styles.detailsGrid}>
-                                    <div style={styles.detailItem}><span>טווח גילאים:</span> <strong>{user.search_min_age || '?'} - {user.search_max_age || '?'}</strong></div>
-                                    <div style={styles.detailItem}><span>טווח גובה:</span> <strong>{user.search_height_min || '?'} - {user.search_height_max || '?'} ס"מ</strong></div>
-                                </div>
-                                {user.search_heritage_sectors && (
-                                    <div style={{ marginTop: '10px' }}>
-                                        <span>מגזרים עדתיים: </span>
-                                        <strong>{user.search_heritage_sectors.split(',').map(s => tr('heritage_sector', s.trim())).join(', ')}</strong>
-                                    </div>
-                                )}
-                                {user.search_statuses && (
-                                    <div style={{ marginTop: '10px' }}>
-                                        <span>סטטוסים: </span>
-                                        <strong>{user.search_statuses.split(',').map(s => tr('status', s.trim())).join(', ')}</strong>
-                                    </div>
-                                )}
+                            <div style={S.lockedNote}>🔒 פרטים אלו נחשפים רק לאחר הסכמה הדדית</div>
+                            <div style={S.tabGrid}>
+
+                                <Section title="📍 פרטים מזהים" color="#fef2f2" border="#fca5a5">
+                                    <Row label="כתובת" val={user.full_address} fullWidth />
+                                    <Row label="שם האב" val={user.father_full_name} />
+                                    <Row label="שם האם" val={user.mother_full_name} />
+                                </Section>
+
+                                <Section title="📞 ממליצים" color="#f0fdf4" border="#86efac">
+                                    {['1', '2', '3'].map(n => user[`reference_${n}_name`] && (
+                                        <div key={n} style={S.referenceItem}>
+                                            <span style={S.refName}>{user[`reference_${n}_name`]}</span>
+                                            <span style={S.refPhone}>{user[`reference_${n}_phone`] || ''}</span>
+                                        </div>
+                                    ))}
+                                </Section>
+
+                                <Section title="👨‍👩‍👧 ממליצים משפחה" color="#fef3c7" border="#fcd34d">
+                                    {show(user.family_reference_name) && (
+                                        <div style={S.referenceItem}>
+                                            <span style={S.refName}>{user.family_reference_name}</span>
+                                            <span style={S.refPhone}>{user.family_reference_phone || ''}</span>
+                                        </div>
+                                    )}
+                                    {show(user.rabbi_name) && (
+                                        <div style={S.referenceItem}>
+                                            <span style={S.refBadge}>רב</span>
+                                            <span style={S.refName}>{user.rabbi_name}</span>
+                                            <span style={S.refPhone}>{user.rabbi_phone || ''}</span>
+                                        </div>
+                                    )}
+                                    {show(user.mechutanim_name) && (
+                                        <div style={S.referenceItem}>
+                                            <span style={S.refBadge}>מחותנים</span>
+                                            <span style={S.refName}>{user.mechutanim_name}</span>
+                                            <span style={S.refPhone}>{user.mechutanim_phone || ''}</span>
+                                        </div>
+                                    )}
+                                </Section>
                             </div>
+                        </div>
+                    )}
+
+                    {/* ════ TAB 4 - Search criteria ════ */}
+                    {activeTab === 4 && (
+                        <div style={S.tabGrid}>
+                            <Section title="🔍 מה אני מחפש" color="#fef3c7" border="#fcd34d" fullWidth>
+                                <Row label="טווח גילאים" val={show(user.search_min_age) ? `${user.search_min_age}–${user.search_max_age}` : null} />
+                                <Row label="טווח גובה" val={show(user.search_height_min) ? `${user.search_height_min}–${user.search_height_max} ס"מ` : null} />
+
+                                {show(user.search_heritage_sectors) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>מגזרים עדתיים:</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_heritage_sectors.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('heritage_sector', s)}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {show(user.search_statuses) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>סטטוסים:</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_statuses.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('status', s)}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {show(user.search_body_types) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>מבנה גוף:</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_body_types.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('body_type', s)}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {show(user.search_backgrounds) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>רקע דתי:</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_backgrounds.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('family_background', s)}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {show(user.search_occupations) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>עיסוק מבוקש:</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_occupations.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('current_occupation', s)}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {show(user.search_life_aspirations) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>שאיפה:</span>
+                                        <span style={S.rowVal}>{user.search_life_aspirations}</span>
+                                    </div>
+                                )}
+
+                                <Row label="כלאיים" val={user.mixed_heritage_ok ? 'כן, מתאים' : 'לא מעדיף'} />
+                                {show(user.search_financial_min) && (
+                                    <Row label="עזרת דירה מינימלית" val={`₪${Number(user.search_financial_min).toLocaleString()}`} />
+                                )}
+                                <Row label="ניתן לשיח" val={user.search_financial_discuss ? 'כן' : null} />
+                            </Section>
                         </div>
                     )}
                 </div>
 
-                {/* כפתורים */}
-                <div style={styles.actions}>
-                    <button onClick={() => navigate('/profile')} style={styles.editButton}>
-                        ✏️ לעריכת הפרופיל
-                    </button>
-                    <button onClick={() => navigate('/matches')} style={styles.secondaryButton}>
-                        ← חזרה לשידוכים
-                    </button>
+                {/* ── Actions ── */}
+                <div style={S.actions}>
+                    <button onClick={() => navigate('/profile')} style={S.btnPrimary}>✏️ ערוך פרופיל</button>
+                    <button onClick={() => navigate('/matches')} style={S.btnSecondary}>← חזרה לשידוכים</button>
                 </div>
             </div>
         </div>
     );
 }
 
-const styles = {
-    pageWrapper: {
+// ── Helper components ──
+function Section({ title, color, border, children, fullWidth }) {
+    return (
+        <div style={{
+            background: color, border: `2px solid ${border}`,
+            borderRadius: '14px', padding: '18px',
+            gridColumn: fullWidth ? '1 / -1' : undefined,
+            marginBottom: '4px'
+        }}>
+            <h4 style={{ margin: '0 0 14px', color: '#1e3a5f', fontSize: '1rem', fontWeight: '700' }}>{title}</h4>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
+                {children}
+            </div>
+        </div>
+    );
+}
+
+function Row({ label, val, fullWidth }) {
+    if (!val || val === '—' || val === '') return null;
+    return (
+        <div style={{ display: 'flex', gap: '6px', fontSize: '0.9rem', flexBasis: fullWidth ? '100%' : 'auto' }}>
+            <span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{label}:</span>
+            <strong style={{ color: '#1e3a5f' }}>{val}</strong>
+        </div>
+    );
+}
+
+function FreeText({ label, text }) {
+    if (!text) return null;
+    return (
+        <div style={{ flexBasis: '100%' }}>
+            {label && <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '4px' }}>{label}:</div>}
+            <p style={{ margin: 0, lineHeight: 1.7, color: '#374151', fontSize: '0.95rem' }}>{text}</p>
+        </div>
+    );
+}
+
+// ── Styles ──
+const S = {
+    page: {
         minHeight: '100vh',
         background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)',
         fontFamily: "'Heebo', 'Segoe UI', sans-serif",
-        direction: 'rtl',
-        padding: '20px'
-    },
-    loadingContainer: {
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 100%)',
-        color: 'white'
+        direction: 'rtl', padding: '20px'
     },
     spinner: {
-        width: '50px',
-        height: '50px',
-        border: '5px solid rgba(255, 255, 255, 0.3)',
-        borderTopColor: '#fff',
-        borderRadius: '50%',
+        width: '50px', height: '50px',
+        border: '5px solid rgba(255,255,255,0.3)',
+        borderTopColor: '#c9a227', borderRadius: '50%',
         animation: 'spin 1s linear infinite'
     },
-    header: {
-        textAlign: 'center',
-        color: '#fff',
-        marginBottom: '25px'
+    pageHeader: { textAlign: 'center', color: '#fff', marginBottom: '20px' },
+    pageTitle: { fontSize: '2rem', margin: '0 0 6px', fontWeight: '800' },
+    pageSubtitle: { margin: 0, opacity: 0.85, fontSize: '1rem' },
+    card: {
+        maxWidth: '760px', margin: '0 auto',
+        background: '#fff', borderRadius: '22px',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden'
     },
-    logo: { fontSize: '2.2rem', margin: '0 0 10px', fontWeight: '700' },
-    headerSub: { fontSize: '1rem', opacity: 0.9, margin: 0 },
-    mainCard: {
-        maxWidth: '700px',
-        margin: '0 auto',
-        background: '#fff',
-        borderRadius: '20px',
-        boxShadow: '0 15px 50px rgba(0, 0, 0, 0.25)',
-        overflow: 'hidden'
-    },
-    cardTop: {
+    hero: {
         background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)',
-        padding: '30px',
-        display: 'flex',
-        gap: '25px',
-        alignItems: 'center'
+        padding: '28px', display: 'flex', gap: '24px', alignItems: 'flex-start'
     },
-    avatarSection: { textAlign: 'center' },
-    avatar: {
-        width: '120px',
-        height: '120px',
-        borderRadius: '50%',
-        border: '4px solid #c9a227',
-        boxShadow: '0 5px 20px rgba(0,0,0,0.3)'
+    heroLeft: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', flexShrink: 0 },
+    avatarImg: { width: '120px', height: '120px', borderRadius: '50%', border: '4px solid #c9a227', objectFit: 'cover' },
+    photosRow: { display: 'flex', gap: '6px', flexWrap: 'wrap' },
+    profilePhoto: { borderRadius: '12px', objectFit: 'cover', border: '2px solid #c9a227' },
+    photoPrimary: { width: '100px', height: '120px' },
+    photoSecondary: { width: '62px', height: '78px' },
+    morePhotos: {
+        width: '62px', height: '78px', borderRadius: '12px',
+        background: 'rgba(201,162,39,0.3)', border: '2px solid #c9a227',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#c9a227', fontWeight: '800', fontSize: '1.1rem'
     },
-    statusBadge: (approved) => ({
-        marginTop: '10px',
-        padding: '6px 14px',
-        background: approved ? '#22c55e' : '#f59e0b',
-        color: '#fff',
-        borderRadius: '20px',
-        fontSize: '0.85rem',
-        fontWeight: '600'
-    }),
-    basicInfo: { flex: 1, color: '#fff' },
-    name: { margin: '0 0 12px', fontSize: '1.8rem', fontWeight: '700' },
-    keyInfo: { display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' },
-    tag: {
-        background: 'rgba(255,255,255,0.2)',
-        padding: '6px 14px',
-        borderRadius: '20px',
-        fontSize: '0.9rem',
-        backdropFilter: 'blur(5px)'
+    badgeGreen: { padding: '5px 14px', background: '#22c55e', color: '#fff', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '700' },
+    badgeOrange: { padding: '5px 14px', background: '#f59e0b', color: '#fff', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '700' },
+    heroRight: { flex: 1, color: '#fff' },
+    heroName: { margin: '0 0 12px', fontSize: '1.7rem', fontWeight: '800' },
+    heroTags: { display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' },
+    heroTag: { background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(5px)', padding: '5px 13px', borderRadius: '20px', fontSize: '0.88rem', color: '#fff', fontWeight: '500' },
+    heroDetail: { margin: '4px 0', fontSize: '0.9rem', opacity: 0.9 },
+    heroMeta: { margin: '6px 0 0', fontSize: '0.82rem', opacity: 0.7 },
+
+    contactBox: {
+        background: '#fef9ec', borderBottom: '1px solid #fcd34d',
+        padding: '12px 24px', display: 'flex', alignItems: 'center',
+        gap: '8px', flexWrap: 'wrap', fontSize: '0.92rem'
     },
-    dateInfo: { fontSize: '0.85rem', opacity: 0.8, margin: 0 },
-    tabs: {
-        display: 'flex',
-        borderBottom: '2px solid #e5e7eb'
-    },
+    contactLabel: { color: '#92400e', fontWeight: '700' },
+    contactValue: { color: '#1e3a5f', fontWeight: '600' },
+    contactPhone: { color: '#3730a3', fontWeight: '700', background: '#e0e7ff', padding: '2px 10px', borderRadius: '12px' },
+
+    tabsBar: { display: 'flex', borderBottom: '2px solid #e5e7eb' },
     tab: {
-        flex: 1,
-        padding: '15px',
-        background: '#f8fafc',
-        border: 'none',
-        cursor: 'pointer',
-        fontSize: '0.95rem',
-        color: '#6b7280'
+        flex: 1, padding: '13px 8px', background: '#f8fafc',
+        border: 'none', cursor: 'pointer', fontSize: '0.9rem',
+        color: '#6b7280', fontFamily: 'inherit', fontWeight: '600',
+        transition: 'background 0.15s'
     },
-    activeTab: {
-        flex: 1,
-        padding: '15px',
-        background: '#fff',
-        borderTop: 'none',
-        borderLeft: 'none',
-        borderRight: 'none',
-        borderBottom: '3px solid #c9a227',
-        cursor: 'pointer',
-        fontSize: '0.95rem',
-        color: '#1e3a5f',
-        fontWeight: '700'
+    tabActive: {
+        flex: 1, padding: '13px 8px', background: '#fff',
+        border: 'none', borderBottom: '3px solid #c9a227',
+        cursor: 'pointer', fontSize: '0.9rem',
+        color: '#1e3a5f', fontFamily: 'inherit', fontWeight: '800'
     },
-    tabContent: { padding: '25px' },
-    infoBox: (bg, border) => ({
-        background: bg,
-        border: `2px solid ${border}`,
-        borderRadius: '12px',
-        padding: '18px',
-        marginBottom: '15px'
-    }),
-    boxTitle: { margin: '0 0 12px', color: '#1e3a5f', fontSize: '1.05rem' },
-    infoRow: { display: 'flex', gap: '10px', marginBottom: '8px', fontSize: '0.95rem' },
-    detailsGrid: {
+    tabContent: { padding: '22px' },
+    tabGrid: {
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-        gap: '10px'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+        gap: '16px'
     },
-    detailItem: { display: 'flex', gap: '8px', fontSize: '0.95rem' },
-    freeText: { margin: 0, lineHeight: 1.7, color: '#374151' },
+
     lockedNote: {
-        textAlign: 'center',
-        padding: '15px',
-        background: '#fff7ed',
-        borderRadius: '10px',
-        marginBottom: '20px',
-        color: '#c2410c',
-        fontWeight: '600'
+        textAlign: 'center', padding: '12px 20px',
+        background: '#fff7ed', borderRadius: '10px',
+        marginBottom: '18px', color: '#c2410c', fontWeight: '700', fontSize: '0.92rem'
     },
+
+    referenceItem: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexBasis: '100%' },
+    refBadge: { background: '#1e3a5f', color: '#fff', padding: '2px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: '700', whiteSpace: 'nowrap' },
+    refName: { fontWeight: '700', color: '#1e3a5f', fontSize: '0.92rem' },
+    refPhone: { color: '#3730a3', fontSize: '0.88rem' },
+
+    fullRow: { flexBasis: '100%', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' },
+    rowLabel: { color: '#64748b', fontSize: '0.9rem', whiteSpace: 'nowrap' },
+    rowVal: { color: '#1e3a5f', fontWeight: '700', fontSize: '0.9rem' },
+    tagCloud: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
+    searchTag: {
+        background: '#e0e7ff', color: '#3730a3',
+        padding: '3px 12px', borderRadius: '15px',
+        fontSize: '0.82rem', fontWeight: '600'
+    },
+
     actions: {
-        padding: '20px 25px',
-        borderTop: '1px solid #e5e7eb',
-        display: 'flex',
-        gap: '12px'
+        padding: '18px 22px', borderTop: '1px solid #e5e7eb',
+        display: 'flex', gap: '12px'
     },
-    editButton: {
-        flex: 1,
-        padding: '14px',
+    btnPrimary: {
+        flex: 1, padding: '13px',
         background: 'linear-gradient(135deg, #c9a227, #f59e0b)',
-        color: '#1a1a1a',
-        border: 'none',
-        borderRadius: '10px',
-        fontSize: '1rem',
-        fontWeight: '700',
-        cursor: 'pointer'
+        color: '#1a1a1a', border: 'none', borderRadius: '12px',
+        fontSize: '1rem', fontWeight: '700', cursor: 'pointer',
+        fontFamily: 'inherit'
     },
-    secondaryButton: {
-        flex: 1,
-        padding: '14px',
-        background: '#f1f5f9',
-        color: '#475569',
-        border: '2px solid #e2e8f0',
-        borderRadius: '10px',
-        fontSize: '1rem',
-        fontWeight: '600',
-        cursor: 'pointer'
+    btnSecondary: {
+        flex: 1, padding: '13px',
+        background: '#f1f5f9', color: '#475569',
+        border: '2px solid #e2e8f0', borderRadius: '12px',
+        fontSize: '1rem', fontWeight: '600', cursor: 'pointer',
+        fontFamily: 'inherit'
     }
 };
 
