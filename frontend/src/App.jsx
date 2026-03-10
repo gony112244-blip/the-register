@@ -43,8 +43,21 @@ function AppContent() {
         if (user) {
           if (user.is_admin) {
             navigate('/admin');
+          } else if (!user.gender || !user.age) {
+            navigate('/profile');
           } else {
-            navigate('/matches');
+            fetch('http://localhost:3000/my-messages', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data) && data.some(m => !m.is_read)) {
+                    navigate('/inbox');
+                } else {
+                    navigate('/matches');
+                }
+            })
+            .catch(() => navigate('/matches'));
           }
         }
       } catch (e) {

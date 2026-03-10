@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ProfileView from './ProfileView';
 
 function AdminPendingProfiles() {
     const navigate = useNavigate();
@@ -9,6 +10,7 @@ function AdminPendingProfiles() {
     const [pending, setPending] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
+    const [expandedUser, setExpandedUser] = useState(null);
     const [rejectReason, setRejectReason] = useState('');
 
     useEffect(() => {
@@ -185,7 +187,10 @@ function AdminPendingProfiles() {
                                 <div style={styles.cardHeader}>
                                     <div>
                                         <h3 style={styles.cardName}>{p.full_name}</h3>
-                                        <span style={styles.cardPhone}>{p.phone}</span>
+                                        <span style={styles.cardInfo}>📱 {p.phone}</span>
+                                        {p.real_id_number && (
+                                            <span style={styles.cardInfo}> | 🪪 ת.ז: {p.real_id_number}</span>
+                                        )}
                                     </div>
                                     <div style={styles.badges}>
                                         <span style={styles.editBadge}>
@@ -238,6 +243,23 @@ function AdminPendingProfiles() {
                                         )}
                                     </div>
                                 </div>
+
+                                <div style={{ marginBottom: '15px' }}>
+                                    <button
+                                        onClick={() => setExpandedUser(expandedUser === p.id ? null : p.id)}
+                                        style={{ padding: '8px 15px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+                                    >
+                                        {expandedUser === p.id ? '🔼 סגור כרטיסייה' : '👁️ צפה בכרטיסייה המלאה'}
+                                    </button>
+                                </div>
+
+                                {/* כרטיסיונת מלאה */}
+                                {expandedUser === p.id && (
+                                    <div style={{ transform: 'scale(0.9)', transformOrigin: 'top center', marginBottom: '-50px', background: '#f8fafc', padding: '15px', borderRadius: '15px', border: '2px solid #cbd5e1', alignSelf: 'stretch' }}>
+                                         <h4 style={{textAlign: 'center', color: '#1e3a5f', marginTop: 0}}>כרטיסיית משתמש (לפני השינויים המבוקשים)</h4>
+                                         <ProfileView externalUser={p} readOnly={true} isAdminView={true} />
+                                    </div>
+                                )}
 
                                 {/* כפתורים */}
                                 <div style={styles.actions}>
@@ -313,7 +335,7 @@ const styles = {
     },
     cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' },
     cardName: { margin: 0, fontSize: '1.3rem', color: '#1e3a5f' },
-    cardPhone: { color: '#6b7280', fontSize: '0.95rem' },
+    cardInfo: { color: '#6b7280', fontSize: '0.95rem', display: 'inline-block', marginTo: '5px' },
     badges: { display: 'flex', gap: '8px' },
     editBadge: {
         background: '#fef3c7', color: '#92400e', padding: '4px 10px',

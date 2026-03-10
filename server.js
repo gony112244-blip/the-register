@@ -1746,10 +1746,7 @@ app.get('/admin/all-users', authenticateToken, async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT id, full_name, last_name, phone, age, gender, 
-                    is_approved, is_blocked, blocked_reason, blocked_at,
-                    admin_notes, profile_images, profile_images_count,
-                    created_at, id_card_verified
+            `SELECT *
              FROM users 
              WHERE is_admin != TRUE
              ORDER BY created_at DESC`
@@ -1814,6 +1811,34 @@ app.post('/admin/user-note', authenticateToken, async (req, res) => {
         res.status(500).json({ message: "שגיאה" });
     }
 });
+
+// שליפת פרטים מלאים של משתמש למנהל (כולל תמונות מהטבלה)
+app.get('/admin/user/:id/full', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const { id } = req.params;
+    try {
+        // שליפת כל שדות המשתמש
+        const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+        if (userRes.rows.length === 0) return res.status(404).json({ message: "משתמש לא נמצא" });
+
+        const user = userRes.rows[0];
+        delete user.password; // לא מחזירים סיסמה
+
+        // שליפת תמונות מהטבלה user_images (תמונות שהועלו אחרי ההרשמה)
+        const imagesRes = await pool.query('SELECT image_url FROM user_images WHERE user_id = $1', [id]);
+        if (imagesRes.rows.length > 0) {
+            user.profile_images = imagesRes.rows.map(img => img.image_url);
+        }
+        // אם אין בטבלה user_images, נשתמש בעמודת profile_images (תמונות מהרשמה)
+
+        res.json(user);
+    } catch (err) {
+        console.error("Get full user error:", err);
+        res.status(500).json({ message: "שגיאה בשליפת פרטי משתמש" });
+    }
+});
+
 
 // שליחת הודעה מהמנהל למשתמש
 app.post('/admin/send-message', authenticateToken, async (req, res) => {
@@ -2140,11 +2165,7 @@ app.get('/admin/all-users', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
     try {
         const result = await pool.query(
-            `SELECT id, full_name, last_name, phone, email, gender, age, city,
-                    is_approved, is_blocked, blocked_reason, is_admin,
-                    created_at, last_login, admin_notes, profile_images,
-                    is_profile_pending, pending_changes, pending_changes_at,
-                    profile_edit_count
+            `SELECT *
              FROM users
              WHERE is_admin = FALSE
              ORDER BY created_at DESC`
@@ -2252,7 +2273,7 @@ app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
     try {
         const result = await pool.query(
-            `SELECT id, full_name, phone, pending_changes, pending_changes_at,
+            `SELECT *,
                     COALESCE(profile_edit_count, 0) AS profile_edit_count
              FROM users
              WHERE is_profile_pending = TRUE

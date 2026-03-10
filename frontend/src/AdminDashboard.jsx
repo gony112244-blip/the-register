@@ -88,6 +88,21 @@ function AdminDashboard() {
             <div style={styles.container}>
                 <h1 style={styles.title}>📊 דשבורד מנהל</h1>
                 <p style={styles.subtitle}>תמונת מצב בזמן אמת</p>
+                
+                {/* התראת משימות לטיפול */}
+                {(stats.pending > 0 || stats.matches > 0) && (
+                    <div style={styles.alertBanner}>
+                        <div style={{fontSize: '1.5rem'}}>🔔</div>
+                        <div>
+                            <strong>פעולות ממתינות לטיפול:</strong><br/>
+                            {stats.pending > 0 && <span>- ישנם {stats.pending} משתמשים הממתינים לאישור או עדכון פרופיל.<br/></span>}
+                            {stats.matches > 0 && <span>- ישנם {stats.matches} הצעות שידוך פעילות שכדאי לבדוק או להעביר לשדכנית.<br/></span>}
+                        </div>
+                        <button onClick={() => navigate(stats.pending > 0 ? '/admin/pending-profiles' : '/admin/matches')} style={styles.alertBtn}>
+                            לטפל עכשיו ←
+                        </button>
+                    </div>
+                )}
 
                 {/* KPI Cards */}
                 <div style={styles.statsGrid}>
@@ -170,6 +185,29 @@ const styles = {
     },
     title: { color: 'white', fontSize: '2.5rem', margin: '0 0 10px' },
     subtitle: { color: '#cbd5e1', marginBottom: '30px' },
+
+    alertBanner: {
+        background: 'rgba(201, 162, 39, 0.9)',
+        color: '#1e3a5f',
+        padding: '15px 25px',
+        borderRadius: '12px',
+        marginBottom: '30px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px',
+        boxShadow: '0 5px 20px rgba(201, 162, 39, 0.4)',
+        border: '1px solid #ffd700'
+    },
+    alertBtn: {
+        marginRight: 'auto',
+        background: '#1e3a5f',
+        color: '#fff',
+        border: 'none',
+        padding: '8px 15px',
+        borderRadius: '8px',
+        fontWeight: 'bold',
+        cursor: 'pointer'
+    },
 
     statsGrid: {
         display: 'grid',

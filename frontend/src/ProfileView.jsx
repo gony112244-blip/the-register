@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-function ProfileView() {
+function ProfileView({ externalUser, readOnly, isAdminView }) {
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(externalUser || null);
+    const [loading, setLoading] = useState(!externalUser);
     const [activeTab, setActiveTab] = useState(1);
 
     useEffect(() => {
+        if (externalUser) {
+            setUser(externalUser);
+            setLoading(false);
+            return;
+        }
         if (!token) { navigate('/login'); return; }
         fetch('http://localhost:3000/my-profile', {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -16,7 +21,7 @@ function ProfileView() {
             .then(res => res.json())
             .then(data => { setUser(data); setLoading(false); })
             .catch(() => setLoading(false));
-    }, [navigate, token]);
+    }, [navigate, token, externalUser]);
 
     if (loading) return (
         <div style={S.page}>
@@ -39,13 +44,13 @@ function ProfileView() {
         skin_tone: { fair: 'בהיר', medium: 'בינוני', olive: 'זית', dark: 'כהה' },
         appearance: { fair: 'סביר', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד' },
         current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב', fixed_times: 'קובע עיתים' },
-        contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', other: 'אחר' },
+        contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
         apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי' },
         life_aspiration: { learning: 'תלמוד תורה', career: 'קריירה', family: 'בנית בית', both: 'שילוב תורה ועבודה' },
         home_style: { quiet: 'שקטה ורגועה', active: 'פעילה וחברותית', flexible: 'גמיש' },
     };
     const tr = (field, val) => T[field]?.[val] || val || '—';
-    const show = (val) => val && val !== '' && val !== '0' && val !== 0;
+    const show = (val) => val && val !== '' && val !== '0' && val !== 0 && val !== 'null' && val !== 'undefined';
 
     const images = Array.isArray(user.profile_images)
         ? user.profile_images
@@ -61,12 +66,13 @@ function ProfileView() {
     ];
 
     return (
-        <div style={S.page}>
-            {/* ── Header ── */}
-            <div style={S.pageHeader}>
-                <h1 style={S.pageTitle}>📋 הכרטיסייה שלי</h1>
-                <p style={S.pageSubtitle}>כך נראה הפרופיל שלך למציעים</p>
-            </div>
+        <div style={readOnly ? {...S.page, minHeight: 'auto', padding: 0, background: 'none'} : S.page}>
+            {!readOnly && (
+                <div style={S.pageHeader}>
+                    <h1 style={S.pageTitle}>📋 הכרטיסייה שלי</h1>
+                    <p style={S.pageSubtitle}>כך נראה הפרופיל שלך למציעים</p>
+                </div>
+            )}
 
             <div style={S.card}>
                 {/* ── Hero section ── */}
@@ -125,6 +131,23 @@ function ProfileView() {
                     {show(user.contact_phone_2) && <span style={S.contactPhone}>| {user.contact_phone_2}</span>}
                 </div>
 
+                {/* ── Admin Info (Only if isAdminView is true) ── */}
+                {isAdminView && (
+                    <div style={{...S.contactBox, background: '#fff1f2', borderBottom: '2px solid #fda4af', padding: '14px 24px'}}>
+                        <span style={{...S.contactLabel, color: '#be123c', marginLeft: '12px'}}>🛡️ פרטי מערכת (מנהל בלבד):</span>
+                        {show(user.real_id_number) && <span style={S.contactValue}>🪪 ת.ז: {user.real_id_number}</span>}
+                        {show(user.phone) && <span style={S.contactValue}>📞 {user.phone}</span>}
+                        {show(user.email) && <span style={S.contactValue}>📧 {user.email}</span>}
+                        {show(user.id_card_image_url) && (
+                            <a href={`http://localhost:3000${user.id_card_image_url}`} target="_blank" rel="noreferrer"
+                               style={{color: '#be123c', fontWeight: 'bold', textDecoration: 'underline'}}>
+                                🖼️ צילום ת.ז
+                            </a>
+                        )}
+                    </div>
+                )}
+
+
                 {/* ── Tabs ── */}
                 <div style={S.tabsBar}>
                     {tabs.map(t => (
@@ -182,8 +205,19 @@ function ProfileView() {
 
                             {/* Financial */}
                             <Section title="🏠 דיור ומימון" color="#fef9ec" border="#fcd34d">
-                                <Row label="עזרת דירה" val={tr('apartment_help', user.apartment_help)} />
-                                {show(user.apartment_amount) && <Row label="סכום עזרה" val={`₪${Number(user.apartment_amount).toLocaleString()}`} />}
+                                {(() => {
+                                    const ah = user.apartment_help || '';
+                                    // Handle format like 'yes (330000)' or just 'yes'
+                                    const match = ah.match(/^(yes|no|partial)\s*(?:\((\d+)\))?/);
+                                    const helpVal = match ? match[1] : ah;
+                                    const amount = match && match[2] ? match[2] : user.apartment_amount;
+                                    return (
+                                        <>
+                                            <Row label="עזרת דירה" val={tr('apartment_help', helpVal)} />
+                                            {amount && <Row label="סכום עזרה" val={`₪${Number(amount).toLocaleString()}`} />}
+                                        </>
+                                    );
+                                })()}
                             </Section>
                         </div>
                     )}
@@ -332,10 +366,12 @@ function ProfileView() {
                 </div>
 
                 {/* ── Actions ── */}
-                <div style={S.actions}>
-                    <button onClick={() => navigate('/profile')} style={S.btnPrimary}>✏️ ערוך פרופיל</button>
-                    <button onClick={() => navigate('/matches')} style={S.btnSecondary}>← חזרה לשידוכים</button>
-                </div>
+                {!readOnly && (
+                    <div style={S.actions}>
+                        <button onClick={() => navigate('/profile')} style={S.btnPrimary}>✏️ ערוך פרופיל</button>
+                        <button onClick={() => navigate('/matches')} style={S.btnSecondary}>← חזרה לשידוכים</button>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -359,7 +395,7 @@ function Section({ title, color, border, children, fullWidth }) {
 }
 
 function Row({ label, val, fullWidth }) {
-    if (!val || val === '—' || val === '') return null;
+    if (val === null || val === undefined || val === '—' || val === '' || val === 'null') return null;
     return (
         <div style={{ display: 'flex', gap: '6px', fontSize: '0.9rem', flexBasis: fullWidth ? '100%' : 'auto' }}>
             <span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{label}:</span>
@@ -437,13 +473,14 @@ const S = {
     tabsBar: { display: 'flex', borderBottom: '2px solid #e5e7eb' },
     tab: {
         flex: 1, padding: '13px 8px', background: '#f8fafc',
-        border: 'none', cursor: 'pointer', fontSize: '0.9rem',
+        borderTop: 'none', borderRight: 'none', borderLeft: 'none', borderBottom: '3px solid transparent',
+        cursor: 'pointer', fontSize: '0.9rem',
         color: '#6b7280', fontFamily: 'inherit', fontWeight: '600',
-        transition: 'background 0.15s'
+        transition: 'all 0.15s'
     },
     tabActive: {
         flex: 1, padding: '13px 8px', background: '#fff',
-        border: 'none', borderBottom: '3px solid #c9a227',
+        borderTop: 'none', borderRight: 'none', borderLeft: 'none', borderBottom: '3px solid #c9a227',
         cursor: 'pointer', fontSize: '0.9rem',
         color: '#1e3a5f', fontFamily: 'inherit', fontWeight: '800'
     },

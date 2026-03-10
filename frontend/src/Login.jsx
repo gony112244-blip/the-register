@@ -35,11 +35,25 @@ function Login() {
             const loggedUser = data.user;
 
             // ניתוב לפי סוג משתמש
-            setTimeout(() => {
+            setTimeout(async () => {
                 if (loggedUser.is_admin) {
                     navigate('/admin');
                 } else if (loggedUser.gender && loggedUser.age) {
-                    navigate('/matches');
+                    try {
+                        const msgRes = await fetch('http://localhost:3000/my-messages', {
+                            headers: { 'Authorization': `Bearer ${data.token}` }
+                        });
+                        const msgData = await msgRes.json();
+                        const hasUnread = Array.isArray(msgData) && msgData.some(m => !m.is_read);
+                        
+                        if (hasUnread) {
+                            navigate('/inbox');
+                        } else {
+                            navigate('/matches');
+                        }
+                    } catch (e) {
+                        navigate('/matches');
+                    }
                 } else {
                     navigate('/profile');
                 }

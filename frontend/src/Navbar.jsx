@@ -1,9 +1,11 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import './Navbar.css';
 
 function Navbar() {
   const navigate = useNavigate();
+
+  const [adminStats, setAdminStats] = useState({ pending: 0, matches: 0 });
 
   const user = useMemo(() => {
     try {
@@ -14,6 +16,22 @@ function Navbar() {
       return null;
     }
   }, []);
+
+  useEffect(() => {
+    if (user && user.is_admin) {
+      const token = localStorage.getItem('token');
+      fetch('http://localhost:3000/admin/stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+            if (data) {
+                setAdminStats({ pending: data.pending || 0, matches: data.matches || 0 });
+            }
+        })
+        .catch(err => console.error("Error fetching admin stats in navbar:", err));
+    }
+  }, [user]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -35,7 +53,7 @@ function Navbar() {
             <Link to="/matches">💍 שידוכים</Link>
             <Link to="/inbox">📬 הודעות</Link>
             <Link to="/connections">💞 שידוכים פעילים</Link>
-            <Link to="/photo-requests">📷 בקשות תמונות</Link>
+
           </>
         )}
 
@@ -44,8 +62,14 @@ function Navbar() {
           <>
             <Link to="/admin" className="navbar-admin-link">📊 לוח בקרה</Link>
             <Link to="/admin/users" className="navbar-admin-link">👥 משתמשים</Link>
-            <Link to="/admin/matches" className="navbar-admin-link">💍 ניהול שידוכים</Link>
-            <Link to="/admin/pending-profiles" className="navbar-admin-link">📝 אישורים</Link>
+            <Link to="/admin/matches" className="navbar-admin-link" style={{position: 'relative'}}>
+              💍 ניהול שידוכים
+              {adminStats.matches > 0 && <span className="admin-badge">{adminStats.matches}</span>}
+            </Link>
+            <Link to="/admin/pending-profiles" className="navbar-admin-link" style={{position: 'relative'}}>
+              📝 אישורים
+              {adminStats.pending > 0 && <span className="admin-badge">{adminStats.pending}</span>}
+            </Link>
           </>
         )}
       </div>
