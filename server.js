@@ -10,10 +10,7 @@ const fs = require('fs');
 const nodemailer = require('nodemailer'); // ספרייה לשליחת מיילים
 const dns = require('dns');
 
-// פתרון לבעיית IPv6: מעדיף IPv4 ברמת התהליך
-if (dns.setDefaultResultOrder) {
-    dns.setDefaultResultOrder('ipv4first');
-}
+// IPv6 is supported and works better in some environments
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -94,19 +91,18 @@ async function initMailer() {
             // שימוש בשירות אמיתי (Gmail וכו')
             transporter = nodemailer.createTransport({
                 host: "smtp.gmail.com",
-                port: 587,
-                secure: false, // port 587 uses STARTTLS
+                port: 465,
+                secure: true, // port 465 uses SSL/TLS
                 auth: {
                     user: process.env.EMAIL_USER,
                     pass: process.env.EMAIL_PASS,
                 },
-                // הגדרת TLS לשיפור תאימות (עוקף חסימות אנטי-וירוס מסוימות)
+                // הגדרת TLS לשיפור תאימות
                 tls: {
-                    rejectUnauthorized: false,
-                    servername: 'smtp.gmail.com'
+                    rejectUnauthorized: false
                 }
             });
-            console.log(`📧 Mailer initialized: Using Gmail SMTP (Port 587, Bypass Mode)`);
+            console.log(`📧 Mailer initialized: Using Gmail SMTP (Port 465, SSL/TLS Mode)`);
         }
     } catch (err) {
         console.error("❌ Mailer initialization failed:", err);
@@ -129,17 +125,28 @@ async function sendEmail(to, subject, htmlContent, userId = null) {
     if (userId) {
         try {
             const userPrefs = await pool.query(
-                'SELECT email_notifications_enabled FROM users WHERE id = $1',
+                'SELECT email_notifications_enabled, is_email_verified FROM users WHERE id = $1',
                 [userId]
             );
 
-            if (userPrefs.rows.length > 0 && !userPrefs.rows[0].email_notifications_enabled) {
-                console.log(`📧 Email skipped for user ${userId} - notifications disabled`);
-                return false;
+            if (userPrefs.rows.length > 0) {
+                const prefs = userPrefs.rows[0];
+                
+                // 1. בדיקה אם המשתמש ביטל התראות ביוזמתו
+                if (!prefs.email_notifications_enabled) {
+                    console.log(`📧 Email skipped for user ${userId} - notifications disabled`);
+                    return false;
+                }
+
+                // 2. הגנה: אם האימייל לא מאומת, לא שולחים התראות מערכת (למנוע הטרדת צד ג')
+                // הערה: נבדוק אם זה מייל מסוג "auth" או "verification" בנפרד למטה
+                if (!prefs.is_email_verified && !subject.includes('אימות') && !subject.includes('סיסמה')) {
+                    console.log(`📧 Email blocked for user ${userId} - email not verified yet`);
+                    return false;
+                }
             }
         } catch (err) {
             console.error('Error checking email preferences:', err);
-            // במקרה של שגיאה, נמשיך לשלוח (fail-safe)
         }
     }
 
@@ -164,6 +171,39 @@ async function sendEmail(to, subject, htmlContent, userId = null) {
     }
 }
 
+// פונקציית עזר: שליחת מייל "הודעה חדשה" למשתמש
+async function sendNewMessageEmail(toUserId, senderName, content) {
+    try {
+        const userRes = await pool.query(
+            'SELECT email FROM users WHERE id = $1',
+            [toUserId]
+        );
+
+        if (userRes.rows.length === 0) {
+            return;
+        }
+
+        const userEmail = userRes.rows[0].email;
+        if (!userEmail) {
+            return;
+        }
+
+        const preview = (content || '').toString().slice(0, 150);
+
+        await sendTemplateEmail(
+            userEmail,
+            'new_message',
+            {
+                senderName: senderName || 'הפנקס',
+                messagePreview: preview || 'יש לך הודעה חדשה במערכת.'
+            },
+            toUserId
+        );
+    } catch (err) {
+        console.error('Error sending new message email:', err);
+    }
+}
+
 // פונקציה מקוצרת לשליחת מייל עם תבנית
 async function sendTemplateEmail(to, templateType, data, userId = null) {
     const template = getEmailTemplate(templateType, data);
@@ -173,6 +213,18 @@ async function sendTemplateEmail(to, templateType, data, userId = null) {
     }
 
     return await sendEmail(to, template.subject, template.html, userId);
+}
+
+// פונקציית עזר: שליחת מייל עם תבנית לפי userId (שולפת מייל אוטומטית)
+async function sendTemplateEmailForUser(toUserId, templateType, data) {
+    try {
+        const res = await pool.query('SELECT email FROM users WHERE id = $1', [toUserId]);
+        if (!res.rows.length || !res.rows[0].email) return false;
+        return await sendTemplateEmail(res.rows[0].email, templateType, data, toUserId);
+    } catch (err) {
+        console.error(`[sendTemplateEmailForUser] Error for userId ${toUserId}:`, err.message);
+        return false;
+    }
 }
 
 // ==========================================
@@ -353,7 +405,7 @@ app.post('/register', async (req, res) => {
                 age, height, city, created_at, is_approved, is_blocked,
                 profile_images, profile_images_count, email_notifications_enabled,
                 is_email_verified, email_verification_code
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), FALSE, FALSE, $10, $11, $12, TRUE, $13) RETURNING *`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), FALSE, FALSE, $10, $11, $12, FALSE, $13) RETURNING *`,
             [
                 emailToSave, hashedPassword, full_name, last_name, phoneToSave, gender,
                 age, height || null, city || null,
@@ -370,11 +422,27 @@ app.post('/register', async (req, res) => {
             { expiresIn: '30d' }
         );
 
-        // 6. שליחת הודעת ברוכים הבאים
+        // 6. שליחת הודעת ברוכים הבאים (במערכת + במייל)
+        const welcomeContent = `👋 ברוכים הבאים ל"הפנקס"! \nנא להשלים את הפרופיל בטאב "הפרופיל שלי" כדי להתחיל לקבל הצעות.`;
+
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
-            [newUser.rows[0].id, `👋 ברוכים הבאים ל"הפנקס"! \nנא להשלים את הפרופיל בטאב "הפרופיל שלי" כדי להתחיל לקבל הצעות.`]
+            [newUser.rows[0].id, welcomeContent]
         );
+
+        // מייל אימות (חובה לוודא שזה האימייל שלו)
+        if (emailToSave) {
+            await sendTemplateEmail(
+                emailToSave,
+                'verification',
+                { 
+                    fullName: full_name || '', 
+                    code: verificationCode,
+                    userId: newUser.rows[0].id
+                },
+                newUser.rows[0].id
+            );
+        }
 
         res.status(201).json({
             message: "ההרשמה בוצע בהצלחה!",
@@ -526,21 +594,150 @@ app.post('/resend-verification', authenticateToken, async (req, res) => {
         const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
         await pool.query('UPDATE users SET email_verification_code = $1 WHERE id = $2', [verificationCode, userId]);
 
-        const verificationHtml = `
-            <div style="direction: rtl; font-family: sans-serif; padding: 20px; background: #f9f9f9; text-align: center;">
-                <h2 style="color: #1e3a5f;">קוד אימות חדש - הפנקס</h2>
-                <p>שלום ${full_name}, קוד האימות החדש שלך הוא:</p>
-                <h1 style="color: #c9a227; letter-spacing: 12px; font-size: 36px;">${verificationCode}</h1>
-                <p>הקוד תקף לזמן מוגבל.</p>
-            </div>
-        `;
+        await sendTemplateEmail(email, 'verification', {
+            fullName: full_name,
+            code: verificationCode,
+            userId: userId
+        }, userId);
 
-        await sendEmail(email, '🔐 קוד אימות חדש - הפנקס', verificationHtml, userId);
         res.json({ message: "קוד חדש נשלח למייל בהצלחה" });
 
     } catch (err) {
         console.error("Resend error:", err);
         res.status(500).json({ message: "שגיאה בשליחת הקוד מחדש" });
+    }
+});
+
+// דילוג על אימות מייל (המשתמש יקבל תזכורת לאחר מכן)
+app.post('/skip-email-verification', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        // מסמנים שדילג — לא מוחקים את המייל, הוא יוכל לאמת מאוחר יותר
+        // נשלח לו תזכורת בפעם הבאה שייכנס דרך ה-Inbox/פרופיל
+        await pool.query(
+            'UPDATE users SET email_skip_verification = TRUE WHERE id = $1',
+            [userId]
+        );
+        res.json({ message: "בסדר! תוכל לאמת מאוחר יותר דרך הפרופיל שלך." });
+    } catch (err) {
+        // אם העמודה לא קיימת — לא נפיל שגיאה, פשוט מדלגים
+        console.warn('[skip-email-verification] Column may not exist yet:', err.message);
+        res.json({ message: "בסדר! תוכל לאמת מאוחר יותר." });
+    }
+});
+// בקשת אימות מחדש (למי שדילג בהרשמה — שולח מייל חדש)
+app.post('/request-reverify', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await pool.query(
+            'SELECT email, full_name, is_email_verified FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (!result.rows.length) return res.status(404).json({ message: 'משתמש לא נמצא' });
+
+        const { email, full_name, is_email_verified } = result.rows[0];
+
+        if (is_email_verified) {
+            return res.json({ message: '✅ האימייל שלך כבר מאומת!', alreadyVerified: true });
+        }
+
+        if (!email) {
+            return res.status(400).json({ message: 'לא הוזנה כתובת מייל. עדכן את המייל שלך בפרופיל.' });
+        }
+
+        // יצירת קוד חדש ושליחה
+        const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+        await pool.query('UPDATE users SET email_verification_code = $1 WHERE id = $2', [newCode, userId]);
+
+        // שולחים דרך הקיים — sendEmail ישלח אפילו לפני אימות כי subject כולל "אימות"
+        await sendTemplateEmail(email, 'verify_reminder', {
+            fullName: full_name || '',
+            code: newCode,
+            userId
+        }, null); // null = מדלגים על בדיקת is_email_verified (רציונל: זה מייל אימות!)
+
+        res.json({ message: `מייל אימות נשלח אל ${email}` });
+    } catch (err) {
+        console.error('[request-reverify]', err);
+        res.status(500).json({ message: 'שגיאה בשליחת המייל' });
+    }
+});
+
+// --- נתיבים לאימות והגנה על כתובת מייל ---
+
+// 1. אימות מייל דרך לינק (GET)
+app.get('/verify-email-link', async (req, res) => {
+    const { code, userId } = req.query;
+
+    if (!code || !userId) return res.send("<h2>מידע חסר בבקשה</h2>");
+
+    try {
+        const result = await pool.query(
+            'SELECT email_verification_code, is_email_verified FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (result.rows.length === 0) return res.send("<h2>משתמש לא נמצא</h2>");
+        
+        const user = result.rows[0];
+        if (user.is_email_verified) return res.send("<h2>המייל שלך כבר מאומת! 🎉</h2><p>ניתן לסגור חלון זה.</p>");
+
+        if (user.email_verification_code === code) {
+            await pool.query(
+                'UPDATE users SET is_email_verified = TRUE, email_verification_code = NULL WHERE id = $1',
+                [userId]
+            );
+            res.send(`<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>אימות הצליח — הפנקס</title>
+<style>
+  body { margin:0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f1a2e, #1e3a5f); min-height:100vh; display:flex; align-items:center; justify-content:center; }
+  .card { background:#fff; border-radius:20px; padding:50px 40px; max-width:420px; width:90%; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,0.4); }
+  .icon { font-size:60px; margin-bottom:20px; display:block; }
+  h1 { color:#1e3a5f; font-size:24px; margin:0 0 12px; }
+  p  { color:#64748b; font-size:15px; margin:0 0 28px; }
+  a  { display:inline-block; padding:14px 36px; background:linear-gradient(135deg,#c9a227,#b08d1f); color:#fff; text-decoration:none; border-radius:12px; font-size:16px; font-weight:700; }
+</style></head>
+<body><div class="card">
+  <span class="icon">✅</span>
+  <h1>המייל אומת בהצלחה!</h1>
+  <p>תודה שאימתת את חשבונך. כעת תוכל לקבל הצעות שידוך והתראות מהמערכת.</p>
+  <a href="http://localhost:5173">חזרה לפנקס →</a>
+</div></body></html>`);
+        } else {
+            res.send(`<!DOCTYPE html>
+<html dir="rtl" lang="he"><head><meta charset="UTF-8"><title>שגיאה — הפנקס</title>
+<style>body{margin:0;font-family:sans-serif;background:#1e3a5f;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.card{background:#fff;border-radius:20px;padding:40px;max-width:400px;text-align:center;}
+h1{color:#dc2626;} p{color:#64748b;}</style></head>
+<body><div class="card"><h1>❌ קוד לא תקין</h1><p>הקוד שגוי או שפג תוקפו. חזור לאפליקציה ובקש קוד חדש.</p></div></body></html>`);
+        }
+    } catch (err) {
+        res.status(500).send("שגיאת שרת בעיבוד הבקשה");
+    }
+});
+
+// 2. דיווח על "זה לא המייל שלי"
+app.get('/report-wrong-email', async (req, res) => {
+    const { userId } = req.query;
+    
+    try {
+        // מחיקת האימייל מהמשתמש וביטול התראות כדי שלא יקבל עוד כלום לעולם
+        await pool.query(
+            'UPDATE users SET email = NULL, email_notifications_enabled = FALSE, is_email_verified = FALSE WHERE id = $1',
+            [userId]
+        );
+
+        res.send(`
+            <div style="direction: rtl; text-align: center; font-family: sans-serif; padding: 50px;">
+                <h1>האימייל הוסר מהמערכת ✉️</h1>
+                <p>מצטערים על אי הנוחות. האימייל שלך הוסר ולא תקבל מאיתנו הודעות נוספות.</p>
+            </div>
+        `);
+    } catch (err) {
+        res.status(500).send("שגיאה בעיבוד הבקשה");
     }
 });
 
@@ -905,13 +1102,20 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
             [requesterId, targetId]
         );
 
-        // שליחת הודעה לצד השני
+        // שליחת הודעה לצד השני (במערכת + מייל)
         const requesterInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [requesterId]);
+        const msgContent = `📷 ${requesterInfo.rows[0].full_name} מבקש/ת לראות את התמונות שלך`;
+
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) 
              VALUES ($1, $2, $3, 'photo_request')`,
-            [requesterId, targetId, `📷 ${requesterInfo.rows[0].full_name} מבקש/ת לראות את התמונות שלך`]
+            [requesterId, targetId, msgContent]
         );
+
+        // מייל בקשת תמונות
+        await sendTemplateEmailForUser(targetId, 'photo_request', {
+            requesterName: requesterInfo.rows[0].full_name
+        });
 
         res.json({ message: "הבקשה נשלחה! תקבל הודעה כשיאשרו" });
 
@@ -1847,10 +2051,16 @@ app.post('/admin/send-message', authenticateToken, async (req, res) => {
     const { userId, message } = req.body;
 
     try {
+        const finalContent = `📬 הודעה מהמנהל:\n${message}`;
+
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'admin_message')`,
-            [userId, `📬 הודעה מהמנהל:\n${message}`]
+            [userId, finalContent]
         );
+
+        // שליחת מייל למשתמש (אם יש לו אימייל ומופעלת קבלת התראות)
+        await sendNewMessageEmail(userId, 'מנהל המערכת', finalContent);
+
         res.json({ message: "ההודעה נשלחה" });
     } catch (err) {
         console.error("Send admin message error:", err);
@@ -1882,6 +2092,12 @@ app.post('/connect', authenticateToken, async (req, res) => {
             `INSERT INTO connections (sender_id, receiver_id) VALUES ($1, $2)`,
             [myId, targetId]
         );
+
+        // שליחת הודעת מייל למי שקיבל את הבקשה
+        const senderInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [myId]);
+        const senderName = senderInfo.rows[0]?.full_name || 'מישהו';
+        setImmediate(() => sendTemplateEmailForUser(targetId, 'new_connection', { senderName }));
+
         res.json({ message: "🎉 הפנייה נשלחה בהצלחה!" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה ביצירת הקשר" });
@@ -1909,10 +2125,25 @@ app.get('/my-requests', authenticateToken, async (req, res) => {
 app.post('/approve-request', authenticateToken, async (req, res) => {
     const { connectionId, userId } = req.body;
     try {
+        // שלוף את sender_id לפני העדכון כדי להודיע לו
+        const connInfo = await pool.query('SELECT sender_id FROM connections WHERE id = $1', [connectionId]);
+        const originalSenderId = connInfo.rows[0]?.sender_id;
+
         await pool.query(
             `UPDATE connections SET status = 'active', updated_at = NOW(), last_action_by = $1 WHERE id = $2`,
             [userId, connectionId]
         );
+
+        // הודעת מייל לשולח הבקשה המקורי — הבקשה שלו אושרה!
+        if (originalSenderId && originalSenderId !== userId) {
+            const approverInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [userId]);
+            const approverName = approverInfo.rows[0]?.full_name || 'הצד השני';
+            setImmediate(() => sendTemplateEmailForUser(originalSenderId, 'new_message', {
+                senderName: approverName,
+                messagePreview: `✅ ${approverName} אישר/ה את בקשת הקשר שלך! כעת תוכל להתחיל שיחה.`
+            }));
+        }
+
         res.json({ message: "הבקשה אושרה! עכשיו בשיחות פעילות." });
     } catch (err) {
         res.status(500).json({ message: "שגיאה באישור" });
@@ -2184,11 +2415,17 @@ app.put('/admin/approve/:userId', authenticateToken, async (req, res) => {
     try {
         await pool.query('UPDATE users SET is_approved = TRUE WHERE id = $1', [userId]);
 
-        // הודעה למשתמש
+        // הודעה למשתמש במערכת
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
             [userId, '✅ הפרופיל שלך אושר! כעת תוכל לגלוש ולחפש שידוכים.']
         );
+
+        // מייל לאישור פרופיל
+        const userInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [userId]);
+        setImmediate(() => sendTemplateEmailForUser(parseInt(userId), 'profile_approved', {
+            fullName: userInfo.rows[0]?.full_name || 'משתמש'
+        }));
 
         res.json({ message: "המשתמש אושר בהצלחה" });
     } catch (err) {
@@ -2234,15 +2471,20 @@ app.post('/admin/user-note', authenticateToken, async (req, res) => {
     }
 });
 
-// שליחת הודעה למשתמש (מהמנהל)
+// שליחת הודעה למשתמש (מהמנהל) - גרסה נוספת (איחוד ההתנהגות למייל)
 app.post('/admin/send-message', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
     const { userId, message } = req.body;
     try {
+        const finalContent = message;
+
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'admin')`,
-            [userId, message]
+            [userId, finalContent]
         );
+
+        await sendNewMessageEmail(userId, 'מנהל המערכת', finalContent);
+
         res.json({ message: "ההודעה נשלחה" });
     } catch (err) {
         console.error("Error sending message:", err);

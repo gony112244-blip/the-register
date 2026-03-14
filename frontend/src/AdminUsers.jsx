@@ -361,7 +361,10 @@ const styles = {
     },
     userCard: {
         background: '#fff',
-        borderRadius: '15px',
+        borderTopLeftRadius: '15px',
+        borderTopRightRadius: '15px',
+        borderBottomLeftRadius: '15px',
+        borderBottomRightRadius: '15px',
         padding: '15px 20px',
         cursor: 'pointer',
         transition: 'all 0.2s',

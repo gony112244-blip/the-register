@@ -79,10 +79,11 @@ function Register() {
         return validateName(fullName) && validatePhone(phone) && validatePassword(password) && validateEmail(email);
     }, [fullName, phone, password, email]);
 
-    const [step, setStep] = useState('register'); // register or verify
+    const [step, setStep] = useState('register'); // register | verify
     const [verificationCode, setVerificationCode] = useState("");
     const [isVerifying, setIsVerifying] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false); // מניעת לחיצה כפולה
+    const [isSkipping, setIsSkipping] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleRegister = async () => {
         if (!isFormValid || isSubmitting) {
@@ -99,8 +100,8 @@ function Register() {
                     phone,
                     password,
                     full_name: fullName,
-                    email, // שליחת המייל לשרת
-                    email_notifications_enabled: emailNotifications // העדפת התראות
+                    email,
+                    email_notifications_enabled: emailNotifications
                 })
             });
 
@@ -110,10 +111,13 @@ function Register() {
                 localStorage.setItem('token', data.token);
                 localStorage.setItem('user', JSON.stringify(data.user));
 
-                showToast("החשבון נוצר בהצלחה! ברוכים הבאים 🎊", "success");
-
-                // עוברים ישירות לפרופיל (דילוג על אימות)
-                navigate('/profile');
+                if (email) {
+                    // יש מייל → נציג שלב אימות
+                    setStep('verify');
+                } else {
+                    showToast("החשבון נוצר בהצלחה! ברוכים הבאים 🎊", "success");
+                    navigate('/profile');
+                }
             } else {
                 showToast(`שגיאה: ${data.message}`, "error");
             }
@@ -146,10 +150,9 @@ function Register() {
 
             if (response.ok) {
                 showToast("המייל אומת בהצלחה! ברוך הבא 🎉", "success");
-                // מעבר לדף הפרופיל למילוי פרטים
-                setTimeout(() => navigate('/profile'), 1500);
+                setTimeout(() => navigate('/profile'), 1200);
             } else {
-                showToast(`שגיאה: ${data.message}`, "error");
+                showToast(`קוד שגוי: ${data.message}`, "error");
             }
         } catch (err) {
             showToast("שגיאת תקשורת עם השרת", "error");
@@ -158,18 +161,30 @@ function Register() {
         }
     };
 
+    const handleSkipVerification = async () => {
+        setIsSkipping(true);
+        try {
+            const token = localStorage.getItem('token');
+            await fetch('http://localhost:3000/skip-email-verification', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+        } catch (_) { /* לא קריטי */ }
+        showToast("דילגת על האימות — תוכל לאמת בכל עת מהפרופיל שלך", "info");
+        setTimeout(() => navigate('/profile'), 1000);
+        setIsSkipping(false);
+    };
+
     const handleResendCode = async () => {
         try {
             const token = localStorage.getItem('token');
             const response = await fetch('http://localhost:3000/resend-verification', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
             if (response.ok) {
-                showToast("קוד חדש נשלח למייל שלך", "success");
+                showToast("קוד חדש נשלח למייל שלך 📨", "success");
             } else {
                 showToast(data.message, "error");
             }
@@ -315,44 +330,91 @@ function Register() {
                     </>
                 ) : (
                     <>
+                        {/* Header */}
                         <div style={headerStyle}>
-                            <span style={logoStyle}>📧</span>
-                            <h2 style={titleStyle}>אימות אימייל</h2>
-                            <p style={subtitleStyle}>שלחנו קוד לאימייל: <b>{email}</b></p>
+                            <span style={logoStyle}>✉️</span>
+                            <h2 style={titleStyle}>אמת את האימייל שלך</h2>
+                            <p style={subtitleStyle}>
+                                שלחנו קוד אימות אל <b style={{ color: '#1e3a5f' }}>{email}</b>
+                            </p>
                         </div>
 
-                        <div style={fieldWrapper}>
-                            <label style={{ ...labelStyle, textAlign: 'center' }}>הכנס קוד בן 6 ספרות</label>
+                        {/* אפשרות א׳ — לחיצת כפתור */}
+                        <div style={verifyMethodBox}>
+                            <p style={verifyMethodLabel}>🔗 אפשרות א׳ — קל ומהיר</p>
+                            <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 10px' }}>
+                                לחץ על הכפתור <b>במייל שקיבלת</b> כדי לאמת בלחיצה אחת.
+                            </p>
+                            <button onClick={handleResendCode} style={resendBtnStyle}>
+                                📨 שלח מחדש את מייל האימות
+                            </button>
+                        </div>
+
+                        {/* מפריד */}
+                        <div style={orDivider}><span>או</span></div>
+
+                        {/* אפשרות ב׳ — הזנת קוד */}
+                        <div style={verifyMethodBox}>
+                            <p style={verifyMethodLabel}>🔢 אפשרות ב׳ — הזן קוד ידנית</p>
                             <input
                                 type="text"
-                                placeholder="------"
+                                placeholder="_ _ _ _ _ _"
                                 value={verificationCode}
                                 onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                style={{ ...inputStyle, textAlign: 'center', fontSize: '2rem', letterSpacing: '10px', fontWeight: '800' }}
+                                style={{
+                                    ...inputStyle,
+                                    textAlign: 'center',
+                                    fontSize: '2rem',
+                                    letterSpacing: '12px',
+                                    fontWeight: '800',
+                                    marginBottom: '12px'
+                                }}
                                 dir="ltr"
                             />
+                            <button
+                                onClick={handleVerifyEmail}
+                                disabled={verificationCode.length !== 6 || isVerifying}
+                                style={{
+                                    ...buttonStyle,
+                                    background: (verificationCode.length === 6 && !isVerifying)
+                                        ? 'linear-gradient(135deg, #1e3a5f 0%, #2d5a8f 100%)'
+                                        : '#cbd5e1',
+                                    color: '#fff',
+                                    marginTop: '0',
+                                    fontSize: '1rem',
+                                    padding: '13px'
+                                }}
+                            >
+                                {isVerifying ? '⏳ בודק...' : '✅ אמת קוד והמשך'}
+                            </button>
                         </div>
 
-                        <button
-                            onClick={handleVerifyEmail}
-                            disabled={verificationCode.length !== 6 || isVerifying}
-                            style={{
-                                ...buttonStyle,
-                                background: (verificationCode.length === 6 && !isVerifying) ? 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)' : '#cbd5e1',
-                                color: '#fff'
-                            }}
-                        >
-                            {isVerifying ? 'בודק...' : 'אמת קוד והמשך'}
-                        </button>
-
-                        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-                            <p style={linkStyle}>
-                                לא קיבלת קוד? <span onClick={handleResendCode} style={linkTextStyle}>שלח שוב</span>
+                        {/* דילוג על אימות */}
+                        <div style={skipSection}>
+                            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '10px' }}>
+                                לא מצליח/ה לאמת עכשיו? אין בעיה —
                             </p>
-                            <p style={{ ...linkStyle, marginTop: '10px', fontSize: '0.8rem' }}>
-                                <span onClick={() => setStep('register')} style={{ cursor: 'pointer', textDecoration: 'underline' }}>חזור לעדכון כתובת המייל</span>
+                            <button
+                                onClick={handleSkipVerification}
+                                disabled={isSkipping}
+                                style={skipBtnStyle}
+                            >
+                                {isSkipping ? '⏳ מעביר אותך...' : '⏩ דלג על האימות לעת עתה'}
+                            </button>
+                            <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>
+                                תקבל תזכורת לאמת מאוחר יותר דרך הפרופיל שלך
                             </p>
                         </div>
+
+                        {/* חזרה לעריכת מייל */}
+                        <p style={{ textAlign: 'center', marginTop: '10px' }}>
+                            <span
+                                onClick={() => setStep('register')}
+                                style={{ fontSize: '13px', color: '#94a3b8', cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                                ← רוצה לעדכן את כתובת המייל?
+                            </span>
+                        </p>
                     </>
                 )}
             </div>
@@ -551,6 +613,67 @@ const phoneInfoStyle = {
     color: '#1e3a5f',
     fontSize: '0.9rem',
     border: '1px solid #dbeafe'
+};
+
+// --- styles לשלב האימות ---
+
+const verifyMethodBox = {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: '14px',
+    padding: '16px 18px',
+    marginBottom: '12px',
+    textAlign: 'right'
+};
+
+const verifyMethodLabel = {
+    fontSize: '14px',
+    fontWeight: '700',
+    color: '#1e3a5f',
+    marginBottom: '8px'
+};
+
+const resendBtnStyle = {
+    width: '100%',
+    padding: '11px',
+    borderRadius: '10px',
+    border: '1.5px solid #c9a227',
+    background: 'transparent',
+    color: '#c9a227',
+    fontWeight: '700',
+    fontSize: '14px',
+    cursor: 'pointer'
+};
+
+const orDivider = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    margin: '6px 0',
+    color: '#cbd5e1',
+    fontSize: '13px',
+    fontWeight: '500',
+    textAlign: 'center'
+};
+
+const skipSection = {
+    marginTop: '20px',
+    padding: '16px',
+    background: '#f8fafc',
+    borderRadius: '12px',
+    border: '1px dashed #e2e8f0',
+    textAlign: 'center'
+};
+
+const skipBtnStyle = {
+    padding: '10px 24px',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+    background: 'transparent',
+    color: '#64748b',
+    fontWeight: '600',
+    fontSize: '13px',
+    cursor: 'pointer'
 };
 
 export default Register;
