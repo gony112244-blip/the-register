@@ -1648,38 +1648,38 @@ app.get('/matches', authenticateToken, async (req, res) => {
             paramIndex++;
         }
 
-        // סינון לפי מבנה גוף (אם הוגדר)
+        // סינון לפי מבנה גוף (אם הוגדר) — NULL מותר (לא מפסלים מי שלא מילא)
         if (currentUser.search_body_types && currentUser.search_body_types !== '') {
             const bodyTypes = currentUser.search_body_types.split(',').map(t => t.trim());
             const placeholders = bodyTypes.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`body_type IN (${placeholders})`);
+            conditions.push(`(body_type IS NULL OR body_type IN (${placeholders}))`);
             params.push(...bodyTypes);
             paramIndex += bodyTypes.length;
         }
 
-        // סינון לפי מראה כללי
+        // סינון לפי מראה כללי — NULL מותר (לא מפסלים מי שלא מילא)
         if (currentUser.search_appearances && currentUser.search_appearances !== '') {
             const appearances = currentUser.search_appearances.split(',').map(t => t.trim());
             const placeholders = appearances.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`appearance IN (${placeholders})`);
+            conditions.push(`(appearance IS NULL OR appearance IN (${placeholders}))`);
             params.push(...appearances);
             paramIndex += appearances.length;
         }
 
-        // סינון לפי רקע משפחתי
+        // סינון לפי רקע משפחתי — NULL מותר
         if (currentUser.search_backgrounds && currentUser.search_backgrounds !== '') {
             const backgrounds = currentUser.search_backgrounds.split(',').map(t => t.trim());
             const placeholders = backgrounds.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`family_background IN (${placeholders})`);
+            conditions.push(`(family_background IS NULL OR family_background IN (${placeholders}))`);
             params.push(...backgrounds);
             paramIndex += backgrounds.length;
         }
 
-        // סינון לפי סטטוס
+        // סינון לפי סטטוס — NULL מותר
         if (currentUser.search_statuses && currentUser.search_statuses !== '') {
             const statuses = currentUser.search_statuses.split(',').map(t => t.trim());
             const placeholders = statuses.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`status IN (${placeholders})`);
+            conditions.push(`(status IS NULL OR status IN (${placeholders}))`);
             params.push(...statuses);
             paramIndex += statuses.length;
         }
@@ -1693,20 +1693,20 @@ app.get('/matches', authenticateToken, async (req, res) => {
             paramIndex += sectors.length;
         }
 
-        // סינון לפי עיסוק
+        // סינון לפי עיסוק — NULL מותר
         if (currentUser.search_occupations && currentUser.search_occupations !== '') {
             const occupations = currentUser.search_occupations.split(',').map(t => t.trim());
             const placeholders = occupations.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`current_occupation IN (${placeholders})`);
+            conditions.push(`(current_occupation IS NULL OR current_occupation IN (${placeholders}))`);
             params.push(...occupations);
             paramIndex += occupations.length;
         }
 
-        // סינון לפי שאיפות חיים
+        // סינון לפי שאיפות חיים — NULL מותר
         if (currentUser.search_life_aspirations && currentUser.search_life_aspirations !== '') {
             const aspirations = currentUser.search_life_aspirations.split(',').map(t => t.trim());
             const placeholders = aspirations.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`life_aspiration IN (${placeholders})`);
+            conditions.push(`(life_aspiration IS NULL OR life_aspiration IN (${placeholders}))`);
             params.push(...aspirations);
             paramIndex += aspirations.length;
         }
@@ -1794,8 +1794,7 @@ app.get('/matches', authenticateToken, async (req, res) => {
             LIMIT 30
         `;
 
-        // console.log("Final Query:", query); 
-        // console.log("Params:", params);
+        // Debug log (יש להסיר בפרודקשן)
 
         const result = await pool.query(query, params);
         res.json(result.rows);

@@ -75,7 +75,7 @@ function Connections() {
 
                 {connections.length === 0 ? (
                     <div style={styles.empty}>
-                        <div style={{ fontSize: '60px', marginBottom: '20px' }}>💔</div>
+                        <div style={{ fontSize: '60px', marginBottom: '20px' }}>🔍</div>
                         <h3>אין שידוכים פעילים כרגע</h3>
                         <p>כשתאשרו התאמה הדדית, היא תופיע כאן</p>
                         <button onClick={() => navigate('/inbox')} style={styles.linkBtn}>

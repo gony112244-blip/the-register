@@ -198,7 +198,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
 
                             {/* Partner description */}
                             {show(user.partner_description) && (
-                                <Section title="💑 בן/בת הזוג שאני מחפש" color="#fdf4ff" border="#d8b4fe" fullWidth>
+                                <Section title="💎 בן/בת הזוג שאני מחפש" color="#fdf4ff" border="#d8b4fe" fullWidth>
                                     <FreeText text={user.partner_description} />
                                 </Section>
                             )}

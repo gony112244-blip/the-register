@@ -134,7 +134,7 @@ function Inbox() {
                         onClick={() => setActiveTab('connections')}
                         style={activeTab === 'connections' ? styles.activeQuickLink : styles.quickLinkBtn}
                     >
-                        💞 הצעות שידוך
+                        💍 הצעות שידוך
                         {connectionRequests.length > 0 && <span style={styles.badge}>{connectionRequests.length}</span>}
                     </button>
                     <button

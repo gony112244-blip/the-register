@@ -145,7 +145,7 @@ function Matches() {
             </div>
 
             <div style={styles.container}>
-                <h1 style={styles.title}>💘 השידוכים שלי</h1>
+                <h1 style={styles.title}>✨ הצעות שידוך</h1>
                 <p style={styles.subtitle}>נמצאו {matches.length} התאמות פוטנציאליות</p>
 
                 {matches.length === 0 ? (
@@ -243,7 +243,7 @@ function Matches() {
                                             )}
 
                                             <button onClick={() => handleConnect(match.id)} style={styles.connectBtn}>
-                                                💌 שלח הודעה
+                                                שלח פנייה
                                             </button>
                                         </div>
                                     </div>

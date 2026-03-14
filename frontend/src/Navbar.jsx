@@ -52,7 +52,7 @@ function Navbar() {
           <>
             <Link to="/matches">💍 שידוכים</Link>
             <Link to="/inbox">📬 הודעות</Link>
-            <Link to="/connections">💞 שידוכים פעילים</Link>
+            <Link to="/connections">💎 שידוכים פעילים</Link>
 
           </>
         )}

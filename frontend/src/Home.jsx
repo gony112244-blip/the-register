@@ -297,7 +297,7 @@ function Home() {
             <div className="footer-contact">
               <span>📞 {sitePhoneNumber}</span>
               <span className="separator">|</span>
-              <a href="mailto:office@hapinkas.co.il" className="email-link">✉️ office@hapinkas.co.il</a>
+              <a href="mailto:office@hapinkas.co.il" className="email-link">📧 office@hapinkas.co.il</a>
             </div>
           </div>
         </div>
