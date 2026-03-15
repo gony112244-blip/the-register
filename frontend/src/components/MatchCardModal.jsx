@@ -60,15 +60,26 @@ export default function MatchCardModal({ person, onClose, token }) {
     const [fullData, setFullData] = useState(null);
     const [loadingFull, setLoadingFull] = useState(false);
     const [photos, setPhotos] = useState([]);
-    const [photoAccess, setPhotoAccess] = useState(null); // { canView, expiresAt }
+    const [photoAccess, setPhotoAccess] = useState(null);
     const [zoomedPhoto, setZoomedPhoto] = useState(null);
 
-    const p = fullData || person;
-    if (!p) return null;
+    // targetId מחושב מהאובייקט הראשוני — לא תלוי ב-fullData
+    const targetId = person?.id || person?.user_id;
 
-    const targetId = p.id || p.user_id;
+    // טעינת כרטיס מלא מיד עם פתיחה
+    useEffect(() => {
+        if (!targetId || !token) return;
+        setLoadingFull(true);
+        fetch(`http://localhost:3000/match-card/${targetId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data) setFullData(data); })
+            .catch(() => {})
+            .finally(() => setLoadingFull(false));
+    }, [targetId, token]);
 
-    // בדיקת גישה לתמונות
+    // בדיקת גישה לתמונות וטעינתן
     useEffect(() => {
         if (!targetId || !token) return;
         fetch(`http://localhost:3000/check-photo-access/${targetId}`, {
@@ -89,28 +100,11 @@ export default function MatchCardModal({ person, onClose, token }) {
             .catch(() => {});
     }, [targetId, token]);
 
-    // טעינת פרטים מלאים אם עדיין לא נטענו
-    const loadFull = async () => {
-        if (fullData || loadingFull) return;
-        if (!targetId || !token) return;
-        setLoadingFull(true);
-        try {
-            const res = await fetch(`http://localhost:3000/match-card/${targetId}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setFullData(data);
-            }
-        } catch { }
-        finally { setLoadingFull(false); }
-    };
+    const p = fullData || person;
+    if (!p) return null;
 
-    // טוען פרטים מלאים כשפותחים לשונית ב׳ (עיסוק)
-    const handleTab = (id) => {
-        setActiveTab(id);
-        if (id === 2) loadFull();
-    };
+    // החלפת לשוניות (לא צריך יותר loadFull — נטען אוטומטית)
+    const handleTab = (id) => setActiveTab(id);
 
     const hasPhotos = p.profile_images_count > 0;
 
@@ -171,16 +165,7 @@ export default function MatchCardModal({ person, onClose, token }) {
                         </div>
                     </div>
 
-                    {/* קופסת איש קשר */}
-                    {(show(p.contact_person_type) || show(p.contact_person_name) || show(p.contact_phone_1)) && (
-                        <div style={S.contactBox}>
-                            <span style={S.contactLabel}>📞 איש קשר לשידוך:</span>
-                            {show(p.contact_person_type) && <span style={S.contactVal}>{tr('contact_person_type', p.contact_person_type)}</span>}
-                            {show(p.contact_person_name) && <span style={S.contactVal}>— {p.contact_person_name}</span>}
-                            {show(p.contact_phone_1) && <span style={S.contactPhone}>{p.contact_phone_1}</span>}
-                            {show(p.contact_phone_2) && <span style={S.contactPhone}>{p.contact_phone_2}</span>}
-                        </div>
-                    )}
+                    {/* פרטי איש קשר — לא מוצגים בכרטיס הציבורי (נראה רק בשידוך פעיל) */}
 
                     {/* תמונות */}
                     {photoAccess?.canView && photos.length > 0 ? (

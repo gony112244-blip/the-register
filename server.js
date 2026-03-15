@@ -2346,7 +2346,6 @@ app.get('/match-card/:userId', authenticateToken, async (req, res) => {
                     apartment_help, apartment_amount,
                     current_occupation, life_aspiration, work_field, occupation_details,
                     yeshiva_name, yeshiva_ketana_name, study_place, study_field, favorite_study,
-                    contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
                     profile_images_count, created_at
              FROM users WHERE id = $1 AND is_approved = TRUE AND is_blocked = FALSE`,
             [targetId]
