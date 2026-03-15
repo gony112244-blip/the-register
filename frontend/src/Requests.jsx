@@ -112,6 +112,7 @@ export default function Requests() {
             if (res.ok) {
                 showToast('✅ הפנייה אושרה!', 'success');
                 fetchAll();
+                window.dispatchEvent(new CustomEvent('requestsUpdated'));
             }
         } catch { showToast('שגיאה', 'error'); }
     };
@@ -126,6 +127,7 @@ export default function Requests() {
             });
             showToast('הפנייה נדחתה', 'info');
             fetchAll();
+            window.dispatchEvent(new CustomEvent('requestsUpdated'));
         } catch { showToast('שגיאה', 'error'); }
     };
 
@@ -153,6 +155,23 @@ export default function Requests() {
             });
             showToast('✅ בקשת התמונות אושרה!', 'success');
             fetchAll();
+            window.dispatchEvent(new CustomEvent('requestsUpdated'));
+        } catch { showToast('שגיאה', 'error'); }
+    };
+
+    const handleCancelPhoto = async (targetId) => {
+        if (!window.confirm('לבטל את בקשת התמונות שנשלחה?')) return;
+        try {
+            const res = await fetch('http://localhost:3000/cancel-photo-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ targetId })
+            });
+            if (res.ok) {
+                showToast('בקשת התמונות בוטלה', 'info');
+                fetchAll();
+                window.dispatchEvent(new CustomEvent('requestsUpdated'));
+            }
         } catch { showToast('שגיאה', 'error'); }
     };
 
@@ -165,6 +184,7 @@ export default function Requests() {
         });
         showToast('בקשת התמונות נדחתה', 'info');
         fetchAll();
+        window.dispatchEvent(new CustomEvent('requestsUpdated'));
     };
 
     const totalReceived = receivedConn.length + receivedPhoto.length;
@@ -301,7 +321,15 @@ export default function Requests() {
                                                     type="photo"
                                                     onViewCard={handleViewCard}
                                                     onAction={() => (
-                                                        <div style={S.waitingTag}>⏳ ממתין לתשובה</div>
+                                                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                            <div style={S.waitingTag}>⏳ ממתין</div>
+                                                            <button
+                                                                onClick={() => handleCancelPhoto(item.user_id || item.target_id)}
+                                                                style={S.cancelBtn}
+                                                            >
+                                                                ✕ בטל
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 />
                                             ))}

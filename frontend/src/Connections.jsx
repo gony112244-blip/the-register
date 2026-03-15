@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import MatchCardModal from './components/MatchCardModal';
 
 function Connections() {
     const [connections, setConnections] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [modalPerson, setModalPerson] = useState(null);
     const navigate = useNavigate();
 
     const user = JSON.parse(localStorage.getItem('user'));
@@ -69,6 +71,13 @@ function Connections() {
 
     return (
         <div style={styles.page}>
+            {modalPerson && (
+                <MatchCardModal
+                    person={modalPerson}
+                    onClose={() => setModalPerson(null)}
+                    token={token}
+                />
+            )}
             <div style={styles.container}>
                 <h1 style={styles.title}>💍 השידוכים שלי</h1>
                 <p style={styles.subtitle}>כאן מופיעים פרטי הבירורים עבור התאמות מאושרות</p>
@@ -106,6 +115,14 @@ function Connections() {
                                     </div>
 
                                     <div style={styles.body}>
+                                        {/* כפתור לכרטיס המלא */}
+                                        <button
+                                            onClick={() => setModalPerson({ id: isSender ? conn.receiver_id : conn.sender_id, full_name: conn.full_name })}
+                                            style={styles.cardBtn}
+                                        >
+                                            👁️ צפה בכרטיס המלא
+                                        </button>
+
                                         <div style={styles.infoSection}>
                                             <h4 style={styles.infoTitle}>👥 פרטים לבירורים:</h4>
                                             <div style={styles.infoItem}>
@@ -136,6 +153,15 @@ function Connections() {
                                                 {otherSideReady && !alreadyApproved && (
                                                     <div style={styles.waitingNotice}>
                                                         🔔 הצד השני סיים בירורים ומחכה לך!
+                                                        <p style={{ fontSize: '0.85rem', fontWeight: 'normal', margin: '6px 0 0' }}>
+                                                            לחץ על "סיימתי בירורים" כדי להעביר את הכרטיס לשדכנית.
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {alreadyApproved && !otherSideReady && (
+                                                    <div style={styles.pendingOtherSide}>
+                                                        ⏳ אישרת — ממתינים לצד השני לסיים בירורים
                                                     </div>
                                                 )}
 
@@ -298,6 +324,29 @@ const styles = {
         cursor: 'pointer',
         fontWeight: 'bold',
         marginTop: '20px'
+    },
+    cardBtn: {
+        width: '100%',
+        padding: '10px',
+        background: 'linear-gradient(135deg, #c9a227, #a6851d)',
+        color: '#1a1a1a',
+        border: 'none',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        fontSize: '0.9rem',
+        marginBottom: '16px'
+    },
+    pendingOtherSide: {
+        background: '#f0f9ff',
+        border: '1px solid #bae6fd',
+        color: '#0369a1',
+        padding: '10px',
+        borderRadius: '10px',
+        marginBottom: '12px',
+        fontWeight: 'bold',
+        fontSize: '0.9rem',
+        textAlign: 'center'
     }
 };
 

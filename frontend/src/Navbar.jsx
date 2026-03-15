@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import NotificationsPanel from './components/NotificationsPanel';
 import './Navbar.css';
@@ -7,7 +7,7 @@ import './Navbar.css';
 function RequestsLink({ token, userId }) {
   const [count, setCount] = useState(0);
 
-  useEffect(() => {
+  const fetchCount = useCallback(() => {
     if (!token || !userId) return;
     const h = { 'Authorization': `Bearer ${token}` };
     Promise.all([
@@ -17,6 +17,13 @@ function RequestsLink({ token, userId }) {
       setCount((Array.isArray(conn) ? conn.length : 0) + (Array.isArray(photo) ? photo.length : 0));
     });
   }, [token, userId]);
+
+  useEffect(() => { fetchCount(); }, [fetchCount]);
+
+  useEffect(() => {
+    window.addEventListener('requestsUpdated', fetchCount);
+    return () => window.removeEventListener('requestsUpdated', fetchCount);
+  }, [fetchCount]);
 
   return (
     <Link to="/requests" style={{ position: 'relative' }}>
@@ -30,8 +37,10 @@ function RequestsLink({ token, userId }) {
 
 function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [adminStats, setAdminStats] = useState({ pending: 0, matches: 0 });
+  const [activeConnCount, setActiveConnCount] = useState(0);
 
   const readUser = useCallback(() => {
     try {
@@ -61,21 +70,41 @@ function Navbar() {
     window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
   }, []);
 
-  useEffect(() => {
-    if (user && user.is_admin) {
-      const token = localStorage.getItem('token');
-      fetch('http://localhost:3000/admin/stats', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(data => {
-            if (data) {
-                setAdminStats({ pending: data.pending || 0, matches: data.matches || 0 });
-            }
-        })
-        .catch(err => console.error("Error fetching admin stats in navbar:", err));
-    }
+  const fetchAdminStats = useCallback(() => {
+    if (!user?.is_admin) return;
+    const token = localStorage.getItem('token');
+    fetch('http://localhost:3000/admin/stats', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => { if (data) setAdminStats({ pending: data.pending || 0, matches: data.matches || 0 }); })
+      .catch(() => {});
   }, [user]);
+
+  useEffect(() => { fetchAdminStats(); }, [fetchAdminStats]);
+
+  // רענון badges אחרי פעולות אדמין
+  useEffect(() => {
+    window.addEventListener('adminStatsUpdated', fetchAdminStats);
+    return () => window.removeEventListener('adminStatsUpdated', fetchAdminStats);
+  }, [fetchAdminStats]);
+
+  // badge אדום לשידוכים פעילים
+  useEffect(() => {
+    if (!user || user.is_admin) return;
+    const token = localStorage.getItem('token');
+    fetch(`http://localhost:3000/my-connections?userId=${user.id}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setActiveConnCount(data.length); })
+      .catch(() => {});
+  }, [user]);
+
+  // מנקה badge כשנכנסים לדף שידוכים פעילים
+  useEffect(() => {
+    if (location.pathname === '/connections') setActiveConnCount(0);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -98,7 +127,12 @@ function Navbar() {
             <Link to="/matches">💍 שידוכים</Link>
             <RequestsLink token={localStorage.getItem('token')} userId={user?.id} />
             <Link to="/inbox">📬 הודעות</Link>
-            <Link to="/connections">💎 שידוכים פעילים</Link>
+            <Link to="/connections" style={{ position: 'relative' }}>
+              💎 שידוכים פעילים
+              {activeConnCount > 0 && location.pathname !== '/connections' && (
+                <span className="admin-badge" style={{ top: -6, right: -10, background: '#ef4444' }}>{activeConnCount}</span>
+              )}
+            </Link>
           </>
         )}
 

@@ -58,6 +58,7 @@ function AdminPendingProfiles() {
                 alert('✅ השינויים אושרו!');
                 fetchPending();
                 setSelectedUser(null);
+                window.dispatchEvent(new CustomEvent('adminStatsUpdated'));
             }
         } catch (err) {
             alert('שגיאה באישור');
@@ -85,6 +86,7 @@ function AdminPendingProfiles() {
                 fetchPending();
                 setSelectedUser(null);
                 setRejectReason('');
+                window.dispatchEvent(new CustomEvent('adminStatsUpdated'));
             }
         } catch (err) {
             alert('שגיאה בדחייה');

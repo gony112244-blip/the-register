@@ -1305,32 +1305,40 @@ app.get('/check-photo-access/:targetId', authenticateToken, async (req, res) => 
     const targetId = req.params.targetId;
 
     try {
+        // בדיקה דו-כיוונית: אם אחד מהצדדים אישר — שניהם רואים, ל-48 שעות
         const result = await pool.query(
-            `SELECT status FROM photo_approvals 
-             WHERE requester_id = $1 AND target_id = $2 AND status = 'approved'`,
+            `SELECT status, updated_at FROM photo_approvals 
+             WHERE status = 'approved'
+               AND updated_at > NOW() - INTERVAL '48 hours'
+               AND ((requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1))
+             LIMIT 1`,
             [requesterId, targetId]
         );
 
-        res.json({
-            canView: result.rows.length > 0,
-            status: result.rows[0]?.status || 'none'
-        });
+        const canView = result.rows.length > 0;
+        const expiresAt = canView
+            ? new Date(new Date(result.rows[0].updated_at).getTime() + 48 * 60 * 60 * 1000).toISOString()
+            : null;
 
+        res.json({ canView, expiresAt });
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
     }
 });
 
-// קבלת תמונות של מישהו (רק אם יש הרשאה!)
+// קבלת תמונות של מישהו (רק אם יש הרשאה — דו-כיוונית ל-48 שעות)
 app.get('/get-user-photos/:targetId', authenticateToken, async (req, res) => {
     const requesterId = req.user.id;
     const targetId = req.params.targetId;
 
     try {
-        // בדיקת הרשאה
+        // בדיקת הרשאה דו-כיוונית עם חלון 48 שעות
         const permission = await pool.query(
-            `SELECT status FROM photo_approvals 
-             WHERE requester_id = $1 AND target_id = $2 AND status = 'approved'`,
+            `SELECT id FROM photo_approvals 
+             WHERE status = 'approved'
+               AND updated_at > NOW() - INTERVAL '48 hours'
+               AND ((requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1))
+             LIMIT 1`,
             [requesterId, targetId]
         );
 
@@ -1338,14 +1346,19 @@ app.get('/get-user-photos/:targetId', authenticateToken, async (req, res) => {
             return res.status(403).json({ message: "אין הרשאה לצפייה", photos: [] });
         }
 
-        // יש הרשאה - שולח תמונות
-        const photos = await pool.query(
-            'SELECT profile_images FROM users WHERE id = $1',
+        // יש הרשאה — שולח תמונות
+        const photosFromTable = await pool.query(
+            'SELECT image_url FROM user_images WHERE user_id = $1 ORDER BY created_at',
             [targetId]
         );
 
-        res.json({ photos: photos.rows[0]?.profile_images || [] });
+        let photos = photosFromTable.rows.map(r => r.image_url);
+        if (photos.length === 0) {
+            const fromUsers = await pool.query('SELECT profile_images FROM users WHERE id = $1', [targetId]);
+            photos = fromUsers.rows[0]?.profile_images || [];
+        }
 
+        res.json({ photos });
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
     }
@@ -2356,6 +2369,26 @@ app.post('/cancel-request', authenticateToken, async (req, res) => {
         );
         if (check.rows.length === 0) return res.status(403).json({ message: "לא ניתן לבטל" });
         await pool.query('DELETE FROM connections WHERE id = $1', [connectionId]);
+        res.json({ message: "הבקשה בוטלה" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בביטול" });
+    }
+});
+
+// ביטול בקשת תמונה שנשלחה
+app.post('/cancel-photo-request', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { targetId } = req.body;
+    try {
+        const check = await pool.query(
+            "SELECT id FROM photo_approvals WHERE requester_id = $1 AND target_id = $2 AND status = 'pending'",
+            [userId, targetId]
+        );
+        if (check.rows.length === 0) return res.status(403).json({ message: "לא נמצאה בקשה פעילה" });
+        await pool.query(
+            "DELETE FROM photo_approvals WHERE requester_id = $1 AND target_id = $2 AND status = 'pending'",
+            [userId, targetId]
+        );
         res.json({ message: "הבקשה בוטלה" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה בביטול" });

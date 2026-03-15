@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // ── תרגומים ──
 const T = {
@@ -59,18 +59,43 @@ export default function MatchCardModal({ person, onClose, token }) {
     const [activeTab, setActiveTab] = useState(1);
     const [fullData, setFullData] = useState(null);
     const [loadingFull, setLoadingFull] = useState(false);
+    const [photos, setPhotos] = useState([]);
+    const [photoAccess, setPhotoAccess] = useState(null); // { canView, expiresAt }
+    const [zoomedPhoto, setZoomedPhoto] = useState(null);
 
     const p = fullData || person;
     if (!p) return null;
 
+    const targetId = p.id || p.user_id;
+
+    // בדיקת גישה לתמונות
+    useEffect(() => {
+        if (!targetId || !token) return;
+        fetch(`http://localhost:3000/check-photo-access/${targetId}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(r => r.json())
+            .then(data => {
+                setPhotoAccess(data);
+                if (data.canView) {
+                    fetch(`http://localhost:3000/get-user-photos/${targetId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                        .then(r => r.json())
+                        .then(d => setPhotos(Array.isArray(d.photos) ? d.photos : []))
+                        .catch(() => {});
+                }
+            })
+            .catch(() => {});
+    }, [targetId, token]);
+
     // טעינת פרטים מלאים אם עדיין לא נטענו
     const loadFull = async () => {
         if (fullData || loadingFull) return;
-        const userId = p.id || p.user_id;
-        if (!userId || !token) return;
+        if (!targetId || !token) return;
         setLoadingFull(true);
         try {
-            const res = await fetch(`http://localhost:3000/match-card/${userId}`, {
+            const res = await fetch(`http://localhost:3000/match-card/${targetId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -101,6 +126,25 @@ export default function MatchCardModal({ person, onClose, token }) {
     ];
 
     return (
+        <>
+        {/* lightbox לזום תמונה */}
+        {zoomedPhoto && (
+            <div
+                style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}
+                onClick={() => setZoomedPhoto(null)}
+            >
+                <img
+                    src={`http://localhost:3000${zoomedPhoto}`}
+                    alt="תמונה מוגדלת"
+                    style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 0 40px rgba(0,0,0,0.8)' }}
+                    onClick={e => e.stopPropagation()}
+                />
+                <button
+                    onClick={() => setZoomedPhoto(null)}
+                    style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer' }}
+                >✕</button>
+            </div>
+        )}
         <div style={S.overlay} onClick={onClose}>
             <div style={S.modal} onClick={e => e.stopPropagation()}>
 
@@ -139,9 +183,26 @@ export default function MatchCardModal({ person, onClose, token }) {
                     )}
 
                     {/* תמונות */}
-                    {hasPhotos && (
+                    {photoAccess?.canView && photos.length > 0 ? (
+                        <div style={{ padding: '12px 20px 16px' }}>
+                            <div style={{ color: '#c9a227', fontWeight: 'bold', marginBottom: 8, fontSize: '0.9rem' }}>
+                                📷 תמונות (גלוי עד {new Date(photoAccess.expiresAt).toLocaleString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })})
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {photos.map((url, i) => (
+                                    <img
+                                        key={i}
+                                        src={`http://localhost:3000${url}`}
+                                        alt={`תמונה ${i + 1}`}
+                                        style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, cursor: 'pointer', border: '2px solid #c9a227' }}
+                                        onClick={() => setZoomedPhoto(url)}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    ) : hasPhotos ? (
                         <div style={S.photoBadge}>📷 {p.profile_images_count} תמונות — שלח בקשה לצפייה</div>
-                    )}
+                    ) : null}
                 </div>
 
                 {/* ── Tabs ── */}
@@ -220,6 +281,7 @@ export default function MatchCardModal({ person, onClose, token }) {
                 </div>
             </div>
         </div>
+        </>
     );
 }
 

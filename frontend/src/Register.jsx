@@ -6,6 +6,8 @@ function Register() {
     const [phone, setPhone] = useState("");
     const [fullName, setFullName] = useState("");
     const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [email, setEmail] = useState(""); // שדה חדש
     const [emailNotifications, setEmailNotifications] = useState(true); // העדפת התראות במייל
     const [errors, setErrors] = useState({});
@@ -62,6 +64,21 @@ function Register() {
         } else {
             setErrors(prev => ({ ...prev, password: null }));
         }
+        if (confirmPassword && value !== confirmPassword) {
+            setErrors(prev => ({ ...prev, confirmPassword: "הסיסמאות אינן תואמות" }));
+        } else {
+            setErrors(prev => ({ ...prev, confirmPassword: null }));
+        }
+    };
+
+    const handleConfirmPasswordChange = (e) => {
+        const value = e.target.value;
+        setConfirmPassword(value);
+        if (value && value !== password) {
+            setErrors(prev => ({ ...prev, confirmPassword: "הסיסמאות אינן תואמות" }));
+        } else {
+            setErrors(prev => ({ ...prev, confirmPassword: null }));
+        }
     };
 
     const handleEmailChange = (e) => {
@@ -76,8 +93,8 @@ function Register() {
 
     // האם הטופס תקין?
     const isFormValid = useMemo(() => {
-        return validateName(fullName) && validatePhone(phone) && validatePassword(password) && validateEmail(email);
-    }, [fullName, phone, password, email]);
+        return validateName(fullName) && validatePhone(phone) && validatePassword(password) && validateEmail(email) && password === confirmPassword;
+    }, [fullName, phone, password, confirmPassword, email]);
 
     const [step, setStep] = useState('register'); // register | verify
     const [verificationCode, setVerificationCode] = useState("");
@@ -150,6 +167,7 @@ function Register() {
 
             if (response.ok) {
                 showToast("המייל אומת בהצלחה! ברוך הבא 🎉", "success");
+                sessionStorage.setItem('email_reminder_shown', 'true');
                 setTimeout(() => navigate('/profile'), 1200);
             } else {
                 showToast(`קוד שגוי: ${data.message}`, "error");
@@ -170,7 +188,9 @@ function Register() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
         } catch (_) { /* לא קריטי */ }
-        showToast("דילגת על האימות — תוכל לאמת בכל עת מהפרופיל שלך", "info");
+        // סמן שכבר הוצגה ההודעה בסשן הנוכחי — לא לחזור שוב עם חלון בדף הבא
+        sessionStorage.setItem('email_reminder_shown', 'true');
+        showToast("דילגת על האימות — תוכל לאמת בכל עת מהגדרות", "info");
         setTimeout(() => navigate('/profile'), 1000);
         setIsSkipping(false);
     };
@@ -279,6 +299,35 @@ function Register() {
                                 </button>
                             </div>
                             {errors.password && <span style={errorStyle}>{errors.password}</span>}
+                        </div>
+
+                        {/* אימות סיסמה */}
+                        <div style={fieldWrapper}>
+                            <label style={labelStyle}>אמת סיסמה</label>
+                            <div style={passwordWrapper}>
+                                <input
+                                    type={showConfirmPassword ? "text" : "password"}
+                                    placeholder="הכנס שוב את הסיסמה"
+                                    value={confirmPassword}
+                                    onChange={handleConfirmPasswordChange}
+                                    style={{ ...getInputStyle('confirmPassword'), paddingLeft: '50px', borderColor: errors.confirmPassword ? '#ef4444' : (confirmPassword && confirmPassword === password ? '#22c55e' : undefined) }}
+                                    dir="ltr"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    style={showPasswordBtn}
+                                >
+                                    {showConfirmPassword ?
+                                        <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg> :
+                                        <svg width="20" height="20" fill="none" stroke="#64748b" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    }
+                                </button>
+                            </div>
+                            {errors.confirmPassword && <span style={errorStyle}>{errors.confirmPassword}</span>}
+                            {confirmPassword && !errors.confirmPassword && confirmPassword === password && (
+                                <span style={{ color: '#22c55e', fontSize: '13px', marginTop: '4px', display: 'block' }}>✓ הסיסמאות תואמות</span>
+                            )}
                         </div>
 
                         {/* העדפת התראות במייל */}
