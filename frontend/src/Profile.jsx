@@ -164,6 +164,35 @@ function Profile() {
         });
     };
 
+    // פונקציית עזר לבחירה מרובה עם "מילוי אמצע" (עבור דרישות מראה)
+    const handleMultiRangeChange = (fieldName, optionValue, isChecked, optionsList) => {
+        setUser(prev => {
+            let current = prev[fieldName] ? prev[fieldName].split(',').filter(x => x) : [];
+
+            if (isChecked) {
+                if (!current.includes(optionValue)) current.push(optionValue);
+
+                // מצא את האינדקסים שנבחרו ביחס לרשימה המלאה
+                const indices = current.map(val => optionsList.indexOf(val)).filter(idx => idx !== -1);
+
+                if (indices.length >= 2) {
+                    const minIdx = Math.min(...indices);
+                    const maxIdx = Math.max(...indices);
+                    for (let i = minIdx; i <= maxIdx; i++) {
+                        if (!current.includes(optionsList[i])) {
+                            current.push(optionsList[i]);
+                        }
+                    }
+                }
+            } else {
+                // הסרה של הערך הספציפי בלבד
+                current = current.filter(val => val !== optionValue);
+            }
+
+            return { ...prev, [fieldName]: current.join(',') };
+        });
+    };
+
     // שמירה אוטומטית ל-localStorage בכל שינוי כדי למנוע איבוד מידע ברענון
     useEffect(() => {
         if (user) {
@@ -212,9 +241,9 @@ function Profile() {
             siblings_count: randNum(3, 10),
             sibling_position: randNum(1, 5),
             height: randNum(155, 190),
-            body_type: pick(['slim', 'average', 'athletic']),
-            skin_tone: pick(['fair', 'medium', 'olive']),
-            appearance: 'לבוש ישיבתי/חסידי שמור ומכובד.',
+            body_type: pick(['very_thin', 'thin', 'average_thin', 'average', 'average_full', 'full']),
+            skin_tone: pick(['very_light', 'light', 'light_average', 'medium', 'tan', 'dark']),
+            appearance: pick(['fair', 'ok', 'good', 'handsome', 'very_handsome', 'stunning']),
             apartment_help: 'yes',
             apartment_amount: randNum(20, 100) * 10000,
             current_occupation: isMale ? 'studying' : 'working',
@@ -383,7 +412,7 @@ function Profile() {
     const validateStep = (step) => {
         let required = [];
         if (step === 1) {
-            required = ['full_name', 'last_name', 'birth_date', 'gender', 'country_of_birth', 'city', 'status', 'contact_phone_1', 'contact_person_type', 'family_background', 'heritage_sector', 'siblings_count', 'height', 'body_type', 'skin_tone', 'current_occupation', 'has_children'];
+            required = ['full_name', 'last_name', 'birth_date', 'gender', 'country_of_birth', 'city', 'status', 'contact_phone_1', 'contact_person_type', 'family_background', 'heritage_sector', 'siblings_count', 'height', 'body_type', 'skin_tone', 'appearance', 'current_occupation', 'has_children'];
 
             // תנאים מיוחדים
             if (user.country_of_birth === 'abroad') required.push('origin_country', 'aliyah_age');
@@ -696,8 +725,8 @@ function Profile() {
                                     </select>
                                 </div>
                                 <div style={styles.field}>
-                                    <label>מראה כללי (לא חובה)</label>
-                                    <select name="appearance" value={user.appearance || ''} onChange={handleChange} style={styles.input}>
+                                    <label>מראה כללי *</label>
+                                    <select name="appearance" value={user.appearance || ''} onChange={handleChange} style={{ ...styles.input, borderColor: errors.appearance ? 'red' : '#e2e8f0' }}>
                                         <option value="">בחר...</option>
                                         <option value="fair">נחמד</option>
                                         <option value="ok">בסדר גמור</option>
@@ -1017,12 +1046,7 @@ function Profile() {
                                             <input
                                                 type="checkbox"
                                                 checked={(user.search_appearances || '').split(',').includes(option.value)}
-                                                onChange={(e) => {
-                                                    const current = user.search_appearances ? user.search_appearances.split(',').filter(x => x) : [];
-                                                    if (e.target.checked) { current.push(option.value); }
-                                                    else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
-                                                    setUser(prev => ({ ...prev, search_appearances: current.join(',') }));
-                                                }}
+                                                onChange={(e) => handleMultiRangeChange('search_appearances', option.value, e.target.checked, ['fair', 'ok', 'good', 'handsome', 'very_handsome', 'stunning'])}
                                                 style={{ display: 'none' }}
                                             />
                                             {option.label}
@@ -1052,12 +1076,7 @@ function Profile() {
                                             <input
                                                 type="checkbox"
                                                 checked={(user.search_body_types || '').split(',').includes(option.value)}
-                                                onChange={(e) => {
-                                                    const current = user.search_body_types ? user.search_body_types.split(',').filter(x => x) : [];
-                                                    if (e.target.checked) { current.push(option.value); }
-                                                    else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
-                                                    setUser(prev => ({ ...prev, search_body_types: current.join(',') }));
-                                                }}
+                                                onChange={(e) => handleMultiRangeChange('search_body_types', option.value, e.target.checked, ['very_thin', 'thin', 'average_thin', 'average', 'average_full', 'full'])}
                                                 style={{ display: 'none' }}
                                             />
                                             {option.label}
@@ -1087,12 +1106,7 @@ function Profile() {
                                             <input
                                                 type="checkbox"
                                                 checked={(user.search_skin_tones || '').split(',').includes(option.value)}
-                                                onChange={(e) => {
-                                                    const current = user.search_skin_tones ? user.search_skin_tones.split(',').filter(x => x) : [];
-                                                    if (e.target.checked) { current.push(option.value); }
-                                                    else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
-                                                    setUser(prev => ({ ...prev, search_skin_tones: current.join(',') }));
-                                                }}
+                                                onChange={(e) => handleMultiRangeChange('search_skin_tones', option.value, e.target.checked, ['very_light', 'light', 'light_average', 'medium', 'tan', 'dark'])}
                                                 style={{ display: 'none' }}
                                             />
                                             {option.label}

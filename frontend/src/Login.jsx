@@ -34,11 +34,12 @@ function Login() {
 
             const loggedUser = data.user;
 
-            // ניתוב לפי סוג משתמש
+                // ניתוב לפי סוג משתמש
             setTimeout(async () => {
                 if (loggedUser.is_admin) {
                     navigate('/admin');
-                } else if (loggedUser.gender && loggedUser.age) {
+                } else if (loggedUser.gender && (loggedUser.age || loggedUser.birth_date)) {
+                    // משתמש עם מגדר ותאריך לידה / גיל — שלח להתאמות/הודעות
                     try {
                         const msgRes = await fetch('http://localhost:3000/my-messages', {
                             headers: { 'Authorization': `Bearer ${data.token}` }

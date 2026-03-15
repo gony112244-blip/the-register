@@ -98,7 +98,7 @@ function AdminMatches() {
                             </div>
 
                             <div style={styles.divider}>
-                                <div style={styles.heart}>❤️</div>
+                                <div style={styles.heart}>💍</div>
                                 <div style={styles.line}></div>
                             </div>
 

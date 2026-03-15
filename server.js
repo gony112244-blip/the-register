@@ -450,7 +450,11 @@ app.post('/register', async (req, res) => {
             user: {
                 id: newUser.rows[0].id,
                 full_name: newUser.rows[0].full_name,
-                is_admin: false
+                is_admin: false,
+                gender: newUser.rows[0].gender,
+                age: newUser.rows[0].age,
+                birth_date: newUser.rows[0].birth_date,
+                city: newUser.rows[0].city
             }
         });
         res.end();
@@ -525,7 +529,11 @@ app.post('/login', async (req, res) => {
                 id: user.id,
                 full_name: user.full_name,
                 is_admin: user.is_admin,
-                is_approved: user.is_approved
+                is_approved: user.is_approved,
+                gender: user.gender,
+                age: user.age,
+                birth_date: user.birth_date,
+                city: user.city
             }
         });
 

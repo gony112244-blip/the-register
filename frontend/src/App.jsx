@@ -43,26 +43,22 @@ function AppContent() {
         if (user) {
           if (user.is_admin) {
             navigate('/admin');
-          } else if (!user.gender || !user.age) {
+          } else if (!user.gender || (!user.age && !user.birth_date)) {
             navigate('/profile');
           } else {
-            // משתמש רשום כבר — אם פרופיל חסר (אין עיר) שלח לפרופיל, אחרת בדוק צואר
-            if (!user.city) {
-              navigate('/profile');
-            } else {
-              fetch('http://localhost:3000/my-messages', {
-                  headers: { 'Authorization': `Bearer ${token}` }
-              })
-              .then(res => res.json())
-              .then(data => {
-                  if (Array.isArray(data) && data.some(m => !m.is_read)) {
-                      navigate('/inbox');
-                  } else {
-                      navigate('/matches');
-                  }
-              })
-              .catch(() => navigate('/matches'));
-            }
+            // משתמש רשום כבר — אם יש מגדר וגיל, שלח להתאמות/הודעות (גם אם מחכה לאישור)
+            fetch('http://localhost:3000/my-messages', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data) && data.some(m => !m.is_read)) {
+                    navigate('/inbox');
+                } else {
+                    navigate('/matches');
+                }
+            })
+            .catch(() => navigate('/matches'));
           }
         }
       } catch (e) {
