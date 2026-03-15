@@ -1718,10 +1718,10 @@ app.get('/matches', authenticateToken, async (req, res) => {
             `is_blocked = FALSE`,        // לא חסומים
             `id != $1`,                  // לא אני עצמי
             `gender != (SELECT gender FROM users WHERE id = $1)`, // מין נגדי
-            // לא מישהו שכבר יצרתי איתו קשר פעיל
-            `id NOT IN (SELECT receiver_id FROM connections WHERE sender_id = $1 AND status != 'rejected')`,
-            `id NOT IN (SELECT sender_id FROM connections WHERE receiver_id = $1 AND status != 'rejected')`,
-            // 🆕 סינון מוסתרים (סל מחזור)
+            // מסנן רק קשרים פעילים/גמורים — pending נשאר ומסומן על הכרטיס
+            `id NOT IN (SELECT receiver_id FROM connections WHERE sender_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
+            `id NOT IN (SELECT sender_id FROM connections WHERE receiver_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
+            // סינון מוסתרים (סל מחזור)
             `id NOT IN (SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $1)`
         ];
 
@@ -2170,16 +2170,15 @@ app.post('/admin/send-message', authenticateToken, async (req, res) => {
 app.post('/connect', authenticateToken, async (req, res) => {
     const { myId, targetId } = req.body;
     try {
-        // בדיקת חסימה ל-24 שעות (הלוגיקה שביקשת לא לאבד)
-        const checkBlock = await pool.query(
-            `SELECT * FROM connections 
-             WHERE (sender_id = $1 OR receiver_id = $1) 
-             AND status = 'active' 
-             AND updated_at > NOW() - INTERVAL '24 hours'`,
-            [myId]
+        // בדיקה אם כבר יש בקשה פעילה/ממתינה בין השניים (למנוע כפילויות)
+        const existing = await pool.query(
+            `SELECT id FROM connections 
+             WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
+             AND status != 'rejected'`,
+            [myId, targetId]
         );
-        if (checkBlock.rows.length > 0) {
-            return res.status(400).json({ message: "🚫 יש לך התאמה פעילה! המתן 24 שעות." });
+        if (existing.rows.length > 0) {
+            return res.status(400).json({ message: "כבר שלחת בקשה למשתמש זה" });
         }
 
         await pool.query(
@@ -2200,18 +2199,111 @@ app.post('/connect', authenticateToken, async (req, res) => {
 
 // דואר נכנס (Inbox) - בקשות שממתינות לי
 app.get('/my-requests', authenticateToken, async (req, res) => {
-    const { userId } = req.query;
+    const userId = req.query.userId || req.user.id;
     try {
         const result = await pool.query(
-            `SELECT c.id AS connection_id, c.created_at, u.full_name, u.age, u.height, u.heritage_sector 
+            `SELECT c.id AS connection_id, c.created_at,
+                    u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
+                    u.family_background, u.body_type, u.appearance, u.current_occupation,
+                    u.about_me, u.city, u.profile_images_count, u.life_aspiration,
+                    u.study_place, u.work_field, u.gender, u.skin_tone
              FROM connections c
              JOIN users u ON c.sender_id = u.id
-             WHERE c.receiver_id = $1 AND c.status = 'pending'`,
+             WHERE c.receiver_id = $1 AND c.status = 'pending'
+             ORDER BY c.created_at DESC`,
             [userId]
         );
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ message: "שגיאה בטעינת בקשות" });
+    }
+});
+
+// הבקשות שאני שלחתי ועדיין ממתינות לתשובה
+app.get('/my-sent-requests', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await pool.query(
+            `SELECT c.id AS connection_id, c.created_at, c.status,
+                    u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
+                    u.family_background, u.body_type, u.appearance, u.current_occupation,
+                    u.about_me, u.city, u.profile_images_count, u.life_aspiration,
+                    u.study_place, u.work_field, u.gender, u.skin_tone
+             FROM connections c
+             JOIN users u ON c.receiver_id = u.id
+             WHERE c.sender_id = $1 AND c.status = 'pending'
+             ORDER BY c.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בטעינת הבקשות" });
+    }
+});
+
+// בקשות תמונות שנשלחו ועדיין ממתינות
+app.get('/my-sent-photo-requests', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await pool.query(
+            `SELECT pa.id, pa.created_at, pa.status,
+                    u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
+                    u.family_background, u.body_type, u.appearance, u.current_occupation,
+                    u.about_me, u.city, u.profile_images_count, u.life_aspiration,
+                    u.study_place, u.work_field, u.gender, u.skin_tone
+             FROM photo_approvals pa
+             JOIN users u ON pa.target_id = u.id
+             WHERE pa.requester_id = $1 AND pa.status = 'pending'
+             ORDER BY pa.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בטעינת בקשות תמונה" });
+    }
+});
+
+// כרטיס פרופיל ציבורי — לצפייה בפרטים המותרים בשלב זה
+app.get('/match-card/:userId', authenticateToken, async (req, res) => {
+    const targetId = req.params.userId;
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, last_name, age, height, gender, city, status,
+                    has_children, children_count,
+                    family_background, heritage_sector,
+                    father_heritage, mother_heritage, father_occupation, mother_occupation,
+                    siblings_count, sibling_position, country_of_birth,
+                    body_type, appearance, skin_tone,
+                    about_me, home_style, important_in_life, partner_description,
+                    apartment_help, apartment_amount,
+                    current_occupation, life_aspiration, work_field, occupation_details,
+                    yeshiva_name, yeshiva_ketana_name, study_place, study_field, favorite_study,
+                    contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
+                    profile_images_count, created_at
+             FROM users WHERE id = $1 AND is_approved = TRUE AND is_blocked = FALSE`,
+            [targetId]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// ביטול בקשת חיבור שנשלחה
+app.post('/cancel-request', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { connectionId } = req.body;
+    try {
+        const check = await pool.query(
+            'SELECT id FROM connections WHERE id = $1 AND sender_id = $2 AND status = \'pending\'',
+            [connectionId, userId]
+        );
+        if (check.rows.length === 0) return res.status(403).json({ message: "לא ניתן לבטל" });
+        await pool.query('DELETE FROM connections WHERE id = $1', [connectionId]);
+        res.json({ message: "הבקשה בוטלה" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה בביטול" });
     }
 });
 

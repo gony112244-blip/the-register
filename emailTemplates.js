@@ -294,7 +294,7 @@ const welcomeEmail = (fullName) => baseTemplate(`
         <li><span class="step-icon">📝</span><span>השלם את <strong>פרטי הפרופיל</strong> — ככל שיהיה מלא יותר, כך ייטב</span></li>
         <li><span class="step-icon">🪪</span><span>העלה <strong>תעודת זהות</strong> לאימות — שלב חיוני לאבטחת המערכת</span></li>
         <li><span class="step-icon">⏳</span><span>המתן לאישור המנהל — בדרך כלל תוך 24 שעות</span></li>
-        <li><span class="step-icon">💝</span><span>התחל לקבל <strong>הצעות שידוך</strong> מותאמות אישית</span></li>
+        <li><span class="step-icon">💍</span><span>התחל לקבל <strong>הצעות שידוך</strong> מותאמות אישית</span></li>
     </ul>
 
     <div class="btn-wrapper">
@@ -328,7 +328,7 @@ const profileApprovedEmail = (fullName) => baseTemplate(`
     <p>הפרופיל שלך עבר בדיקה ואושר על ידי הצוות שלנו. כעת אתה חלק פעיל במערכת השידוכים!</p>
 
     <div class="success-box">
-        <p>💝 תתחיל לקבל הצעות שידוך מותאמות בקרוב.<br>
+        <p>💍 תתחיל לקבל הצעות שידוך מותאמות בקרוב.<br>
         🔍 תוכל גם לגלוש בעצמך ולמצוא הצעות מתאימות.</p>
     </div>
 
@@ -379,8 +379,8 @@ const profileChangesRejectedEmail = (fullName, reason) => baseTemplate(`
 // 7. בקשת צפייה בתמונות
 // ============================================================
 const photoRequestEmail = (requesterName) => baseTemplate(`
-    <p class="greeting">📷 בקשה לצפייה בתמונות</p>
-    <p><strong>${requesterName}</strong> מבקש/ת לראות את התמונות שלך.</p>
+    <p class="greeting">📸 בקשה לצפייה בתמונות</p>
+    <p><strong>${requesterName}</strong> מבקש/ת לקבל גישה לצפייה ב<strong>תמונות</strong> שלך.</p>
 
     <div class="highlight-box">
         <p>
@@ -399,7 +399,7 @@ const photoRequestEmail = (requesterName) => baseTemplate(`
 // 8. הצעת שידוך חדשה
 // ============================================================
 const newMatchEmail = (matchDetails) => baseTemplate(`
-    <p class="greeting">💝 הצעת שידוך חדשה!</p>
+    <p class="greeting">💍 הצעת שידוך חדשה!</p>
     <p>יש לנו הצעה שעשויה מאוד להתאים לך — כדאי להסתכל!</p>
 
     ${matchDetails ? `
@@ -412,19 +412,19 @@ const newMatchEmail = (matchDetails) => baseTemplate(`
     </div>
 
     <p style="font-size:13px; color:#94a3b8; text-align:center;">כל שידוך מתחיל בצעד ראשון — בהצלחה! 🙏</p>
-`, 'הצעת שידוך חדשה ממתינה לך 💝');
+`, 'הצעת שידוך חדשה ממתינה לך 💍');
 
 
 // ============================================================
 // 9. בקשת קשר חדשה (מישהו הציע את עצמו)
 // ============================================================
 const newConnectionEmail = (senderName) => baseTemplate(`
-    <p class="greeting">🤝 הצעה חדשה!</p>
-    <p><strong>${senderName}</strong> מעוניין/ת ליצור איתך קשר דרך "הפנקס".</p>
+    <p class="greeting">🤝 בקשת קשר וגישה לפרטים</p>
+    <p><strong>${senderName}</strong> מעוניין/ת להציע שידוך ולקבל גישה ל<strong>פרטי הפרופיל</strong> שלך.</p>
 
     <div class="highlight-box">
         <p>
-            ✨ בדוק/י את הפרופיל והחליט/י אם להמשיך.<br>
+            ✨ בדוק/י את הפרטים והחליט/י אם להמשיך.<br>
             💬 אישור הבקשה פותח ערוץ תקשורת ביניכם.
         </p>
     </div>
@@ -511,8 +511,8 @@ const verifyReminderEmail = (fullName, code, userId) => baseTemplate(`
 
     <ul class="step-list">
         <li><span class="step-icon">📨</span><span>התראות על הודעות חדשות</span></li>
-        <li><span class="step-icon">💝</span><span>עדכונים על הצעות שידוך</span></li>
-        <li><span class="step-icon">📷</span><span>בקשות צפייה בתמונות</span></li>
+        <li><span class="step-icon">💍</span><span>עדכונים על הצעות שידוך</span></li>
+        <li><span class="step-icon">📸</span><span>בקשות צפייה בתמונות</span></li>
         <li><span class="step-icon">🔑</span><span>אפשרות לשחזור סיסמה</span></li>
     </ul>
 
@@ -580,7 +580,7 @@ function getEmailTemplate(type, data) {
             };
         case 'new_match':
             return {
-                subject: '💝 הצעת שידוך חדשה ממתינה לך!',
+                subject: '💍 הצעת שידוך חדשה ממתינה לך!',
                 html: newMatchEmail(data.matchDetails)
             };
         case 'new_connection':

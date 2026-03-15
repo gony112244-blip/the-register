@@ -14,6 +14,7 @@ import Connections from './Connections';
 import PhotoRequests from './PhotoRequests';
 import HiddenProfiles from './HiddenProfiles';
 import ForgotPassword from './ForgotPassword';
+import Requests from './Requests';
 import PWAInstallPrompt from './components/PWAInstallPrompt'; // התקנת PWA
 import EmailReminderModal from './components/EmailReminderModal'; // תזכורת אימות מייל
 
@@ -120,6 +121,7 @@ function AppContent() {
 
         {/* דפים של המשתמש הרגיל */}
         <Route path="/matches" element={<Matches />} />
+        <Route path="/requests" element={<Requests />} />
         <Route path="/my-profile" element={<ProfileView />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/connections" element={<Connections />} />

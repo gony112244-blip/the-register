@@ -3,6 +3,31 @@ import { useState, useEffect, useCallback } from 'react';
 import NotificationsPanel from './components/NotificationsPanel';
 import './Navbar.css';
 
+// ── כפתור בקשות עם badge ──
+function RequestsLink({ token, userId }) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!token || !userId) return;
+    const h = { 'Authorization': `Bearer ${token}` };
+    Promise.all([
+      fetch(`http://localhost:3000/my-requests?userId=${userId}`, { headers: h }).then(r => r.json()).catch(() => []),
+      fetch('http://localhost:3000/pending-photo-requests', { headers: h }).then(r => r.json()).catch(() => []),
+    ]).then(([conn, photo]) => {
+      setCount((Array.isArray(conn) ? conn.length : 0) + (Array.isArray(photo) ? photo.length : 0));
+    });
+  }, [token, userId]);
+
+  return (
+    <Link to="/requests" style={{ position: 'relative' }}>
+      📋 בקשות
+      {count > 0 && (
+        <span className="admin-badge" style={{ top: -6, right: -10 }}>{count}</span>
+      )}
+    </Link>
+  );
+}
+
 function Navbar() {
   const navigate = useNavigate();
 
@@ -71,9 +96,9 @@ function Navbar() {
         {user && !user.is_admin && (
           <>
             <Link to="/matches">💍 שידוכים</Link>
+            <RequestsLink token={localStorage.getItem('token')} userId={user?.id} />
             <Link to="/inbox">📬 הודעות</Link>
             <Link to="/connections">💎 שידוכים פעילים</Link>
-
           </>
         )}
 

@@ -1,6 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
+import MatchCardModal from './components/MatchCardModal';
+
+// ── תרגומים בסיסיים לכרטיסי הרשימה ──
+const T = {
+    heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
+    family_background: { haredi: 'חרדי', dati_leumi: 'דתי לאומי', masorti: 'מסורתי', baal_teshuva: 'חוזר בתשובה' },
+    body_type: { very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה', average: 'ממוצע', athletic: 'ספורטיבי', full: 'מלא' },
+    appearance: { fair: 'סביר', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד' },
+    current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב/ת', fixed_times: 'קובע עיתים' },
+};
+const tr = (field, val) => T[field]?.[val] || val || '—';
 
 function Matches() {
     const navigate = useNavigate();
@@ -13,17 +24,21 @@ function Matches() {
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
-    const [photoStatuses, setPhotoStatuses] = useState({}); // { userId: 'none'|'pending'|'approved' }
-    const [requestingPhoto, setRequestingPhoto] = useState(null); // userId being requested
+    const [photoStatuses, setPhotoStatuses] = useState({});   // { userId: 'none'|'pending'|'approved' }
+    const [connectStatuses, setConnectStatuses] = useState({}); // { userId: 'pending'|null }
+    const [requestingPhoto, setRequestingPhoto] = useState(null);
+    const [connectingId, setConnectingId] = useState(null);
+    const [modalMatch, setModalMatch] = useState(null);        // פרטים מלאים לmodal
     const itemsPerPage = 6;
 
     useEffect(() => {
         if (!token || !user) { navigate('/login'); return; }
         if (!user.is_approved) { setLoading(false); return; }
         fetchMatches();
-    }, [navigate, token]);
+        fetchSentRequests();
+    }, []);
 
-    const fetchMatches = async () => {
+    const fetchMatches = useCallback(async () => {
         try {
             setLoading(true);
             const res = await fetch(`http://localhost:3000/matches?userId=${user.id}`, {
@@ -32,17 +47,30 @@ function Matches() {
             const data = await res.json();
             if (res.ok) {
                 setMatches(data);
-                // Check photo access status for all matches
                 data.forEach(m => checkPhotoStatus(m.id));
             } else {
                 showToast("שגיאה בטעינת שידוכים", "error");
             }
-        } catch (err) {
+        } catch {
             showToast("תקלה בתקשורת", "error");
         } finally {
             setLoading(false);
         }
-    };
+    }, [token]);
+
+    const fetchSentRequests = useCallback(async () => {
+        try {
+            const res = await fetch('http://localhost:3000/my-sent-requests', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok && Array.isArray(data)) {
+                const statuses = {};
+                data.forEach(r => { statuses[r.user_id] = 'pending'; });
+                setConnectStatuses(statuses);
+            }
+        } catch { /* לא קריטי */ }
+    }, [token]);
 
     const checkPhotoStatus = async (targetId) => {
         try {
@@ -50,7 +78,23 @@ function Matches() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            setPhotoStatuses(prev => ({ ...prev, [targetId]: data.canView ? 'approved' : (data.status === 'pending' ? 'pending' : 'none') }));
+            setPhotoStatuses(prev => ({
+                ...prev,
+                [targetId]: data.canView ? 'approved' : (data.status === 'pending' ? 'pending' : 'none')
+            }));
+        } catch { }
+    };
+
+    const handleViewCard = async (match) => {
+        // אם כבר יש לנו את הפרטים מהרשימה — נשתמש בהם ישירות
+        setModalMatch(match);
+        // ואז ננסה לטעון פרטים מלאים יותר ברקע
+        try {
+            const res = await fetch(`http://localhost:3000/match-card/${match.id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) setModalMatch(data);
         } catch { }
     };
 
@@ -77,6 +121,7 @@ function Matches() {
     };
 
     const handleConnect = async (targetId) => {
+        setConnectingId(targetId);
         try {
             const res = await fetch('http://localhost:3000/connect', {
                 method: 'POST',
@@ -85,13 +130,16 @@ function Matches() {
             });
             const data = await res.json();
             if (res.ok) {
-                showToast(`🎉 ${data.message}`, "success");
-                setMatches(prev => prev.filter(m => m.id !== targetId));
+                showToast('🎉 הפנייה נשלחה בהצלחה!', 'success');
+                // הכרטיס נשאר — רק מסמנים כממתין
+                setConnectStatuses(prev => ({ ...prev, [targetId]: 'pending' }));
             } else {
-                showToast(`⚠️ ${data.message}`, "warning");
+                showToast(data.message || 'שגיאה', 'warning');
             }
         } catch {
-            showToast("תקלה בתקשורת עם השרת", "error");
+            showToast('תקלה בתקשורת עם השרת', 'error');
+        } finally {
+            setConnectingId(null);
         }
     };
 
@@ -139,7 +187,8 @@ function Matches() {
 
     return (
         <div style={styles.page}>
-            {/* Top bar */}
+            {modalMatch && <MatchCardModal person={modalMatch} onClose={() => setModalMatch(null)} token={token} />}
+
             <div style={{ maxWidth: '1200px', margin: '0 auto 10px', display: 'flex', justifyContent: 'flex-end', padding: '0 20px' }}>
                 <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל מחזור</button>
             </div>
@@ -159,32 +208,31 @@ function Matches() {
                         <div style={styles.grid}>
                             {currentMatches.map((match) => {
                                 const photoStatus = photoStatuses[match.id] || 'none';
+                                const connectStatus = connectStatuses[match.id] || null;
                                 const hasPhotos = match.profile_images_count > 0;
 
                                 return (
-                                    <div key={match.id} style={styles.card}>
-                                        {/* Trash button */}
+                                    <div key={match.id} style={{ ...styles.card, outline: connectStatus === 'pending' ? '2px solid #c9a227' : 'none' }}>
+                                        {/* כפתור הסתרה */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); handleHideProfile(match.id); }}
                                             style={styles.trashBtn}
                                             title="הסתר פרופיל"
                                         >🗑️</button>
 
-                                        {/* Card image header */}
-                                        <div style={styles.cardHeader}>
-                                            {/* Match score badge */}
-                                            <div style={styles.matchScore}>95% התאמה</div>
+                                        {/* badge "בקשה נשלחה" */}
+                                        {connectStatus === 'pending' && (
+                                            <div style={styles.pendingBadge}>⏳ הפנייה נשלחה — ממתין לתשובה</div>
+                                        )}
 
-                                            {/* Avatar placeholder with blur hint */}
+                                        {/* תמונה */}
+                                        <div style={styles.cardHeader}>
                                             <div style={styles.imageWrap}>
-                                                {/* Always show avatar (placeholder) */}
                                                 <img
                                                     src={`https://ui-avatars.com/api/?name=${encodeURIComponent(match.full_name)}&background=1e3a5f&color=c9a227&size=300&bold=true&font-size=0.35`}
                                                     alt={match.full_name}
                                                     style={styles.image}
                                                 />
-
-                                                {/* Photo count badge — modern blur overlay */}
                                                 {hasPhotos && photoStatus !== 'approved' && (
                                                     <div style={styles.photoHintOverlay}>
                                                         <div style={styles.photoBlurBadge}>
@@ -194,12 +242,10 @@ function Matches() {
                                                         </div>
                                                     </div>
                                                 )}
-
-                                                {/* Approved: show count green */}
                                                 {hasPhotos && photoStatus === 'approved' && (
                                                     <div style={{ ...styles.photoHintOverlay, background: 'linear-gradient(to top, rgba(21,128,61,0.7) 0%, transparent 60%)' }}>
-                                                        <div style={{ ...styles.photoBlurBadge, background: 'rgba(21,128,61,0.9)', backdropFilter: 'blur(8px)' }}>
-                                                            <span style={{ fontSize: '1.2rem' }}>✅</span>
+                                                        <div style={{ ...styles.photoBlurBadge, background: 'rgba(21,128,61,0.9)' }}>
+                                                            <span>✅</span>
                                                             <span style={{ fontSize: '0.85rem', fontWeight: '700' }}>{match.profile_images_count} תמונות פתוחות</span>
                                                         </div>
                                                     </div>
@@ -207,15 +253,16 @@ function Matches() {
                                             </div>
                                         </div>
 
-                                        {/* Card body */}
+                                        {/* גוף הכרטיס */}
                                         <div style={styles.cardBody}>
                                             <h3 style={styles.name}>{match.full_name}{match.age ? `, ${match.age}` : ''}</h3>
-                                            <p style={styles.detail}>📏 {match.height} ס"מ | {match.current_occupation || 'לא צוין עיסוק'}</p>
-                                            <p style={styles.detail}>🛐 {match.heritage_sector} | {match.family_background}</p>
+                                            <p style={styles.detail}>📏 {match.height} ס"מ | {tr('current_occupation', match.current_occupation)}</p>
+                                            <p style={styles.detail}>🛐 {tr('heritage_sector', match.heritage_sector)} | {tr('family_background', match.family_background)}</p>
+                                            {match.city && <p style={styles.detail}>📍 {match.city}</p>}
 
                                             <div style={styles.tags}>
-                                                {match.body_type && <span style={styles.tag}>{match.body_type}</span>}
-                                                {match.appearance && <span style={styles.tag}>{match.appearance}</span>}
+                                                {match.body_type && <span style={styles.tag}>{tr('body_type', match.body_type)}</span>}
+                                                {match.appearance && <span style={styles.tag}>{tr('appearance', match.appearance)}</span>}
                                             </div>
 
                                             {match.about_me && (
@@ -223,9 +270,14 @@ function Matches() {
                                             )}
                                         </div>
 
-                                        {/* Card footer */}
+                                        {/* פעולות */}
                                         <div style={styles.cardFooter}>
-                                            {/* Photo request button */}
+                                            {/* כפתור צפייה בכרטיס */}
+                                            <button onClick={() => handleViewCard(match)} style={styles.viewBtn}>
+                                                👁️ צפה בכרטיס המלא
+                                            </button>
+
+                                            {/* בקשת תמונות */}
                                             {hasPhotos && photoStatus === 'none' && (
                                                 <button
                                                     onClick={() => handleRequestPhoto(match.id)}
@@ -242,9 +294,18 @@ function Matches() {
                                                 <div style={styles.noPhotoBadge}>📷 אין תמונות עדיין</div>
                                             )}
 
-                                            <button onClick={() => handleConnect(match.id)} style={styles.connectBtn}>
-                                                שלח פנייה
-                                            </button>
+                                            {/* שליחת פנייה */}
+                                            {connectStatus !== 'pending' ? (
+                                                <button
+                                                    onClick={() => handleConnect(match.id)}
+                                                    disabled={connectingId === match.id}
+                                                    style={styles.connectBtn}
+                                                >
+                                                    {connectingId === match.id ? '⏳ שולח...' : '💌 שלח פנייה'}
+                                                </button>
+                                            ) : (
+                                                <div style={styles.sentBadge}>✉️ פנייה נשלחה — ממתינה לתשובה</div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -253,9 +314,9 @@ function Matches() {
 
                         {totalPages > 1 && (
                             <div style={styles.pagination}>
-                                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} style={styles.pageBtn}>רשימה קודמת</button>
+                                <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} style={styles.pageBtn}>◀ קודם</button>
                                 <span style={{ color: '#fff', fontWeight: 'bold' }}>עמוד {currentPage} מתוך {totalPages}</span>
-                                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} style={styles.pageBtn}>רשימה הבאה</button>
+                                <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} style={styles.pageBtn}>הבא ▶</button>
                             </div>
                         )}
                     </>
@@ -265,13 +326,12 @@ function Matches() {
     );
 }
 
+// ── סגנונות ──
 const styles = {
     page: {
-        minHeight: '100vh',
-        fontFamily: "'Heebo', sans-serif",
+        minHeight: '100vh', fontFamily: "'Heebo', sans-serif",
         background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)',
-        padding: '20px 0',
-        direction: 'rtl'
+        padding: '20px 0', direction: 'rtl'
     },
     container: { maxWidth: '1200px', margin: '0 auto', padding: '0 20px' },
     spinner: {
@@ -280,36 +340,30 @@ const styles = {
         borderTopColor: '#c9a227', borderRadius: '50%',
         animation: 'spin 1s linear infinite'
     },
-    title: {
-        textAlign: 'center', fontSize: '2.8rem', color: '#fff',
-        marginBottom: '10px', fontWeight: '800',
-        textShadow: '0 2px 10px rgba(0,0,0,0.3)'
-    },
+    title: { textAlign: 'center', fontSize: '2.8rem', color: '#fff', marginBottom: '10px', fontWeight: '800' },
     subtitle: { textAlign: 'center', color: '#e2e8f0', marginBottom: '40px', fontSize: '1.1rem' },
     ghostBtn: {
         background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)',
-        color: 'white', padding: '8px 15px', borderRadius: '20px',
-        cursor: 'pointer', fontSize: '0.9rem'
+        color: 'white', padding: '8px 15px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.9rem'
     },
-    grid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '28px', paddingBottom: '40px'
-    },
+    grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '28px', paddingBottom: '40px' },
     card: {
-        background: '#fff', borderRadius: '22px',
-        overflow: 'hidden',
+        background: '#fff', borderRadius: '22px', overflow: 'hidden',
         boxShadow: '0 10px 35px rgba(0,0,0,0.18)',
         transition: 'transform 0.3s ease, box-shadow 0.3s ease',
         position: 'relative', display: 'flex', flexDirection: 'column'
     },
     trashBtn: {
         position: 'absolute', top: '10px', right: '10px',
-        background: 'rgba(255,255,255,0.85)', border: 'none',
-        borderRadius: '50%', width: '34px', height: '34px',
-        cursor: 'pointer', fontSize: '1.1rem',
+        background: 'rgba(255,255,255,0.85)', border: 'none', borderRadius: '50%',
+        width: '34px', height: '34px', cursor: 'pointer', fontSize: '1.1rem',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         zIndex: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+    },
+    pendingBadge: {
+        background: 'linear-gradient(135deg, #c9a227, #b08d1f)',
+        color: '#fff', fontSize: '0.78rem', fontWeight: '700',
+        textAlign: 'center', padding: '6px 10px',
     },
     cardHeader: { position: 'relative', height: '220px', overflow: 'hidden' },
     imageWrap: { width: '100%', height: '100%', position: 'relative' },
@@ -317,49 +371,36 @@ const styles = {
     photoHintOverlay: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
         background: 'linear-gradient(to top, rgba(30,58,95,0.75) 0%, transparent 60%)',
-        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        padding: '16px'
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '16px'
     },
     photoBlurBadge: {
         display: 'flex', alignItems: 'center', gap: '6px',
-        background: 'rgba(201,162,39,0.92)',
-        backdropFilter: 'blur(10px)',
-        borderRadius: '20px', padding: '6px 16px',
-        color: '#fff', fontFamily: 'inherit'
-    },
-    matchScore: {
-        position: 'absolute', top: '12px', left: '12px',
-        background: 'rgba(34,197,94,0.9)', color: '#fff',
-        padding: '5px 12px', borderRadius: '20px',
-        fontWeight: 'bold', fontSize: '0.85rem',
-        backdropFilter: 'blur(5px)', zIndex: 2
+        background: 'rgba(201,162,39,0.92)', backdropFilter: 'blur(10px)',
+        borderRadius: '20px', padding: '6px 16px', color: '#fff'
     },
     cardBody: { padding: '18px 20px', flex: 1 },
-    name: { margin: '0 0 8px', fontSize: '1.5rem', color: '#1e3a5f', fontWeight: '800' },
-    detail: { margin: '4px 0', color: '#64748b', fontSize: '0.95rem' },
-    tags: { display: 'flex', flexWrap: 'wrap', gap: '7px', marginTop: '12px', marginBottom: '12px' },
-    tag: {
-        background: '#f1f5f9', color: '#475569',
-        padding: '4px 12px', borderRadius: '15px', fontSize: '0.82rem', fontWeight: '600'
-    },
-    about: { fontSize: '0.9rem', color: '#94a3b8', lineHeight: '1.6', fontStyle: 'italic' },
+    name: { margin: '0 0 8px', fontSize: '1.4rem', color: '#1e3a5f', fontWeight: '800' },
+    detail: { margin: '4px 0', color: '#64748b', fontSize: '0.9rem' },
+    tags: { display: 'flex', flexWrap: 'wrap', gap: '7px', marginTop: '10px', marginBottom: '10px' },
+    tag: { background: '#f1f5f9', color: '#475569', padding: '4px 12px', borderRadius: '15px', fontSize: '0.82rem', fontWeight: '600' },
+    about: { fontSize: '0.88rem', color: '#94a3b8', lineHeight: '1.6', fontStyle: 'italic' },
     cardFooter: {
-        padding: '16px 20px',
-        background: '#f8fafc', borderTop: '1px solid #e2e8f0',
-        display: 'flex', flexDirection: 'column', gap: '10px'
+        padding: '14px 18px', background: '#f8fafc',
+        borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px'
+    },
+    viewBtn: {
+        padding: '9px', background: '#f1f5f9',
+        color: '#1e3a5f', border: '1px solid #e2e8f0', borderRadius: '10px',
+        fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit'
     },
     photoRequestBtn: {
-        padding: '10px',
-        background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-        color: '#fff', border: 'none', borderRadius: '12px',
-        fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem',
-        boxShadow: '0 4px 12px rgba(99,102,241,0.35)',
-        fontFamily: 'inherit'
+        padding: '10px', background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+        color: '#fff', border: 'none', borderRadius: '10px',
+        fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit'
     },
     pendingPhotoBadge: {
-        padding: '10px', background: '#fef9ec',
-        border: '1px solid #f59e0b', borderRadius: '12px',
-        color: '#92400e', fontSize: '0.85rem',
+        padding: '9px', background: '#fef9ec', border: '1px solid #f59e0b',
+        borderRadius: '10px', color: '#92400e', fontSize: '0.82rem',
         textAlign: 'center', fontWeight: '600'
     },
     noPhotoBadge: {
@@ -370,19 +411,21 @@ const styles = {
         background: 'linear-gradient(135deg, #c9a227 0%, #dda15e 100%)',
         color: '#fff', border: 'none', padding: '12px 20px',
         borderRadius: '12px', fontSize: '1rem', fontWeight: '700',
-        cursor: 'pointer', width: '100%',
-        boxShadow: '0 4px 15px rgba(201,162,39,0.3)',
+        cursor: 'pointer', width: '100%', boxShadow: '0 4px 15px rgba(201,162,39,0.3)',
         fontFamily: 'inherit'
     },
-    pagination: {
-        display: 'flex', justifyContent: 'center', alignItems: 'center',
-        gap: '20px', marginTop: '40px'
+    sentBadge: {
+        background: '#f0fdf4', border: '1px solid #86efac',
+        color: '#166534', borderRadius: '10px',
+        padding: '10px', textAlign: 'center', fontSize: '0.85rem', fontWeight: '600'
     },
+    pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', marginTop: '40px' },
     pageBtn: {
         padding: '10px 20px', background: 'rgba(255,255,255,0.2)',
         border: '1px solid rgba(255,255,255,0.3)', color: '#fff',
         borderRadius: '10px', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
     }
 };
+
 
 export default Matches;
