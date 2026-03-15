@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import NotificationsPanel from './components/NotificationsPanel';
 import './Navbar.css';
 
 function Navbar() {
@@ -7,7 +8,7 @@ function Navbar() {
 
   const [adminStats, setAdminStats] = useState({ pending: 0, matches: 0 });
 
-  const user = useMemo(() => {
+  const readUser = useCallback(() => {
     try {
       const stored = localStorage.getItem('user');
       return stored ? JSON.parse(stored) : null;
@@ -15,6 +16,24 @@ function Navbar() {
       console.error("Error parsing user in Navbar:", e);
       return null;
     }
+  }, []);
+
+  const [user, setUser] = useState(readUser);
+
+  // מאזין לעדכוני משתמש (מ-NotificationsPanel ומ-App.jsx)
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail) setUser(e.detail);
+      else setUser(readUser());
+    };
+    window.addEventListener('userUpdated', handler);
+    return () => window.removeEventListener('userUpdated', handler);
+  }, [readUser]);
+
+  const handleUserUpdate = useCallback((updatedUser) => {
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+    window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
   }, []);
 
   useEffect(() => {
@@ -79,7 +98,9 @@ function Navbar() {
         {user ? (
           <>
             <span className="navbar-welcome">שלום, {user.full_name}</span>
-            {/* כפתור פרופיל רק למשתמש רגיל */}
+            {!user.is_admin && (
+              <NotificationsPanel user={user} onUserUpdate={handleUserUpdate} />
+            )}
             {!user.is_admin && (
               <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיסייה שלי</Link>
             )}

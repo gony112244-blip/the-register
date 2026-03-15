@@ -3,7 +3,7 @@
 const APP_URL = process.env.APP_URL || 'http://localhost:5173';
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 
-// --- תבנית בסיס: עיצוב פרימיום ---
+// --- תבנית בסיס ---
 const baseTemplate = (content, previewText = '') => `
 <!DOCTYPE html>
 <html dir="rtl" lang="he">
@@ -13,125 +13,101 @@ const baseTemplate = (content, previewText = '') => `
     <meta name="color-scheme" content="light">
     <meta name="x-apple-disable-message-reformatting">
     <title>הפנקס - שידוכים לבני תורה</title>
-    ${previewText ? `<!-- Preview text --><div style="max-height:0; overflow:hidden; display:none;">${previewText}</div>` : ''}
+    ${previewText ? `<div style="display:none;max-height:0;overflow:hidden;">${previewText}</div>` : ''}
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap');
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
             font-family: 'Heebo', 'Segoe UI', Tahoma, Arial, sans-serif;
-            background-color: #0f1a2e;
+            background-color: #ffffff;
             direction: rtl;
+            text-align: right;
             -webkit-text-size-adjust: 100%;
         }
-
         .wrapper {
             width: 100%;
-            background: linear-gradient(160deg, #0f1a2e 0%, #1e3a5f 50%, #0f1a2e 100%);
-            padding: 40px 16px;
+            background-color: #ffffff;
+            padding: 30px 16px;
         }
-
         .email-card {
-            max-width: 600px;
+            max-width: 580px;
             margin: 0 auto;
             background: #ffffff;
-            border-radius: 20px;
+            border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+            border: 1px solid #e2e8f0;
         }
-
         /* ---- Header ---- */
         .header {
-            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8f 60%, #1a4a7f 100%);
-            padding: 36px 30px 28px;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a8f 100%);
+            padding: 30px 30px 24px;
             text-align: center;
-            position: relative;
-            overflow: hidden;
         }
-        .header::before {
-            content: '';
-            position: absolute;
-            top: -50px; left: 50%;
-            transform: translateX(-50%);
-            width: 300px; height: 300px;
-            background: radial-gradient(circle, rgba(201,162,39,0.15) 0%, transparent 70%);
-            pointer-events: none;
-        }
-        .header-badge {
-            display: inline-block;
-            background: rgba(201,162,39,0.2);
-            border: 1px solid rgba(201,162,39,0.4);
-            color: #ffd700;
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 2px;
-            padding: 4px 14px;
-            border-radius: 20px;
-            margin-bottom: 14px;
-            text-transform: uppercase;
-        }
-        .header-logo {
-            font-size: 42px;
-            display: block;
-            margin-bottom: 10px;
-        }
-        .header h1 {
-            color: #ffffff;
-            font-size: 28px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            margin-bottom: 6px;
-        }
-        .header-subtitle {
-            color: rgba(255,255,255,0.6);
-            font-size: 14px;
-            font-weight: 400;
-        }
-
-        /* ---- Divider Line ---- */
+        .header-logo { font-size: 38px; display: block; margin-bottom: 8px; }
+        .header h1 { color: #ffffff; font-size: 24px; font-weight: 800; margin-bottom: 4px; }
+        .header-subtitle { color: rgba(255,255,255,0.6); font-size: 13px; }
         .header-divider {
             height: 3px;
             background: linear-gradient(90deg, transparent, #c9a227, transparent);
         }
-
         /* ---- Body ---- */
         .body {
-            padding: 40px 36px;
+            padding: 36px 32px;
             background: #ffffff;
             color: #1e293b;
             line-height: 1.8;
+            direction: rtl;
+            text-align: right;
         }
-
         .greeting {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 800;
             color: #1e3a5f;
             margin-bottom: 12px;
+            text-align: right;
         }
-
         .body p {
             font-size: 15px;
             color: #475569;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
+            text-align: right;
         }
-
         /* ---- Highlight Box ---- */
         .highlight-box {
-            background: linear-gradient(135deg, #f0f7ff 0%, #e8f4ff 100%);
+            background: #f8fafc;
             border-right: 4px solid #c9a227;
-            border-radius: 12px;
-            padding: 18px 20px;
-            margin: 24px 0;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin: 20px 0;
+            text-align: right;
         }
-        .highlight-box p { margin: 0; color: #1e3a5f; font-size: 15px; }
-
-        /* ---- Code Box (for verification codes) ---- */
+        .highlight-box p { margin: 0; color: #1e3a5f; font-size: 15px; text-align: right; }
+        /* ---- Success Box ---- */
+        .success-box {
+            background: #f0fdf4;
+            border-right: 4px solid #22c55e;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin: 20px 0;
+            text-align: right;
+        }
+        .success-box p { margin: 0; color: #14532d; font-size: 15px; text-align: right; }
+        /* ---- Error Box ---- */
+        .error-box {
+            background: #fef2f2;
+            border-right: 4px solid #ef4444;
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin: 20px 0;
+            text-align: right;
+        }
+        .error-box p { margin: 0; color: #7f1d1d; font-size: 15px; text-align: right; }
+        /* ---- Code Box ---- */
         .code-box {
             background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
-            border-radius: 16px;
+            border-radius: 14px;
             padding: 24px;
-            margin: 24px 0;
+            margin: 20px 0;
             text-align: center;
         }
         .code-label {
@@ -139,127 +115,99 @@ const baseTemplate = (content, previewText = '') => `
             font-size: 12px;
             font-weight: 600;
             letter-spacing: 2px;
-            text-transform: uppercase;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .code-number {
             color: #ffd700;
-            font-size: 40px;
+            font-size: 38px;
             font-weight: 800;
             letter-spacing: 12px;
             font-family: 'Courier New', monospace;
             display: block;
             margin-bottom: 8px;
         }
-        .code-expiry {
-            color: rgba(255,255,255,0.4);
-            font-size: 12px;
-        }
-
+        .code-expiry { color: rgba(255,255,255,0.4); font-size: 12px; }
         /* ---- CTA Button ---- */
-        .btn-wrapper { text-align: center; margin: 28px 0; }
+        .btn-wrapper { text-align: center; margin: 24px 0; }
         .btn-primary {
             display: inline-block;
-            padding: 15px 40px;
+            padding: 14px 36px;
             background: linear-gradient(135deg, #c9a227 0%, #b08d1f 100%);
             color: #ffffff !important;
             text-decoration: none;
-            border-radius: 12px;
-            font-size: 16px;
+            border-radius: 10px;
+            font-size: 15px;
             font-weight: 700;
-            letter-spacing: 0.3px;
-            box-shadow: 0 8px 25px rgba(201,162,39,0.4);
         }
         .btn-secondary {
             display: inline-block;
-            padding: 12px 32px;
+            padding: 11px 28px;
             background: transparent;
             color: #1e3a5f !important;
             text-decoration: none;
             border: 2px solid #1e3a5f;
-            border-radius: 12px;
+            border-radius: 10px;
             font-size: 14px;
             font-weight: 600;
             margin-top: 10px;
         }
-        .btn-danger {
-            display: inline-block;
-            padding: 10px 28px;
-            background: transparent;
-            color: #dc2626 !important;
-            text-decoration: none;
-            border: 1.5px solid #dc2626;
-            border-radius: 10px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        /* ---- Icon Row ---- */
-        .step-list {
-            list-style: none;
-            padding: 0;
-            margin: 20px 0;
-        }
+        /* ---- Step List (RTL safe) ---- */
+        .step-list { list-style: none; padding: 0; margin: 16px 0; }
         .step-list li {
             display: flex;
+            flex-direction: row-reverse;
             align-items: flex-start;
             gap: 12px;
             padding: 10px 0;
             border-bottom: 1px solid #f1f5f9;
             font-size: 14px;
             color: #475569;
+            text-align: right;
         }
         .step-list li:last-child { border-bottom: none; }
-        .step-icon {
-            font-size: 20px;
-            flex-shrink: 0;
-            margin-top: 2px;
-        }
-
-        /* ---- Update Item (for 'what's new' emails) ---- */
+        .step-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+        /* ---- Update Item (RTL safe) ---- */
         .update-item {
             display: flex;
+            flex-direction: row-reverse;
             gap: 14px;
             align-items: flex-start;
             padding: 14px 0;
             border-bottom: 1px solid #f1f5f9;
+            text-align: right;
         }
         .update-item:last-child { border-bottom: none; }
         .update-icon-wrap {
-            width: 42px; height: 42px;
+            width: 40px; height: 40px;
             background: linear-gradient(135deg, #1e3a5f, #2d5a8f);
             border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
-            font-size: 20px;
-            flex-shrink: 0;
+            font-size: 18px; flex-shrink: 0;
         }
-        .update-title { font-size: 15px; font-weight: 700; color: #1e3a5f; margin-bottom: 3px; }
-        .update-desc  { font-size: 13px; color: #64748b; }
-
+        .update-title { font-size: 15px; font-weight: 700; color: #1e3a5f; margin-bottom: 3px; text-align: right; }
+        .update-desc { font-size: 13px; color: #64748b; text-align: right; }
         /* ---- Separator ---- */
         .separator {
             height: 1px;
-            background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
-            margin: 28px 0;
+            background: #e2e8f0;
+            margin: 24px 0;
         }
-
         /* ---- Wrong Email Banner ---- */
         .wrong-email-banner {
             background: #fff5f5;
             border: 1px solid #fed7d7;
-            border-radius: 10px;
-            padding: 14px 16px;
-            margin-top: 28px;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 24px;
             font-size: 13px;
             color: #7f1d1d;
             text-align: center;
         }
         .wrong-email-banner a { color: #dc2626; font-weight: 600; }
-
         /* ---- Footer ---- */
         .footer {
             background: #f8fafc;
-            padding: 24px 30px;
+            padding: 20px 28px;
             border-top: 1px solid #e2e8f0;
             text-align: center;
             color: #94a3b8;
@@ -267,38 +215,31 @@ const baseTemplate = (content, previewText = '') => `
             line-height: 2;
         }
         .footer a { color: #64748b; text-decoration: none; }
-        .footer a:hover { text-decoration: underline; }
-        .footer-links { margin-bottom: 8px; }
-        .footer-copy { font-size: 11px; color: #cbd5e1; margin-top: 8px; }
+        .footer-copy { font-size: 11px; color: #cbd5e1; margin-top: 6px; }
     </style>
 </head>
 <body>
 <div class="wrapper">
     <div class="email-card">
 
-        <!-- Header -->
         <div class="header">
-            <span class="header-badge">הפנקס</span>
             <span class="header-logo">📋</span>
             <h1>הפנקס</h1>
             <p class="header-subtitle">שידוכים לבני תורה</p>
         </div>
         <div class="header-divider"></div>
 
-        <!-- Body -->
         <div class="body">
             ${content}
         </div>
 
-        <!-- Footer -->
         <div class="footer">
-            <div class="footer-links">
-                <a href="${APP_URL}">כניסה למערכת</a>
-                &nbsp;·&nbsp;
-                <a href="${APP_URL}/profile">הפרופיל שלי</a>
-                &nbsp;·&nbsp;
-                <a href="mailto:hapinkas.contact@gmail.com">צור קשר</a>
-            </div>
+            <a href="${APP_URL}">כניסה למערכת</a>
+            &nbsp;·&nbsp;
+            <a href="${APP_URL}/profile">הפרופיל שלי</a>
+            &nbsp;·&nbsp;
+            <a href="mailto:hapinkas.contact@gmail.com">צור קשר</a>
+            <br>
             <p>קיבלת מייל זה כי נרשמת למערכת "הפנקס".</p>
             <div class="footer-copy">© ${new Date().getFullYear()} הפנקס · כל הזכויות שמורות</div>
         </div>
@@ -310,20 +251,20 @@ const baseTemplate = (content, previewText = '') => `
 `;
 
 // ============================================================
-// 1. אימות אימייל (Verification) - עם שתי אפשרויות
+// 1. אימות אימייל
 // ============================================================
 const verificationEmail = (fullName, code, userId) => baseTemplate(`
     <p class="greeting">שלום ${fullName || 'אורח'} 👋</p>
-    <p>תודה שנרשמת ל<strong>פנקס השידוכים</strong>. כדי להפעיל את חשבונך ולקבל עדכונים, אנא אמת את כתובת המייל שלך.</p>
+    <p>תודה שנרשמת ל<strong>פנקס השידוכים</strong>. אנא אמת את כתובת המייל שלך כדי להפעיל את החשבון ולקבל התראות.</p>
 
-    <p style="font-size:14px; color:#64748b; margin-bottom:6px;"><strong>אפשרות א' — לחיצת כפתור (קלה ומהירה):</strong></p>
+    <p style="font-size:14px; color:#1e3a5f; font-weight:600; margin-bottom:6px;">אפשרות א׳ — לחיצת כפתור (קלה ומהירה):</p>
     <div class="btn-wrapper">
         <a href="${SERVER_URL}/verify-email-link?code=${code}&userId=${userId}" class="btn-primary">✅ אמת את האימייל שלי</a>
     </div>
 
     <div class="separator"></div>
 
-    <p style="font-size:14px; color:#64748b; margin-bottom:6px;"><strong>אפשרות ב' — הזנת קוד ידנית:</strong></p>
+    <p style="font-size:14px; color:#1e3a5f; font-weight:600; margin-bottom:6px;">אפשרות ב׳ — הזנת קוד ידנית:</p>
     <div class="code-box">
         <p class="code-label">קוד האימות שלך</p>
         <span class="code-number">${code}</span>
@@ -333,7 +274,7 @@ const verificationEmail = (fullName, code, userId) => baseTemplate(`
 
     <div class="wrong-email-banner">
         ⚠️ לא נרשמת ל"פנקס" ואינך מכיר/ה מי שנרשם?<br>
-        <a href="${SERVER_URL}/report-wrong-email?userId=${userId}">לחץ כאן להסרת המייל מהמערכת</a> — לא תשמע מאיתנו שוב.
+        <a href="${SERVER_URL}/report-wrong-email?userId=${userId}">לחץ כאן להסרת המייל מהמערכת</a>
     </div>
 `, 'אמת את חשבונך ב"הפנקס"');
 
@@ -343,17 +284,17 @@ const verificationEmail = (fullName, code, userId) => baseTemplate(`
 // ============================================================
 const welcomeEmail = (fullName) => baseTemplate(`
     <p class="greeting">🎉 ברוך הבא, ${fullName}!</p>
-    <p>חשבונך אומת! כעת אתה חלק ממשפחת <strong>הפנקס</strong> — מערכת השידוכים לבני תורה.</p>
+    <p>חשבונך אומת בהצלחה! כעת אתה חלק ממערכת <strong>הפנקס</strong> — שידוכים לבני תורה.</p>
 
     <div class="highlight-box">
-        <p><strong>👇 השלבים הבאים:</strong></p>
+        <p><strong>השלבים הבאים לתחילת הדרך:</strong></p>
     </div>
 
     <ul class="step-list">
-        <li><span class="step-icon">📝</span><span>השלם את <strong>פרטי הפרופיל</strong> שלך — ככל שיהיה מלא יותר, כך ייטב</span></li>
+        <li><span class="step-icon">📝</span><span>השלם את <strong>פרטי הפרופיל</strong> — ככל שיהיה מלא יותר, כך ייטב</span></li>
         <li><span class="step-icon">🪪</span><span>העלה <strong>תעודת זהות</strong> לאימות — שלב חיוני לאבטחת המערכת</span></li>
-        <li><span class="step-icon">⏳</span><span>המתן לאישור המנהל — בד"כ תוך 24 שעות</span></li>
-        <li><span class="step-icon">💝</span><span>התחל לקבל <strong>הצעות שידוך</strong> מותאמות אישית!</span></li>
+        <li><span class="step-icon">⏳</span><span>המתן לאישור המנהל — בדרך כלל תוך 24 שעות</span></li>
+        <li><span class="step-icon">💝</span><span>התחל לקבל <strong>הצעות שידוך</strong> מותאמות אישית</span></li>
     </ul>
 
     <div class="btn-wrapper">
@@ -370,25 +311,23 @@ const newMessageEmail = (senderName, messagePreview) => baseTemplate(`
     <p>קיבלת הודעה חדשה מ<strong>${senderName}</strong>:</p>
 
     <div class="highlight-box">
-        <p style="font-style:italic; font-size:15px;">"${messagePreview}"</p>
+        <p style="font-style:italic;">"${messagePreview}"</p>
     </div>
 
     <div class="btn-wrapper">
         <a href="${APP_URL}/inbox" class="btn-primary">📨 קרא וענה עכשיו</a>
     </div>
-
-    <p style="font-size:13px; color:#94a3b8; text-align:center;">🔔 תגובה מהירה מגבירה את הסיכוי להצלחה!</p>
 `, `${senderName} שלח/ה לך הודעה`);
 
 
 // ============================================================
-// 4. אישור פרופיל
+// 4. אישור פרופיל על ידי המנהל
 // ============================================================
 const profileApprovedEmail = (fullName) => baseTemplate(`
     <p class="greeting">✅ מזל טוב, ${fullName}!</p>
-    <p>הפרופיל שלך אושר על ידי הצוות שלנו. כעת אתה חלק פעיל במערכת השידוכים!</p>
+    <p>הפרופיל שלך עבר בדיקה ואושר על ידי הצוות שלנו. כעת אתה חלק פעיל במערכת השידוכים!</p>
 
-    <div class="highlight-box">
+    <div class="success-box">
         <p>💝 תתחיל לקבל הצעות שידוך מותאמות בקרוב.<br>
         🔍 תוכל גם לגלוש בעצמך ולמצוא הצעות מתאימות.</p>
     </div>
@@ -396,13 +335,48 @@ const profileApprovedEmail = (fullName) => baseTemplate(`
     <div class="btn-wrapper">
         <a href="${APP_URL}/matches" class="btn-primary">💫 גש לשידוכים עכשיו</a>
     </div>
-
-    <p style="font-size:13px; color:#94a3b8; text-align:center;">💡 עדכן את העדפות החיפוש שלך לתוצאות מדויקות יותר.</p>
 `, 'הפרופיל שלך אושר! ✅');
 
 
 // ============================================================
-// 5. בקשת צפייה בתמונות
+// 5. אישור שינויים בפרופיל
+// ============================================================
+const profileChangesApprovedEmail = (fullName) => baseTemplate(`
+    <p class="greeting">✅ השינויים אושרו, ${fullName || ''}!</p>
+    <p>המנהל עבר על השינויים שביקשת בפרופיל שלך ואישר אותם.</p>
+
+    <div class="success-box">
+        <p>הכרטיס שלך מעודכן כעת ומוצג למחפשים מתאימים.</p>
+    </div>
+
+    <div class="btn-wrapper">
+        <a href="${APP_URL}/my-profile" class="btn-primary">👤 צפה בפרופיל שלי</a>
+    </div>
+`, 'השינויים בפרופיל אושרו ✅');
+
+
+// ============================================================
+// 6. דחיית שינויים בפרופיל
+// ============================================================
+const profileChangesRejectedEmail = (fullName, reason) => baseTemplate(`
+    <p class="greeting">השינויים בפרופיל נדחו</p>
+    <p>שלום ${fullName || ''}, המנהל בדק את השינויים שביקשת ולא אישר אותם.</p>
+
+    ${reason ? `
+    <div class="error-box">
+        <p><strong>סיבה:</strong> ${reason}</p>
+    </div>` : ''}
+
+    <p>ניתן לערוך את הפרופיל מחדש ולשלוח לאישור שנית, או לפנות ישירות לצוות לקבלת הסבר.</p>
+
+    <div class="btn-wrapper">
+        <a href="${APP_URL}/my-profile" class="btn-secondary">✏️ ערוך פרופיל מחדש</a>
+    </div>
+`, 'השינויים בפרופיל נדחו');
+
+
+// ============================================================
+// 7. בקשת צפייה בתמונות
 // ============================================================
 const photoRequestEmail = (requesterName) => baseTemplate(`
     <p class="greeting">📷 בקשה לצפייה בתמונות</p>
@@ -416,26 +390,25 @@ const photoRequestEmail = (requesterName) => baseTemplate(`
     </div>
 
     <div class="btn-wrapper">
-        <a href="${APP_URL}/photo-requests" class="btn-primary">👁️ ראה את הבקשה ואשר/דחה</a>
+        <a href="${APP_URL}/photo-requests" class="btn-primary">👁️ ראה את הבקשה ואשר / דחה</a>
     </div>
 `, `${requesterName} מבקש/ת לראות תמונות`);
 
 
 // ============================================================
-// 6. הצעת שידוך חדשה
+// 8. הצעת שידוך חדשה
 // ============================================================
-const newMatchEmail = (partnerName, matchDetails) => baseTemplate(`
+const newMatchEmail = (matchDetails) => baseTemplate(`
     <p class="greeting">💝 הצעת שידוך חדשה!</p>
-    <p>יש לנו הצעה שעשויה מאוד להתאים לך:</p>
+    <p>יש לנו הצעה שעשויה מאוד להתאים לך — כדאי להסתכל!</p>
 
+    ${matchDetails ? `
     <div class="highlight-box">
-        <p style="font-size:16px;">
-            <strong>ההצעה:</strong> ${matchDetails || 'פתח את האפליקציה למידע מלא'}
-        </p>
-    </div>
+        <p>${matchDetails}</p>
+    </div>` : ''}
 
     <div class="btn-wrapper">
-        <a href="${APP_URL}/matches" class="btn-primary">🌟 צפה בפרטי ההצעה</a>
+        <a href="${APP_URL}/matches" class="btn-primary">🌟 צפה בהצעה</a>
     </div>
 
     <p style="font-size:13px; color:#94a3b8; text-align:center;">כל שידוך מתחיל בצעד ראשון — בהצלחה! 🙏</p>
@@ -443,29 +416,10 @@ const newMatchEmail = (partnerName, matchDetails) => baseTemplate(`
 
 
 // ============================================================
-// 7. איפוס סיסמה
-// ============================================================
-const resetPasswordEmail = (code) => baseTemplate(`
-    <p class="greeting">🔑 בקשה לאיפוס סיסמה</p>
-    <p>קיבלנו בקשה לאיפוס הסיסמה שלך. הנה קוד האימות:</p>
-
-    <div class="code-box">
-        <p class="code-label">קוד איפוס סיסמה</p>
-        <span class="code-number">${code}</span>
-        <p class="code-expiry">הקוד תקף ל-10 דקות בלבד</p>
-    </div>
-
-    <div class="highlight-box">
-        <p>⚠️ לא ביקשת לאפס סיסמה? <strong>התעלם ממייל זה לגמרי</strong> — אין צורך לעשות דבר.</p>
-    </div>
-`, 'קוד לאיפוס סיסמה 🔑');
-
-
-// ============================================================
-// 8. בקשת חיבור חדשה
+// 9. בקשת קשר חדשה (מישהו הציע את עצמו)
 // ============================================================
 const newConnectionEmail = (senderName) => baseTemplate(`
-    <p class="greeting">🤝 בקשת קשר חדשה!</p>
+    <p class="greeting">🤝 הצעה חדשה!</p>
     <p><strong>${senderName}</strong> מעוניין/ת ליצור איתך קשר דרך "הפנקס".</p>
 
     <div class="highlight-box">
@@ -478,11 +432,50 @@ const newConnectionEmail = (senderName) => baseTemplate(`
     <div class="btn-wrapper">
         <a href="${APP_URL}/connections" class="btn-primary">👀 ראה את הבקשה</a>
     </div>
-`, `${senderName} מעוניין/ת ביצירת קשר`);
+`, `${senderName} מציע/ה קשר`);
 
 
 // ============================================================
-// 9. חידושים במערכת (What's New)
+// 10. הבקשה שלך אושרה (הצד השני הסכים)
+// ============================================================
+const connectionAcceptedEmail = (acceptorName) => baseTemplate(`
+    <p class="greeting">🎉 הבקשה שלך אושרה!</p>
+    <p><strong>${acceptorName}</strong> אישר/ה את בקשת הקשר שלך. כעת ניתן להתחיל שיחה!</p>
+
+    <div class="success-box">
+        <p>
+            💬 תוכל לשלוח הודעה ראשונה דרך תיבת הדואר.<br>
+            🙏 בהצלחה!
+        </p>
+    </div>
+
+    <div class="btn-wrapper">
+        <a href="${APP_URL}/connections" class="btn-primary">💬 התחל שיחה עכשיו</a>
+    </div>
+`, `${acceptorName} אישר/ה את בקשתך!`);
+
+
+// ============================================================
+// 11. איפוס סיסמה
+// ============================================================
+const resetPasswordEmail = (code) => baseTemplate(`
+    <p class="greeting">🔑 בקשה לאיפוס סיסמה</p>
+    <p>קיבלנו בקשה לאיפוס הסיסמה שלך. הנה קוד האימות:</p>
+
+    <div class="code-box">
+        <p class="code-label">קוד איפוס סיסמה</p>
+        <span class="code-number">${code}</span>
+        <p class="code-expiry">הקוד תקף ל-10 דקות בלבד</p>
+    </div>
+
+    <div class="highlight-box">
+        <p>⚠️ לא ביקשת לאפס סיסמה? <strong>התעלם ממייל זה</strong> — אין צורך לעשות דבר.</p>
+    </div>
+`, 'קוד לאיפוס סיסמה 🔑');
+
+
+// ============================================================
+// 12. חידושים במערכת
 // ============================================================
 const systemUpdatesEmail = (updates) => {
     const updateItems = updates.map(u => `
@@ -498,7 +491,7 @@ const systemUpdatesEmail = (updates) => {
     return baseTemplate(`
         <p class="greeting">🗞️ חידושים ב"הפנקס"</p>
         <p>יש חדשות! הנה מה שהתעדכן לאחרונה במערכת עבורך:</p>
-        <div style="margin: 24px 0;">
+        <div style="margin: 20px 0;">
             ${updateItems}
         </div>
         <div class="btn-wrapper">
@@ -509,10 +502,10 @@ const systemUpdatesEmail = (updates) => {
 
 
 // ============================================================
-// 10. תזכורת לאימות מייל (נשלחת אחרי דילוג)
+// 13. תזכורת לאימות מייל
 // ============================================================
 const verifyReminderEmail = (fullName, code, userId) => baseTemplate(`
-    <p class="greeting">⏰ תזכורת: אמת את האימייל שלך</p>
+    <p class="greeting">⏰ תזכורת: אימות המייל שלך</p>
     <p>שלום ${fullName}, שמנו לב שטרם אימתת את כתובת המייל שלך ב"פנקס".</p>
     <p>אימות המייל מאפשר לך לקבל:</p>
 
@@ -537,7 +530,7 @@ const verifyReminderEmail = (fullName, code, userId) => baseTemplate(`
         ⚠️ קיבלת זאת בטעות?
         <a href="${SERVER_URL}/report-wrong-email?userId=${userId}">לחץ כאן להסרת המייל</a>
     </div>
-`, 'תזכורת: אמת את האימייל שלך');
+`, 'תזכורת: אימות האימייל שלך');
 
 
 // ============================================================
@@ -547,7 +540,7 @@ function getEmailTemplate(type, data) {
     switch (type) {
         case 'verification':
             return {
-                subject: '🔐 אמת את האימייל שלך — הפנקס',
+                subject: '🔐 אימות האימייל שלך — הפנקס',
                 html: verificationEmail(data.fullName, data.code, data.userId)
             };
         case 'verify_reminder':
@@ -570,6 +563,16 @@ function getEmailTemplate(type, data) {
                 subject: '✅ הפרופיל שלך אושר!',
                 html: profileApprovedEmail(data.fullName)
             };
+        case 'profile_changes_approved':
+            return {
+                subject: '✅ השינויים בפרופיל אושרו',
+                html: profileChangesApprovedEmail(data.fullName)
+            };
+        case 'profile_changes_rejected':
+            return {
+                subject: '❌ השינויים בפרופיל נדחו',
+                html: profileChangesRejectedEmail(data.fullName, data.reason)
+            };
         case 'photo_request':
             return {
                 subject: `📷 ${data.requesterName} מבקש/ת לראות את התמונות שלך`,
@@ -578,21 +581,26 @@ function getEmailTemplate(type, data) {
         case 'new_match':
             return {
                 subject: '💝 הצעת שידוך חדשה ממתינה לך!',
-                html: newMatchEmail(data.partnerName, data.matchDetails)
+                html: newMatchEmail(data.matchDetails)
+            };
+        case 'new_connection':
+            return {
+                subject: `🤝 ${data.senderName} מציע/ה קשר`,
+                html: newConnectionEmail(data.senderName)
+            };
+        case 'connection_accepted':
+            return {
+                subject: `🎉 ${data.acceptorName} אישר/ה את בקשתך!`,
+                html: connectionAcceptedEmail(data.acceptorName)
             };
         case 'reset_password':
             return {
                 subject: '🔑 קוד לאיפוס סיסמה — הפנקס',
                 html: resetPasswordEmail(data.code)
             };
-        case 'new_connection':
-            return {
-                subject: `🤝 ${data.senderName} רוצה ליצור איתך קשר`,
-                html: newConnectionEmail(data.senderName)
-            };
         case 'system_updates':
             return {
-                subject: '🗞️ חידושים ב"הפנקס" — עדכון מהמערכת',
+                subject: '🗞️ חידושים ב"הפנקס"',
                 html: systemUpdatesEmail(data.updates || [])
             };
         default:

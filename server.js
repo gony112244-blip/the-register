@@ -538,7 +538,9 @@ app.post('/login', async (req, res) => {
                 birth_date: user.birth_date,
                 city: user.city,
                 email: user.email,
+                phone: user.phone,
                 is_email_verified: user.is_email_verified,
+                email_notifications_enabled: user.email_notifications_enabled,
                 never_ask_email: user.never_ask_email
             }
         });
@@ -683,6 +685,47 @@ app.post('/never-ask-email', authenticateToken, async (req, res) => {
         res.status(500).json({ message: "שגיאת שרת" });
     }
 });
+// הפעלה/כיבוי התראות מייל
+app.post('/toggle-email-notifications', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { enabled } = req.body;
+    try {
+        await pool.query(
+            'UPDATE users SET email_notifications_enabled = $1 WHERE id = $2',
+            [enabled, userId]
+        );
+        res.json({ message: enabled ? "התראות מייל הופעלו" : "התראות מייל כובו", email_notifications_enabled: enabled });
+    } catch (err) {
+        console.error('[toggle-email-notifications] Error:', err.message);
+        res.status(500).json({ message: "שגיאה בעדכון ההגדרות" });
+    }
+});
+
+// עדכון מספר טלפון
+app.post('/update-phone', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: "נא להזין מספר טלפון" });
+    const cleanPhone = phone.replace(/\D/g, '').trim();
+    if (!/^0[2-9]\d{7,8}$/.test(cleanPhone)) {
+        return res.status(400).json({ message: "מספר טלפון לא תקין (דוגמה: 0501234567)" });
+    }
+    try {
+        const existing = await pool.query(
+            'SELECT id FROM users WHERE phone = $1 AND id != $2',
+            [cleanPhone, userId]
+        );
+        if (existing.rows.length > 0) {
+            return res.status(409).json({ message: "מספר טלפון זה כבר רשום במערכת" });
+        }
+        await pool.query('UPDATE users SET phone = $1 WHERE id = $2', [cleanPhone, userId]);
+        res.json({ message: "מספר הטלפון עודכן בהצלחה", phone: cleanPhone });
+    } catch (err) {
+        console.error('[update-phone] Error:', err.message);
+        res.status(500).json({ message: "שגיאה בעדכון מספר הטלפון" });
+    }
+});
+
 // בקשת אימות מחדש (למי שדילג בהרשמה — שולח מייל חדש)
 app.post('/request-reverify', authenticateToken, async (req, res) => {
     const userId = req.user.id;
@@ -1948,15 +1991,9 @@ app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, re
 
         // 4. שליחת מייל למשתמש (אם יש לו מייל)
         if (user.email) {
-            sendEmail(user.email, '✅ הפרופיל שלך אושר!', `
-                <div style="direction: rtl; text-align: right; font-family: sans-serif;">
-                    <h2 style="color: #22c55e;">הפרופיל אושר בהצלחה!</h2>
-                    <p>שלום ${user.full_name},</p>
-                    <p>מנהל המערכת עבר על השינויים שביצעת ואישר אותם.</p>
-                    <p>הכרטיס שלך מעודכן כעת.</p>
-                    <a href="http://localhost:5173/profile" style="background: #1e3a5f; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">לצפייה בפרופיל</a>
-                </div>
-            `);
+            setImmediate(() => sendTemplateEmail(user.email, 'profile_changes_approved', {
+                fullName: user.full_name
+            }, user.id));
         }
 
         res.json({ message: "השינויים אושרו בהצלחה!" });
@@ -2195,9 +2232,8 @@ app.post('/approve-request', authenticateToken, async (req, res) => {
         if (originalSenderId && originalSenderId !== userId) {
             const approverInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [userId]);
             const approverName = approverInfo.rows[0]?.full_name || 'הצד השני';
-            setImmediate(() => sendTemplateEmailForUser(originalSenderId, 'new_message', {
-                senderName: approverName,
-                messagePreview: `✅ ${approverName} אישר/ה את בקשת הקשר שלך! כעת תוכל להתחיל שיחה.`
+            setImmediate(() => sendTemplateEmailForUser(originalSenderId, 'connection_accepted', {
+                acceptorName: approverName
             }));
         }
 
@@ -2655,12 +2691,10 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
 
         // מייל למשתמש (אם יש כתובת)
         if (userEmail) {
-            await sendEmail(userEmail, '✅ השינויים בפרופיל אושרו', `
-                <div style="direction:rtl;font-family:sans-serif;padding:20px;">
-                    <h2 style="color:#1e3a5f;">השינויים בפרופיל אושרו!</h2>
-                    <p>המנהל אישר את השינויים שביקשת בפרופיל שלך.</p>
-                </div>
-            `, userId);
+            const userNameRes = await pool.query('SELECT full_name FROM users WHERE id = $1', [userId]);
+            setImmediate(() => sendTemplateEmail(userEmail, 'profile_changes_approved', {
+                fullName: userNameRes.rows[0]?.full_name || ''
+            }, parseInt(userId)));
         }
 
         res.json({ message: "השינויים אושרו בהצלחה" });
@@ -2693,13 +2727,11 @@ app.post('/admin/reject-profile-changes/:userId', authenticateToken, async (req,
 
         // מייל למשתמש
         if (userEmail) {
-            await sendEmail(userEmail, '❌ השינויים בפרופיל נדחו', `
-                <div style="direction:rtl;font-family:sans-serif;padding:20px;">
-                    <h2 style="color:#dc2626;">השינויים בפרופיל נדחו</h2>
-                    <p>סיבה: ${reason || 'לא צוינה'}</p>
-                    <p>ניתן לפנות למנהל לפרטים נוספים.</p>
-                </div>
-            `, userId);
+            const userNameRes = await pool.query('SELECT full_name FROM users WHERE id = $1', [userId]);
+            setImmediate(() => sendTemplateEmail(userEmail, 'profile_changes_rejected', {
+                fullName: userNameRes.rows[0]?.full_name || '',
+                reason: reason || null
+            }, parseInt(userId)));
         }
 
         res.json({ message: "השינויים נדחו" });

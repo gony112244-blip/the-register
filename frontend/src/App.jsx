@@ -39,7 +39,20 @@ function AppContent() {
   const handleUpdateUser = (newData) => {
     setCurrentUser(newData);
     localStorage.setItem('user', JSON.stringify(newData));
+    window.dispatchEvent(new CustomEvent('userUpdated', { detail: newData }));
   };
+
+  // מאזין לעדכוני משתמש מ-NotificationsPanel (ב-Navbar)
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail) {
+        setCurrentUser(e.detail);
+        localStorage.setItem('user', JSON.stringify(e.detail));
+      }
+    };
+    window.addEventListener('userUpdated', handler);
+    return () => window.removeEventListener('userUpdated', handler);
+  }, []);
 
   const hideNavbarOn = ['/', '/login', '/register', '/forgot-password'];
   const showNavbar = !hideNavbarOn.includes(location.pathname);
