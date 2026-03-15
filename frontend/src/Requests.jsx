@@ -5,6 +5,12 @@ import MatchCardModal from './components/MatchCardModal';
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
+const T = {
+    heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
+    current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב/ת', fixed_times: 'קובע עיתים' },
+};
+const tr = (field, val) => T[field]?.[val] || val || null;
+
 // ── קומפוננטת שורת בקשה ──
 function RequestRow({ item, type, onViewCard, onAction }) {
     const isConn = type === 'conn';

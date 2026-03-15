@@ -104,17 +104,24 @@ function Profile() {
                         data.yeshiva_ketana_name = parts[1].replace(')', '');
                     }
 
-                    // מיזוג חכם ותיקון פורמטים
+                    // מיזוג חכם ותיקון פורמטים — שדות ריקים מפורשים כ־'' כדי שהטופס יציג נכון
                     setUser(prev => {
                         const merged = { ...prev };
+                        const emptyKeys = ['birth_date', 'country_of_birth', 'skin_tone', 'origin_country', 'aliyah_age'];
                         Object.keys(data).forEach(key => {
-                            if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
-                                // תיקון תאריך עבור input type="date"
+                            const val = data[key];
+                            if (val !== null && val !== undefined && val !== '') {
                                 if (key === 'birth_date') {
-                                    merged[key] = new Date(data[key]).toISOString().split('T')[0];
+                                    try {
+                                        merged[key] = new Date(val).toISOString().split('T')[0];
+                                    } catch {
+                                        merged[key] = val;
+                                    }
                                 } else {
-                                    merged[key] = data[key];
+                                    merged[key] = val;
                                 }
+                            } else if (emptyKeys.includes(key)) {
+                                merged[key] = '';
                             }
                         });
                         return merged;
@@ -232,7 +239,7 @@ function Profile() {
             contact_person_name: pick(firstNames) + ' ' + pick(lastNames),
             contact_phone_1: `05${randNum(0, 8)}-${randNum(1000000, 9999999)}`,
             contact_phone_2: `05${randNum(0, 8)}-${randNum(1000000, 9999999)}`,
-            family_background: 'משפחה תורנית, חמה ותומכת.',
+            family_background: pick(['haredi', 'dati_leumi', 'masorti', 'baal_teshuva']),
             heritage_sector: pick(['ashkenazi', 'sephardi', 'teimani']),
             father_occupation: 'אברך כולל',
             mother_occupation: 'מורה',
@@ -250,7 +257,7 @@ function Profile() {
             yeshiva_name: isMale ? pick(yeshivot) : '',
             yeshiva_ketana_name: isMale ? 'סלבודקה' : '',
             work_field: isMale ? '' : pick(occupations),
-            life_aspiration: 'בית של תורה וחסד.',
+            life_aspiration: isMale ? pick(['study_only', 'study_and_work', 'fixed_times', 'work_only']) : pick(['study_and_work', 'work_only']),
             favorite_study: 'גמרא בעיון',
             study_place: 'ירושלים',
             study_field: 'הלכה',
@@ -279,22 +286,40 @@ function Profile() {
             search_max_age: randNum(25, 30),
             search_height_min: 150,
             search_height_max: 200,
-            search_body_types: 'slim,average',
-            search_appearances: 'נאה,מכובד',
+            search_body_types: 'very_thin,thin,average_thin,average,average_full,full',
+            search_appearances: 'fair,ok,good,handsome,very_handsome,stunning',
             search_statuses: 'single',
-            search_backgrounds: 'למדני,חסידי',
+            search_backgrounds: 'haredi,baal_teshuva,dati_leumi',
             search_heritage_sectors: 'ashkenazi,sephardi',
             mixed_heritage_ok: true,
             search_financial_min: 50000,
             search_financial_discuss: true,
             search_occupations: 'studying,working',
-            search_life_aspirations: 'בית תורני'
+            search_life_aspirations: 'study_only,study_and_work,fixed_times,work_only'
             // הוסר: id_card_image_url כדי לא להציג "ממתין לאישור" על תעודת זהות שקרית
         };
 
         setUser(prev => ({ ...prev, ...randomData }));
         showToast("הפרופיל מולא בנתוני קסם! 🪄✨", "success");
     };
+
+    // שדות שנשמרים מיידית גם אצל משתמש מאושר (לא רגישים)
+    const SAFE_FIELDS = new Set([
+        'birth_date', 'country_of_birth', 'city',
+        'heritage_sector', 'family_background', 'father_occupation', 'mother_occupation',
+        'father_heritage', 'mother_heritage', 'siblings_count', 'sibling_position',
+        'height', 'body_type', 'skin_tone', 'appearance',
+        'apartment_help',
+        'current_occupation', 'life_aspiration', 'work_field', 'occupation_details',
+        'yeshiva_name', 'study_place', 'study_field', 'favorite_study',
+        'about_me', 'home_style', 'partner_description', 'important_in_life',
+        'contact_person_type', 'contact_person_name', 'contact_phone_1', 'contact_phone_2',
+        'has_children', 'children_count',
+        'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
+        'search_body_types', 'search_appearances', 'search_statuses', 'search_backgrounds',
+        'search_heritage_sectors', 'mixed_heritage_ok', 'search_financial_min', 'search_financial_discuss',
+        'search_occupations', 'search_life_aspirations',
+    ]);
 
     // שמירה לשרת
     const handleSave = async () => {
@@ -314,49 +339,71 @@ function Profile() {
         }
 
         try {
-            // אם המשתמש כבר מאושר - השינויים צריכים אישור מנהל
             if (user.is_approved) {
-                const confirmed = window.confirm(
-                    "⚠️ שים לב!\n\n" +
-                    "הפרופיל שלך כבר מאושר.\n" +
-                    "השינויים יועברו לבדיקת המנהל ויאושרו תוך 28 שעות לכל היותר.\n\n" +
-                    "להמשיך?"
-                );
-
-                if (!confirmed) return;
-
-                const res = await fetch('http://localhost:3000/request-profile-update', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ changes: dataToSend })
+                // שלב א׳: שמירה מיידית לשדות הלא-רגישים (גיל, גוון עור, קריטריוני חיפוש וכו')
+                const safeData = {};
+                Object.entries(dataToSend).forEach(([key, val]) => {
+                    if (SAFE_FIELDS.has(key)) safeData[key] = val;
                 });
 
-                if (res.ok) {
-                    showToast("השינויים נשלחו לאישור המנהל בהצלחה!", "success");
-                    navigate('/matches'); // העברה לדף  הראשי
-                } else {
-                    showToast("שגיאה בשליחת הבקשה", "error");
+                const safeRes = await fetch('http://localhost:3000/update-safe-fields', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify(safeData)
+                });
+                if (safeRes.ok) {
+                    const safeUpdated = (await safeRes.json()).user;
+                    if (safeUpdated) {
+                        setUser(prev => ({ ...prev, ...safeUpdated }));
+                        localStorage.setItem('user', JSON.stringify({ ...user, ...safeUpdated }));
+                    }
                 }
+
+                // שלב ב׳: שדות רגישים — דרך אישור המנהל (שם, טלפון, ממליצים, כתובת)
+                const sensitiveFields = ['full_name', 'last_name', 'phone', 'status',
+                    'full_address', 'father_full_name', 'mother_full_name', 'siblings_details',
+                    'reference_1_name', 'reference_1_phone', 'reference_2_name', 'reference_2_phone',
+                    'reference_3_name', 'reference_3_phone', 'family_reference_name', 'family_reference_phone',
+                    'rabbi_name', 'rabbi_phone', 'mechutanim_name', 'mechutanim_phone'];
+                const sensitiveData = {};
+                sensitiveFields.forEach(key => { if (dataToSend[key] !== undefined) sensitiveData[key] = dataToSend[key]; });
+
+                const hasSensitiveChanges = Object.keys(sensitiveData).length > 0;
+                if (hasSensitiveChanges) {
+                    const confirmed = window.confirm(
+                        "⚠️ שים לב!\n\n" +
+                        "שינויים בשם, טלפון, ממליצים או כתובת דורשים אישור המנהל.\n" +
+                        "שדות אחרים כבר נשמרו.\n\n" +
+                        "לשלוח לבדיקת המנהל?"
+                    );
+                    if (confirmed) {
+                        await fetch('http://localhost:3000/request-profile-update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ changes: sensitiveData })
+                        });
+                        showToast("השדות הרגישים נשלחו לאישור המנהל. שאר הפרטים נשמרו מיידית!", "success");
+                    } else {
+                        showToast("הפרטים הלא-רגישים נשמרו!", "success");
+                    }
+                } else {
+                    showToast("כל הפרטים נשמרו בהצלחה!", "success");
+                }
+                navigate('/matches');
             } else {
                 // פרופיל חדש או לא מאושר - עדכון רגיל
                 const res = await fetch('http://localhost:3000/update-profile', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(dataToSend)
                 });
 
                 if (res.ok) {
                     const updatedUser = (await res.json()).user;
                     setUser(prev => ({ ...prev, ...updatedUser }));
-                    localStorage.setItem('user', JSON.stringify(updatedUser)); // עדכון גם בלוקאל
+                    localStorage.setItem('user', JSON.stringify(updatedUser));
                     showToast("הפרופיל עודכן בהצלחה! כעת המתן לאישור המנהל.", "success");
-                    navigate('/matches'); // העברה לדף הראשי
+                    navigate('/matches');
                 } else {
                     showToast("שגיאה בעדכון הפרופיל", "error");
                 }

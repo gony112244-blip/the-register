@@ -1379,6 +1379,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         id,
         // חלק א' - פרטים בסיסיים
         full_name, last_name, age, gender, phone,
+        birth_date, country_of_birth,
         status, has_children, children_count,
         // 📞 איש קשר לשידוך
         contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
@@ -1433,33 +1434,35 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         const result = await pool.query(
             `UPDATE users SET 
                 full_name = $1, last_name = $2, age = $3, gender = $4, phone = $5,
-                status = $6, has_children = $7, children_count = $8,
-                contact_person_type = $9, contact_person_name = $10, contact_phone_1 = $11, contact_phone_2 = $12,
-                family_background = $13, heritage_sector = $14, father_occupation = $15, mother_occupation = $16,
-                father_heritage = $17, mother_heritage = $18, siblings_count = $19, sibling_position = $20,
-                height = $21, body_type = $22, skin_tone = $23, appearance = $24,
-                apartment_help = $25, current_occupation = $26, yeshiva_name = $27, work_field = $28,
-                life_aspiration = $29, favorite_study = $30, study_place = $31, study_field = $32, occupation_details = $33,
-                about_me = $34, home_style = $35, partner_description = $36, important_in_life = $37,
-                id_card_image_url = $38,
-                full_address = $39, father_full_name = $40, mother_full_name = $41, siblings_details = $42,
-                reference_1_name = $43, reference_1_phone = $44,
-                reference_2_name = $45, reference_2_phone = $46,
-                reference_3_name = $47, reference_3_phone = $48,
-                family_reference_name = $49, family_reference_phone = $50,
-                rabbi_name = $51, rabbi_phone = $52,
-                mechutanim_name = $53, mechutanim_phone = $54,
-                search_min_age = $55, search_max_age = $56,
-                search_height_min = $57, search_height_max = $58,
-                search_body_types = $59, search_appearances = $60,
-                search_statuses = $61, search_backgrounds = $62,
-                search_heritage_sectors = $63, mixed_heritage_ok = $64, search_financial_min = $65, search_financial_discuss = $66,
-                search_occupations = $67, search_life_aspirations = $68,
-                city = $69,
+                birth_date = $6, country_of_birth = $7,
+                status = $8, has_children = $9, children_count = $10,
+                contact_person_type = $11, contact_person_name = $12, contact_phone_1 = $13, contact_phone_2 = $14,
+                family_background = $15, heritage_sector = $16, father_occupation = $17, mother_occupation = $18,
+                father_heritage = $19, mother_heritage = $20, siblings_count = $21, sibling_position = $22,
+                height = $23, body_type = $24, skin_tone = $25, appearance = $26,
+                apartment_help = $27, current_occupation = $28, yeshiva_name = $29, work_field = $30,
+                life_aspiration = $31, favorite_study = $32, study_place = $33, study_field = $34, occupation_details = $35,
+                about_me = $36, home_style = $37, partner_description = $38, important_in_life = $39,
+                id_card_image_url = $40,
+                full_address = $41, father_full_name = $42, mother_full_name = $43, siblings_details = $44,
+                reference_1_name = $45, reference_1_phone = $46,
+                reference_2_name = $47, reference_2_phone = $48,
+                reference_3_name = $49, reference_3_phone = $50,
+                family_reference_name = $51, family_reference_phone = $52,
+                rabbi_name = $53, rabbi_phone = $54,
+                mechutanim_name = $55, mechutanim_phone = $56,
+                search_min_age = $57, search_max_age = $58,
+                search_height_min = $59, search_height_max = $60,
+                search_body_types = $61, search_appearances = $62,
+                search_statuses = $63, search_backgrounds = $64,
+                search_heritage_sectors = $65, mixed_heritage_ok = $66, search_financial_min = $67, search_financial_discuss = $68,
+                search_occupations = $69, search_life_aspirations = $70,
+                city = $71,
                 is_profile_pending = TRUE
-             WHERE id = $70 RETURNING *`,
+             WHERE id = $72 RETURNING *`,
             [
                 full_name, last_name, cleanAge, gender, phone,
+                birth_date || null, country_of_birth || null,
                 status, has_children, cleanChildrenCount,
                 contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
                 family_background, heritage_sector, father_occupation, mother_occupation,
@@ -1503,8 +1506,63 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
 });
 
-// --- בקשה לשינוי פרופיל (דורש אישור מנהל) ---
-// הסבר: משתמש מאושר שרוצה לשנות פרטים - השינויים ממתינים לאישור
+// --- שמירה מיידית לשדות שאינם רגישים (לא מצריכים אישור מנהל) ---
+// שדות רגישים שכן דורשים אישור: full_name, last_name, phone, status,
+//   full_address, father_full_name, mother_full_name, references, rabbi, mechutanim
+const SAFE_FIELDS = new Set([
+    'birth_date', 'country_of_birth', 'city',
+    'heritage_sector', 'family_background', 'father_occupation', 'mother_occupation',
+    'father_heritage', 'mother_heritage', 'siblings_count', 'sibling_position',
+    'height', 'body_type', 'skin_tone', 'appearance',
+    'apartment_help',
+    'current_occupation', 'life_aspiration', 'work_field', 'occupation_details',
+    'yeshiva_name', 'yeshiva_ketana_name', 'study_place', 'study_field', 'favorite_study',
+    'about_me', 'home_style', 'partner_description', 'important_in_life',
+    'contact_person_type', 'contact_person_name', 'contact_phone_1', 'contact_phone_2',
+    'has_children', 'children_count',
+    'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
+    'search_body_types', 'search_appearances', 'search_statuses', 'search_backgrounds',
+    'search_heritage_sectors', 'mixed_heritage_ok', 'search_financial_min', 'search_financial_discuss',
+    'search_occupations', 'search_life_aspirations',
+]);
+
+const NUMERIC_FIELDS = new Set(['age', 'height', 'children_count', 'siblings_count', 'sibling_position',
+    'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max']);
+
+app.post('/update-safe-fields', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const changes = req.body; // כל השדות הבטוחים
+
+    try {
+        // סינון לשדות מאושרים בלבד
+        const safeEntries = Object.entries(changes).filter(([key]) => SAFE_FIELDS.has(key));
+        if (safeEntries.length === 0) {
+            return res.json({ message: "אין שדות לעדכן" });
+        }
+
+        const setClause = safeEntries.map(([key], i) => `"${key}" = $${i + 1}`).join(', ');
+        const values = safeEntries.map(([key, val]) => {
+            if (val === '' || val === undefined) return null;
+            if (NUMERIC_FIELDS.has(key)) return (val === null ? null : Number(val));
+            return val;
+        });
+
+        await pool.query(
+            `UPDATE users SET ${setClause} WHERE id = $${values.length + 1}`,
+            [...values, userId]
+        );
+
+        const updated = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+        const user = updated.rows[0];
+        delete user.password;
+        res.json({ message: "נשמר!", user });
+    } catch (err) {
+        console.error("update-safe-fields error:", err);
+        res.status(500).json({ message: "שגיאה בשמירה: " + err.message });
+    }
+});
+
+// --- בקשה לשינוי פרופיל (דורש אישור מנהל) — לשדות רגישים בלבד ---
 app.post('/request-profile-update', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const changes = req.body.changes; // אובייקט עם השינויים
@@ -1673,9 +1731,21 @@ app.get('/my-profile-data', authenticateToken, async (req, res) => {
         const user = userRes.rows[0];
         delete user.password; // הסרת סיסמה
 
-        // שליפת תמונות פרופיל
-        const imagesRes = await pool.query('SELECT image_url FROM user_images WHERE user_id = $1', [userId]);
-        user.profile_images = imagesRes.rows.map(img => img.image_url);
+        // שליפת תמונות פרופיל — מטבלת user_images (העלאות מהפרופיל) או מעמודת users.profile_images (מהרשמה)
+        const imagesRes = await pool.query('SELECT image_url FROM user_images WHERE user_id = $1 ORDER BY id', [userId]);
+        const fromUserImages = imagesRes.rows.map(img => img.image_url);
+        const fromUsersColumn = Array.isArray(user.profile_images) ? user.profile_images : [];
+        user.profile_images = fromUserImages.length > 0 ? fromUserImages : fromUsersColumn;
+
+        // מיזוג pending_changes — כדי שהמשתמש יראה את מה שהגיש (גם אם עדיין לא אושר)
+        if (user.pending_changes && typeof user.pending_changes === 'object') {
+            const skip = new Set(['id', 'password', 'profile_images', 'profile_images_count', 'is_admin', 'is_blocked', 'is_approved']);
+            Object.entries(user.pending_changes).forEach(([key, val]) => {
+                if (!skip.has(key) && val !== null && val !== undefined) {
+                    user[key] = val;
+                }
+            });
+        }
 
         res.json(user);
     } catch (err) {
@@ -1698,7 +1768,19 @@ app.get('/matches', authenticateToken, async (req, res) => {
         if (userResult.rows.length === 0) {
             return res.status(404).json({ message: "משתמש לא נמצא" });
         }
-        const currentUser = userResult.rows[0];
+        let currentUser = userResult.rows[0];
+
+        // מיזוג pending_changes — כדי שקריטריוני החיפוש והפרטים האישיים
+        // (גובה, גוון עור, מגזר וכו') ישמשו אפילו לפני אישור המנהל
+        if (currentUser.pending_changes && typeof currentUser.pending_changes === 'object') {
+            const skip = new Set(['id', 'password', 'profile_images', 'profile_images_count', 'is_admin', 'is_blocked', 'is_approved', 'is_email_verified']);
+            currentUser = { ...currentUser };
+            Object.entries(currentUser.pending_changes).forEach(([key, val]) => {
+                if (!skip.has(key) && val !== null && val !== undefined && val !== '') {
+                    currentUser[key] = val;
+                }
+            });
+        }
 
         // הגנה: אם אין מגדר - לא נוכל לחפש
         if (!currentUser.gender) {
@@ -1751,65 +1833,82 @@ app.get('/matches', authenticateToken, async (req, res) => {
 
         // סינון לפי מבנה גוף (אם הוגדר) — NULL מותר (לא מפסלים מי שלא מילא)
         if (currentUser.search_body_types && currentUser.search_body_types !== '') {
-            const bodyTypes = currentUser.search_body_types.split(',').map(t => t.trim());
-            const placeholders = bodyTypes.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`(body_type IS NULL OR body_type IN (${placeholders}))`);
-            params.push(...bodyTypes);
-            paramIndex += bodyTypes.length;
+            const bodyTypes = currentUser.search_body_types.split(',').map(t => t.trim()).filter(Boolean);
+            if (bodyTypes.length > 0) {
+                const placeholders = bodyTypes.map((_, i) => `$${paramIndex + i}`).join(',');
+                conditions.push(`(body_type IS NULL OR body_type IN (${placeholders}))`);
+                params.push(...bodyTypes);
+                paramIndex += bodyTypes.length;
+            }
         }
 
         // סינון לפי מראה כללי — NULL מותר (לא מפסלים מי שלא מילא)
         if (currentUser.search_appearances && currentUser.search_appearances !== '') {
-            const appearances = currentUser.search_appearances.split(',').map(t => t.trim());
-            const placeholders = appearances.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`(appearance IS NULL OR appearance IN (${placeholders}))`);
-            params.push(...appearances);
-            paramIndex += appearances.length;
+            const appearances = currentUser.search_appearances.split(',').map(t => t.trim()).filter(Boolean);
+            if (appearances.length > 0) {
+                const placeholders = appearances.map((_, i) => `$${paramIndex + i}`).join(',');
+                conditions.push(`(appearance IS NULL OR appearance IN (${placeholders}))`);
+                params.push(...appearances);
+                paramIndex += appearances.length;
+            }
         }
 
         // סינון לפי רקע משפחתי — NULL מותר
         if (currentUser.search_backgrounds && currentUser.search_backgrounds !== '') {
-            const backgrounds = currentUser.search_backgrounds.split(',').map(t => t.trim());
-            const placeholders = backgrounds.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`(family_background IS NULL OR family_background IN (${placeholders}))`);
-            params.push(...backgrounds);
-            paramIndex += backgrounds.length;
+            const backgrounds = currentUser.search_backgrounds.split(',').map(t => t.trim()).filter(Boolean);
+            if (backgrounds.length > 0) {
+                const placeholders = backgrounds.map((_, i) => `$${paramIndex + i}`).join(',');
+                conditions.push(`(family_background IS NULL OR family_background IN (${placeholders}))`);
+                params.push(...backgrounds);
+                paramIndex += backgrounds.length;
+            }
         }
 
         // סינון לפי סטטוס — NULL מותר
         if (currentUser.search_statuses && currentUser.search_statuses !== '') {
-            const statuses = currentUser.search_statuses.split(',').map(t => t.trim());
-            const placeholders = statuses.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`(status IS NULL OR status IN (${placeholders}))`);
-            params.push(...statuses);
-            paramIndex += statuses.length;
+            const statuses = currentUser.search_statuses.split(',').map(t => t.trim()).filter(Boolean);
+            if (statuses.length > 0) {
+                const placeholders = statuses.map((_, i) => `$${paramIndex + i}`).join(',');
+                conditions.push(`(status IS NULL OR status IN (${placeholders}))`);
+                params.push(...statuses);
+                paramIndex += statuses.length;
+            }
         }
 
-        // סינון לפי מגזר עדתי (החדש והפשוט!)
+        // סינון לפי מגזר עדתי — mixed_heritage_ok שלי: אם אני מסמן "מתאים כלאיים" מקבל גם מעורב
         if (currentUser.search_heritage_sectors && currentUser.search_heritage_sectors !== '') {
-            const sectors = currentUser.search_heritage_sectors.split(',').map(t => t.trim());
-            const placeholders = sectors.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`(heritage_sector IS NULL OR heritage_sector IN (${placeholders}))`);
-            params.push(...sectors);
-            paramIndex += sectors.length;
+            const sectors = currentUser.search_heritage_sectors.split(',').map(t => t.trim()).filter(Boolean);
+            if (sectors.length > 0) {
+                const placeholders = sectors.map((_, i) => `$${paramIndex + i}`).join(',');
+                params.push(...sectors);
+                paramIndex += sectors.length;
+                const mixedAccept = currentUser.mixed_heritage_ok
+                    ? ` OR (heritage_sector = 'mixed')`
+                    : '';
+                conditions.push(`(heritage_sector IS NULL OR heritage_sector IN (${placeholders})${mixedAccept})`);
+            }
         }
 
         // סינון לפי עיסוק — NULL מותר
         if (currentUser.search_occupations && currentUser.search_occupations !== '') {
-            const occupations = currentUser.search_occupations.split(',').map(t => t.trim());
-            const placeholders = occupations.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`(current_occupation IS NULL OR current_occupation IN (${placeholders}))`);
-            params.push(...occupations);
-            paramIndex += occupations.length;
+            const occupations = currentUser.search_occupations.split(',').map(t => t.trim()).filter(Boolean);
+            if (occupations.length > 0) {
+                const placeholders = occupations.map((_, i) => `$${paramIndex + i}`).join(',');
+                conditions.push(`(current_occupation IS NULL OR current_occupation IN (${placeholders}))`);
+                params.push(...occupations);
+                paramIndex += occupations.length;
+            }
         }
 
         // סינון לפי שאיפות חיים — NULL מותר
         if (currentUser.search_life_aspirations && currentUser.search_life_aspirations !== '') {
-            const aspirations = currentUser.search_life_aspirations.split(',').map(t => t.trim());
-            const placeholders = aspirations.map((_, i) => `$${paramIndex + i}`).join(',');
-            conditions.push(`(life_aspiration IS NULL OR life_aspiration IN (${placeholders}))`);
-            params.push(...aspirations);
-            paramIndex += aspirations.length;
+            const aspirations = currentUser.search_life_aspirations.split(',').map(t => t.trim()).filter(Boolean);
+            if (aspirations.length > 0) {
+                const placeholders = aspirations.map((_, i) => `$${paramIndex + i}`).join(',');
+                conditions.push(`(life_aspiration IS NULL OR life_aspiration IN (${placeholders}))`);
+                params.push(...aspirations);
+                paramIndex += aspirations.length;
+            }
         }
 
         // הסבר: בדיקה שגם הצד השני מחפש אותי!
@@ -1836,50 +1935,62 @@ app.get('/matches', authenticateToken, async (req, res) => {
         }
 
         // הסבר: המועמד צריך לרצות את המגזר העדתי שלי
+        // שימוש ב-regexp_split_to_array עם trim — מטפל ברווחים אחרי פסיקים (ashkenazi, sephardi)
+        // mixed_heritage_ok: אם אני מעורב והמועמד מסמן "מתאים כלאיים" — מתקבל
         if (currentUser.heritage_sector) {
-            conditions.push(`(search_heritage_sectors IS NULL OR search_heritage_sectors = '' OR $${paramIndex} = ANY(string_to_array(search_heritage_sectors, ',')))`);
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_heritage_sectors,'')), E'\\\\s*,\\\\s*')`;
+            const mixedOk = currentUser.heritage_sector === 'mixed'
+                ? ' OR (mixed_heritage_ok = TRUE)'
+                : '';
+            conditions.push(`(search_heritage_sectors IS NULL OR trim(coalesce(search_heritage_sectors,'')) = '' OR $${paramIndex} = ANY(${arrExpr})${mixedOk})`);
             params.push(currentUser.heritage_sector);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את הסטטוס שלי (רווק/גרוש/אלמן)
+        // המועמד צריך לרצות את הסטטוס שלי (רווק/גרוש/אלמן)
         if (currentUser.status) {
-            conditions.push(`(search_statuses IS NULL OR search_statuses = '' OR $${paramIndex} = ANY(string_to_array(search_statuses, ',')))`);
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_statuses,'')), E'\\\\s*,\\\\s*')`;
+            conditions.push(`(search_statuses IS NULL OR trim(coalesce(search_statuses,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.status);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את הרקע הדתי שלי
+        // המועמד צריך לרצות את הרקע הדתי שלי
         if (currentUser.family_background) {
-            conditions.push(`(search_backgrounds IS NULL OR search_backgrounds = '' OR $${paramIndex} = ANY(string_to_array(search_backgrounds, ',')))`);
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_backgrounds,'')), E'\\\\s*,\\\\s*')`;
+            conditions.push(`(search_backgrounds IS NULL OR trim(coalesce(search_backgrounds,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.family_background);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את מבנה הגוף שלי (תיקון באג LIKE)
+        // המועמד צריך לרצות את מבנה הגוף שלי
         if (currentUser.body_type) {
-            conditions.push(`(search_body_types IS NULL OR search_body_types = '' OR $${paramIndex} = ANY(string_to_array(search_body_types, ',')))`);
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_body_types,'')), E'\\\\s*,\\\\s*')`;
+            conditions.push(`(search_body_types IS NULL OR trim(coalesce(search_body_types,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.body_type);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את המראה שלי (תיקון באג LIKE)
+        // המועמד צריך לרצות את המראה שלי
         if (currentUser.appearance) {
-            conditions.push(`(search_appearances IS NULL OR search_appearances = '' OR $${paramIndex} = ANY(string_to_array(search_appearances, ',')))`);
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_appearances,'')), E'\\\\s*,\\\\s*')`;
+            conditions.push(`(search_appearances IS NULL OR trim(coalesce(search_appearances,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.appearance);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את העיסוק שלי (חדש!)
+        // המועמד צריך לרצות את העיסוק שלי
         if (currentUser.current_occupation) {
-            conditions.push(`(search_occupations IS NULL OR search_occupations = '' OR $${paramIndex} = ANY(string_to_array(search_occupations, ',')))`);
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_occupations,'')), E'\\\\s*,\\\\s*')`;
+            conditions.push(`(search_occupations IS NULL OR trim(coalesce(search_occupations,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.current_occupation);
             paramIndex++;
         }
 
-        // 🆕 המועמד צריך לרצות את השאיפה שלי (חדש!) - רלוונטי בעיקר כשגבר מחפש אישה והיא סיננה לפי שאיפות
+        // המועמד צריך לרצות את השאיפה שלי
         if (currentUser.life_aspiration) {
-            conditions.push(`(search_life_aspirations IS NULL OR search_life_aspirations = '' OR $${paramIndex} = ANY(string_to_array(search_life_aspirations, ',')))`);
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_life_aspirations,'')), E'\\\\s*,\\\\s*')`;
+            conditions.push(`(search_life_aspirations IS NULL OR trim(coalesce(search_life_aspirations,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.life_aspiration);
             paramIndex++;
         }
@@ -1905,6 +2016,44 @@ app.get('/matches', authenticateToken, async (req, res) => {
         if (typeof params !== 'undefined') console.error("Query params:", params);
         console.error("Full error:", err);
         res.status(500).json({ message: "תקלה בטעינת השידוכים" });
+    }
+});
+
+// --- דיבאג: בדיקת סינון בין שני משתמשים ---
+app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
+    const myId = req.user.id;
+    const targetId = req.params.targetId;
+    try {
+        const [me, target] = await Promise.all([
+            pool.query('SELECT * FROM users WHERE id = $1', [myId]),
+            pool.query('SELECT * FROM users WHERE id = $1', [targetId])
+        ]);
+        if (me.rows.length === 0 || target.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+        const u1 = me.rows[0], u2 = target.rows[0];
+        const checks = [];
+        // גיל
+        if (u1.search_min_age != null && u2.age != null) checks.push({ field: 'גיל מינימלי', ok: u2.age >= u1.search_min_age, v: `${u2.age} >= ${u1.search_min_age}` });
+        if (u1.search_max_age != null && u2.age != null) checks.push({ field: 'גיל מקסימלי', ok: u2.age <= u1.search_max_age, v: `${u2.age} <= ${u1.search_max_age}` });
+        if (u2.search_min_age != null && u1.age != null) checks.push({ field: 'הצד השני רוצה גיל מינ', ok: u1.age >= u2.search_min_age, v: `${u1.age} >= ${u2.search_min_age}` });
+        if (u2.search_max_age != null && u1.age != null) checks.push({ field: 'הצד השני רוצה גיל מקס', ok: u1.age <= u2.search_max_age, v: `${u1.age} <= ${u2.search_max_age}` });
+        // גובה
+        if (u1.search_height_min != null && u2.height != null) checks.push({ field: 'גובה מינ', ok: u2.height >= u1.search_height_min, v: `${u2.height} >= ${u1.search_height_min}` });
+        if (u1.search_height_max != null && u2.height != null) checks.push({ field: 'גובה מקס', ok: u2.height <= u1.search_height_max, v: `${u2.height} <= ${u1.search_height_max}` });
+        if (u2.search_height_min != null && u1.height != null) checks.push({ field: 'הצד השני רוצה גובה מינ', ok: u1.height >= u2.search_height_min, v: `${u1.height} >= ${u2.search_height_min}` });
+        if (u2.search_height_max != null && u1.height != null) checks.push({ field: 'הצד השני רוצה גובה מקס', ok: u1.height <= u2.search_height_max, v: `${u1.height} <= ${u2.search_height_max}` });
+        // מגזר
+        const u2InMySectors = !u1.search_heritage_sectors || u1.search_heritage_sectors.split(',').map(t => t.trim()).includes(u2.heritage_sector) || (u2.heritage_sector === 'mixed' && u1.mixed_heritage_ok);
+        checks.push({ field: 'מגזר שלי מתאים', ok: u2InMySectors, v: `u2.heritage=${u2.heritage_sector} my_search=${u1.search_heritage_sectors}` });
+        const u1InU2Sectors = !u2.search_heritage_sectors || u2.search_heritage_sectors.split(',').map(t => t.trim()).includes(u1.heritage_sector) || (u1.heritage_sector === 'mixed' && u2.mixed_heritage_ok);
+        checks.push({ field: 'מגזר שלי מתאים לצד השני', ok: u1InU2Sectors, v: `u1.heritage=${u1.heritage_sector} u2_search=${u2.search_heritage_sectors}` });
+        // גבר/אישה
+        checks.push({ field: 'מגדר נגדי', ok: u1.gender !== u2.gender, v: `${u1.gender} vs ${u2.gender}` });
+        checks.push({ field: 'מאושר', ok: u2.is_approved === true, v: `u2.is_approved=${u2.is_approved}` });
+        res.json({ u1: { id: u1.id, name: u1.full_name, gender: u1.gender, age: u1.age, height: u1.height, heritage_sector: u1.heritage_sector, is_approved: u1.is_approved }, u2: { id: u2.id, name: u2.full_name, gender: u2.gender, age: u2.age, height: u2.height, heritage_sector: u2.heritage_sector, is_approved: u2.is_approved }, checks });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 });
 
@@ -1937,100 +2086,6 @@ app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ message: "שגיאה בשליפת נתוני שדכן" });
-    }
-});
-
-// (Duplicate version removed)
-
-// 🆕 אישור שינויי פרופיל
-app.post('/admin/approve-profile-changes/:id', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    const { id } = req.params;
-
-    try {
-        // שליפת השינויים הממתינים והמייל של המשתמש
-        const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({ message: "משתמש לא נמצא" });
-        }
-        const user = userResult.rows[0];
-        const pendingChanges = user.pending_changes || {};
-
-        // 1. עדכון השדות (אם יש שינויים)
-        const keys = Object.keys(pendingChanges);
-        if (keys.length > 0) {
-            const numericFields = ['age', 'children_count', 'siblings_count', 'sibling_position', 'height', 'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max'];
-            const updateFields = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-            const updateValues = keys.map(key => {
-                let val = pendingChanges[key];
-                if (numericFields.includes(key)) {
-                    return (val === '' || val === undefined || val === null) ? null : Number(val);
-                }
-                return val;
-            });
-
-            // זהירות: אם יש שדה שלא קיים בטבלה, זה יקרוס. לכן בודקים existence או סומכים על ה-Frontend
-            await pool.query(
-                `UPDATE users SET ${updateFields} WHERE id = $${updateValues.length + 1}`,
-                [...updateValues, id]
-            );
-        }
-
-        // 2. איפוס הדגל (תמיד!)
-        await pool.query(
-            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1`,
-            [id]
-        );
-
-        // 3. הודעה פנימית למשתמש
-        await pool.query(
-            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
-            [id, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
-        );
-
-        // 4. שליחת מייל למשתמש (אם יש לו מייל)
-        if (user.email) {
-            setImmediate(() => sendTemplateEmail(user.email, 'profile_changes_approved', {
-                fullName: user.full_name
-            }, user.id));
-        }
-
-        res.json({ message: "השינויים אושרו בהצלחה!" });
-    } catch (err) {
-        console.error("Approve changes error:", err);
-        // אם השגיאה היא על שדה לא קיים, נחזיר הודעה ברורה יותר
-        if (err.code === '42703') { // undefined_column
-            return res.status(400).json({ message: "שגיאה: אחד השדות לעדכון לא קיים בבסיס הנתונים." });
-        }
-        res.status(500).json({ message: "שגיאה באישור השינויים (" + err.message + ")" });
-    }
-});
-
-// 🆕 דחיית שינויי פרופיל
-app.post('/admin/reject-profile-changes/:id', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
-
-    const { id } = req.params;
-    const { reason } = req.body;
-
-    try {
-        // איפוס השינויים הממתינים
-        await pool.query(
-            `UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1`,
-            [id]
-        );
-
-        // הודעה למשתמש
-        await pool.query(
-            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
-            [id, `❌ השינויים בפרופיל לא אושרו.\nסיבה: ${reason || 'לא צוינה סיבה'}`]
-        );
-
-        res.json({ message: "השינויים נדחו והמשתמש קיבל הודעה" });
-    } catch (err) {
-        console.error("Reject changes error:", err);
-        res.status(500).json({ message: "שגיאה בדחיית השינויים" });
     }
 });
 
@@ -2713,6 +2768,18 @@ app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
     }
 });
 
+// דיבאג: מה יש ב-pending_changes של משתמש
+app.get('/admin/pending-changes-debug/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId } = req.params;
+    try {
+        const r = await pool.query('SELECT id, full_name, pending_changes FROM users WHERE id = $1', [userId]);
+        res.json(r.rows[0] || { message: 'not found' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
 // אישור שינויי פרופיל
 app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
@@ -2720,7 +2787,7 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
     try {
         // שליפת השינויים הממתינים
         const userResult = await pool.query(
-            'SELECT pending_changes, email FROM users WHERE id = $1',
+            'SELECT pending_changes, email, full_name FROM users WHERE id = $1',
             [userId]
         );
 
@@ -2730,17 +2797,27 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
 
         const pendingChanges = userResult.rows[0].pending_changes || {};
         const userEmail = userResult.rows[0].email;
+        const userName = userResult.rows[0].full_name;
 
         if (Object.keys(pendingChanges).length > 0) {
-            // שליפת עמודות קיימות בטבלה כדי לסנן שדות לא תקינים
+            // שליפת עמודות קיימות בטבלה
             const colsResult = await pool.query(
-                `SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`
+                `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users'`
             );
-            const validCols = new Set(colsResult.rows.map(r => r.column_name));
+            const colMeta = {};
+            colsResult.rows.forEach(r => { colMeta[r.column_name] = r.data_type; });
 
-            // סינון שדות שלא קיימים בטבלה
+            // שדות שאסור לעדכן / לא קיימים בטבלה / מנוהלים בנפרד
+            const forbiddenCols = new Set([
+                'id', 'password', 'created_at', 'email_verification_code',
+                'profile_images', 'profile_images_count', // מנוהלים ע"י upload routes
+                'apartment_amount', 'yeshiva_ketana_name', // שדות וירטואליים של הטופס
+                'is_admin', 'is_blocked'
+            ]);
+
             const safeChanges = Object.entries(pendingChanges).filter(([key]) => {
-                if (!validCols.has(key)) {
+                if (forbiddenCols.has(key)) return false;
+                if (!colMeta[key]) {
                     console.warn(`[Approve] Skipping unknown column: ${key}`);
                     return false;
                 }
@@ -2748,26 +2825,38 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
             });
 
             if (safeChanges.length > 0) {
-                const setClause = safeChanges.map(([key], i) => `"${key}" = $${i + 1}`).join(', ');
-                // המרת ערכים מורכבים (מערכים/אובייקטים) למחרוזת JSON
-                const values = safeChanges.map(([, val]) =>
-                    (Array.isArray(val) || (val !== null && typeof val === 'object'))
-                        ? JSON.stringify(val)
-                        : val
-                );
+                const numericCols = new Set(['age', 'children_count', 'siblings_count', 'sibling_position', 'height',
+                    'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max']);
+                const boolCols = new Set(['has_children', 'mixed_heritage_ok', 'search_financial_discuss',
+                    'is_email_verified', 'email_notifications_enabled', 'never_ask_email']);
+                const dateCols = new Set(['birth_date']);
 
-                console.log(`[Approve] Updating user ${userId} with fields:`, safeChanges.map(([k]) => k));
-                await pool.query(
-                    `UPDATE users SET ${setClause}, is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $${values.length + 1}`,
-                    [...values, userId]
-                );
-            } else {
-                // אין שדות תקינים לעדכן - רק מאפסים את הדגל (מוודאים אישור כללי)
-                await pool.query(
-                    'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1',
-                    [userId]
-                );
+                // עדכון שדה-שדה כדי שמשהו בעייתי לא יעצור את כל האישור
+                for (const [key, rawVal] of safeChanges) {
+                    try {
+                        let val = rawVal;
+                        if (val === '' || val === undefined) val = null;
+                        if (val !== null) {
+                            if (numericCols.has(key)) val = Number(val);
+                            else if (boolCols.has(key)) val = (val === 'true' || val === true);
+                            else if (dateCols.has(key)) val = val || null;
+                            else if (Array.isArray(val)) val = val;
+                            else if (typeof val === 'object') val = JSON.stringify(val);
+                        }
+                        await pool.query(
+                            `UPDATE users SET "${key}" = $1 WHERE id = $2`,
+                            [val, userId]
+                        );
+                    } catch (fieldErr) {
+                        console.warn(`[Approve] Skipping field "${key}" due to error: ${fieldErr.message}`);
+                    }
+                }
             }
+            // תמיד מאשרים ומאפסים pending
+            await pool.query(
+                'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1',
+                [userId]
+            );
         } else {
             await pool.query(
                 'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1',
@@ -2776,23 +2865,23 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
         }
 
         // הודעה למשתמש
+
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
             [userId, '✅ השינויים בפרופיל אושרו על ידי המנהל!']
         );
 
-        // מייל למשתמש (אם יש כתובת)
+        // מייל למשתמש
         if (userEmail) {
-            const userNameRes = await pool.query('SELECT full_name FROM users WHERE id = $1', [userId]);
             setImmediate(() => sendTemplateEmail(userEmail, 'profile_changes_approved', {
-                fullName: userNameRes.rows[0]?.full_name || ''
+                fullName: userName || ''
             }, parseInt(userId)));
         }
 
         res.json({ message: "השינויים אושרו בהצלחה" });
     } catch (err) {
-        console.error("Error approving profile changes:", err.message, err.detail || '');
-        res.status(500).json({ message: "שגיאה באישור השינויים: " + err.message });
+        console.error("[Approve] Error:", err.message, err.detail || '', err.hint || '');
+        res.status(500).json({ message: "שגיאה באישור השינויים: " + err.message + (err.detail ? ' | ' + err.detail : '') });
     }
 });
 
