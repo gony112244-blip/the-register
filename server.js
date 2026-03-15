@@ -1302,7 +1302,8 @@ app.post('/respond-photo-request', authenticateToken, async (req, res) => {
 // בדיקה אם יש לי הרשאה לראות תמונות של מישהו
 app.get('/check-photo-access/:targetId', authenticateToken, async (req, res) => {
     const requesterId = req.user.id;
-    const targetId = req.params.targetId;
+    const targetId = parseInt(req.params.targetId, 10);
+    if (isNaN(targetId)) return res.status(400).json({ canView: false });
 
     try {
         // בדיקה דו-כיוונית: אם אחד מהצדדים אישר — שניהם רואים, ל-48 שעות
@@ -1329,7 +1330,8 @@ app.get('/check-photo-access/:targetId', authenticateToken, async (req, res) => 
 // קבלת תמונות של מישהו (רק אם יש הרשאה — דו-כיוונית ל-48 שעות)
 app.get('/get-user-photos/:targetId', authenticateToken, async (req, res) => {
     const requesterId = req.user.id;
-    const targetId = req.params.targetId;
+    const targetId = parseInt(req.params.targetId, 10);
+    if (isNaN(targetId)) return res.status(400).json({ message: "מזהה לא תקין" });
 
     try {
         // בדיקת הרשאה דו-כיוונית עם חלון 48 שעות
@@ -1346,21 +1348,29 @@ app.get('/get-user-photos/:targetId', authenticateToken, async (req, res) => {
             return res.status(403).json({ message: "אין הרשאה לצפייה", photos: [] });
         }
 
-        // יש הרשאה — שולח תמונות
-        const photosFromTable = await pool.query(
-            'SELECT image_url FROM user_images WHERE user_id = $1 ORDER BY created_at',
-            [targetId]
-        );
+        // יש הרשאה — מנסה להביא תמונות מטבלת user_images
+        let photos = [];
+        try {
+            const photosFromTable = await pool.query(
+                'SELECT image_url FROM user_images WHERE user_id = $1 ORDER BY id',
+                [targetId]
+            );
+            photos = photosFromTable.rows.map(r => r.image_url);
+        } catch (tableErr) {
+            console.warn('user_images table issue:', tableErr.message);
+        }
 
-        let photos = photosFromTable.rows.map(r => r.image_url);
+        // fallback: profile_images מטבלת users
         if (photos.length === 0) {
             const fromUsers = await pool.query('SELECT profile_images FROM users WHERE id = $1', [targetId]);
-            photos = fromUsers.rows[0]?.profile_images || [];
+            const raw = fromUsers.rows[0]?.profile_images;
+            photos = Array.isArray(raw) ? raw : [];
         }
 
         res.json({ photos });
     } catch (err) {
-        res.status(500).json({ message: "שגיאה" });
+        console.error('get-user-photos error:', err.message, err.detail || '');
+        res.status(500).json({ message: "שגיאה: " + err.message });
     }
 });
 
