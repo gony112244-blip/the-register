@@ -36,6 +36,7 @@ function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    sessionStorage.removeItem('email_reminder_shown');
     navigate('/login');
   };
 

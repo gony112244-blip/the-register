@@ -454,7 +454,10 @@ app.post('/register', async (req, res) => {
                 gender: newUser.rows[0].gender,
                 age: newUser.rows[0].age,
                 birth_date: newUser.rows[0].birth_date,
-                city: newUser.rows[0].city
+                city: newUser.rows[0].city,
+                email: newUser.rows[0].email,
+                is_email_verified: newUser.rows[0].is_email_verified,
+                never_ask_email: newUser.rows[0].never_ask_email
             }
         });
         res.end();
@@ -533,7 +536,10 @@ app.post('/login', async (req, res) => {
                 gender: user.gender,
                 age: user.age,
                 birth_date: user.birth_date,
-                city: user.city
+                city: user.city,
+                email: user.email,
+                is_email_verified: user.is_email_verified,
+                never_ask_email: user.never_ask_email
             }
         });
 
@@ -602,19 +608,46 @@ app.post('/resend-verification', authenticateToken, async (req, res) => {
         const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
         await pool.query('UPDATE users SET email_verification_code = $1 WHERE id = $2', [verificationCode, userId]);
 
-        await sendTemplateEmail(email, 'verification', {
-            fullName: full_name,
-            code: verificationCode,
-            userId: userId
-        }, userId);
-
-        res.json({ message: "קוד חדש נשלח למייל בהצלחה" });
-
+        await sendTemplateEmail(email, 'verification', { fullName: full_name, code: verificationCode, userId }, userId);
+        res.json({ message: "קוד אימות חדש נשלח למייל שלך" });
     } catch (err) {
-        console.error("Resend error:", err);
-        res.status(500).json({ message: "שגיאה בשליחת הקוד מחדש" });
+        console.error(err);
+        res.status(500).json({ message: "שגיאה בשליחת המייל" });
     }
 });
+
+/**
+ * עדכון אימייל ושליחת קוד אימות חדש
+ */
+app.post('/update-email-and-send-code', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { email } = req.body;
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ message: "כתובת מייל לא תקינה" });
+    }
+
+    try {
+        const userRes = await pool.query('SELECT full_name FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) return res.status(404).json({ message: "משתמש לא נמצא" });
+
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // עדכון המייל ואיפוס סטטוס אימות + קוד חדש
+        await pool.query(
+            'UPDATE users SET email = $1, is_email_verified = FALSE, email_verification_code = $2 WHERE id = $3',
+            [email, verificationCode, userId]
+        );
+
+        await sendTemplateEmail(email, 'verification', { fullName: userRes.rows[0].full_name, code: verificationCode, userId }, userId);
+        
+        res.json({ message: "המייל עודכן וקוד אימות נשלח" });
+    } catch (err) {
+        console.error('[update-email-and-send-code] Error:', err);
+        res.status(500).json({ message: "שגיאת שרת" });
+    }
+});
+
 
 // דילוג על אימות מייל (המשתמש יקבל תזכורת לאחר מכן)
 app.post('/skip-email-verification', authenticateToken, async (req, res) => {
@@ -631,6 +664,23 @@ app.post('/skip-email-verification', authenticateToken, async (req, res) => {
         // אם העמודה לא קיימת — לא נפיל שגיאה, פשוט מדלגים
         console.warn('[skip-email-verification] Column may not exist yet:', err.message);
         res.json({ message: "בסדר! תוכל לאמת מאוחר יותר." });
+    }
+});
+
+/**
+ * עדכון המשתמש שלא לשאול עוד על אימייל
+ */
+app.post('/never-ask-email', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        await pool.query(
+            'UPDATE users SET never_ask_email = TRUE WHERE id = $1',
+            [userId]
+        );
+        res.json({ message: "ההעדפה נשמרה. לא נשאל אותך שוב על מייל." });
+    } catch (err) {
+        console.error('[never-ask-email] Error:', err.message);
+        res.status(500).json({ message: "שגיאת שרת" });
     }
 });
 // בקשת אימות מחדש (למי שדילג בהרשמה — שולח מייל חדש)
@@ -2525,8 +2575,8 @@ app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
             `SELECT *,
                     COALESCE(profile_edit_count, 0) AS profile_edit_count
              FROM users
-             WHERE is_profile_pending = TRUE
-             ORDER BY pending_changes_at ASC`
+             WHERE (is_profile_pending = TRUE OR is_approved = FALSE) AND is_admin = FALSE
+             ORDER BY COALESCE(pending_changes_at, created_at) ASC`
         );
         res.json(result.rows);
     } catch (err) {
@@ -2580,19 +2630,19 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
 
                 console.log(`[Approve] Updating user ${userId} with fields:`, safeChanges.map(([k]) => k));
                 await pool.query(
-                    `UPDATE users SET ${setClause}, is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $${values.length + 1}`,
+                    `UPDATE users SET ${setClause}, is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $${values.length + 1}`,
                     [...values, userId]
                 );
             } else {
-                // אין שדות תקינים לעדכן - רק מאפסים את הדגל
+                // אין שדות תקינים לעדכן - רק מאפסים את הדגל (מוודאים אישור כללי)
                 await pool.query(
-                    'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1',
+                    'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1',
                     [userId]
                 );
             }
         } else {
             await pool.query(
-                'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL WHERE id = $1',
+                'UPDATE users SET is_profile_pending = FALSE, pending_changes = NULL, pending_changes_at = NULL, is_approved = TRUE WHERE id = $1',
                 [userId]
             );
         }
@@ -2668,7 +2718,7 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
     try {
         // 1. ספירות כלליות
         const totalUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = false');
-        const pendingUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_approved = false AND is_admin = false');
+        const pendingUsers = await pool.query('SELECT COUNT(*) FROM users WHERE (is_approved = false OR is_profile_pending = true) AND is_admin = false');
         const activeMatches = await pool.query("SELECT COUNT(*) FROM connections WHERE status = 'active' OR status = 'waiting_for_shadchan'");
 
         // 2. פילוח לפי מגזר (לגרף עוגה)

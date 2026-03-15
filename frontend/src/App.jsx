@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ToastProvider } from './components/ToastProvider';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Home from './Home';
 import Login from './Login';
 import Profile from './Profile';
@@ -15,6 +15,7 @@ import PhotoRequests from './PhotoRequests';
 import HiddenProfiles from './HiddenProfiles';
 import ForgotPassword from './ForgotPassword';
 import PWAInstallPrompt from './components/PWAInstallPrompt'; // התקנת PWA
+import EmailReminderModal from './components/EmailReminderModal'; // תזכורת אימות מייל
 
 import AdminMatches from './AdminMatches';
 import AdminPendingProfiles from './AdminPendingProfiles';
@@ -26,6 +27,20 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // ניהול מצב משתמש גלובלי (חלקי) עבור תזכורות
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+
+  // עדכון המשתמש בסטייט וב-localStorage
+  const handleUpdateUser = (newData) => {
+    setCurrentUser(newData);
+    localStorage.setItem('user', JSON.stringify(newData));
+  };
+
   const hideNavbarOn = ['/', '/login', '/register', '/forgot-password'];
   const showNavbar = !hideNavbarOn.includes(location.pathname);
 
@@ -33,6 +48,14 @@ function AppContent() {
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
+
+    // עדכון הסטייט המקומי אם ה-localStorage השתנה (למשל אחרי לוגין)
+    if (userStr) {
+        const parsed = JSON.parse(userStr);
+        if (JSON.stringify(parsed) !== JSON.stringify(currentUser)) {
+            setCurrentUser(parsed);
+        }
+    }
 
     // רשימת דפים ציבוריים שאין סיבה לראות אם אתה מחובר
     const publicPages = ['/', '/login', '/register'];
@@ -68,12 +91,13 @@ function AppContent() {
         localStorage.removeItem('token');
       }
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, currentUser]);
 
 
   return (
     <div className="App">
       {showNavbar && <Navbar />}
+      <EmailReminderModal user={currentUser} onUpdateUser={handleUpdateUser} />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
