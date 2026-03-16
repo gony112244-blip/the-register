@@ -282,7 +282,7 @@ function Home() {
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              אנחנו כאן לכל שאלה! ניתן לפנות אלינו במייל: <a href="mailto:office@hapinkas.co.il" style={{ color: 'inherit', fontWeight: 'bold' }}>office@hapinkas.co.il</a> ונחזור אליכם בהקדם.
+              אנחנו כאן לכל שאלה! ניתן לפנות אלינו במייל: <a href="mailto:hapinkas.contact@gmail.com" style={{ color: 'inherit', fontWeight: 'bold' }}>hapinkas.contact@gmail.com</a>
             </p>
           </div>
 
@@ -297,7 +297,7 @@ function Home() {
             <div className="footer-contact">
               <span>📞 {sitePhoneNumber}</span>
               <span className="separator">|</span>
-              <a href="mailto:office@hapinkas.co.il" className="email-link">📧 office@hapinkas.co.il</a>
+              <a href="mailto:hapinkas.contact@gmail.com" className="email-link">📧 hapinkas.contact@gmail.com</a>
             </div>
           </div>
         </div>

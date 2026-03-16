@@ -152,7 +152,7 @@ async function sendEmail(to, subject, htmlContent, userId = null) {
 
     try {
         const info = await transporter.sendMail({
-            from: '"הפנקס - שידוכים" <hapinkas.contact@gmail.com>',
+            from: '"הפנקס - שידוכים" <office@hapinkas.co.il>',
             to: to,
             subject: subject,
             html: htmlContent,
@@ -2440,6 +2440,48 @@ app.post('/reject-request', authenticateToken, async (req, res) => {
         res.json({ message: "הבקשה נדחתה." });
     } catch (err) {
         res.status(500).json({ message: "שגיאה בדחייה" });
+    }
+});
+
+// ביטול שידוך פעיל (מ-Connections) — מחזיר מצב לקדמותו ושולח הודעה לצד השני
+app.post('/cancel-active-connection', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { connectionId, reason } = req.body;
+    try {
+        const check = await pool.query(
+            `SELECT c.*, u1.full_name AS sender_name, u2.full_name AS receiver_name
+             FROM connections c
+             JOIN users u1 ON c.sender_id = u1.id
+             JOIN users u2 ON c.receiver_id = u2.id
+             WHERE c.id = $1 AND (c.sender_id = $2 OR c.receiver_id = $2)
+               AND c.status IN ('active','waiting_for_shadchan')`,
+            [connectionId, userId]
+        );
+        if (check.rows.length === 0) return res.status(403).json({ message: "לא ניתן לבטל" });
+
+        const conn = check.rows[0];
+        const otherUserId = conn.sender_id === userId ? conn.receiver_id : conn.sender_id;
+        const myName = conn.sender_id === userId ? conn.sender_name : conn.receiver_name;
+
+        // עדכון סטטוס לבוטל
+        await pool.query(`UPDATE connections SET status = 'cancelled' WHERE id = $1`, [connectionId]);
+
+        // איפוס אישורים סופיים
+        await pool.query(`UPDATE connections SET sender_final_approve = false, receiver_final_approve = false WHERE id = $1`, [connectionId]);
+
+        // הודעה לצד השני
+        const msgContent = reason
+            ? `💔 ${myName} ביטל/ה את השידוך.\nסיבה: ${reason}`
+            : `💔 ${myName} ביטל/ה את השידוך.`;
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES ($1, $2, $3, 'system')`,
+            [userId, otherUserId, msgContent]
+        );
+
+        res.json({ message: "השידוך בוטל" });
+    } catch (err) {
+        console.error("Error cancelling connection:", err);
+        res.status(500).json({ message: "שגיאה" });
     }
 });
 

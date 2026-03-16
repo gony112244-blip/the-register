@@ -178,7 +178,7 @@ function Matches() {
                 <div style={{ ...styles.card, textAlign: 'center', padding: '50px', maxWidth: '500px', margin: '50px auto' }}>
                     <div style={{ fontSize: '60px', marginBottom: '20px' }}>⏳</div>
                     <h2 style={{ color: '#1e3a5f' }}>הפרופיל שלך בבדיקה</h2>
-                    <p style={{ color: '#6b7280', lineHeight: '1.8' }}>לאחר שנאמת את הפרטים שלך, תוכל לראות הצעות מתאימות.<br />בדרך כלל התהליך לוקח עד 24 שעות.</p>
+                    <p style={{ color: '#6b7280', lineHeight: '1.8' }}>לאחר שנאמת את הפרטים שלך, תוכל לראות הצעות מתאימות.</p>
                     <button onClick={() => navigate('/profile')} style={{ ...styles.connectBtn, marginTop: '20px' }}>לעדכון פרופיל</button>
                 </div>
             </div>

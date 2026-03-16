@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MatchCardModal from './components/MatchCardModal';
 
+const CANCEL_REASONS = [
+    { id: 1, text: 'לצערנו, לאחר בירורים נראה שאנחנו פחות מתאימים זה לזה' },
+    { id: 2, text: 'יש לנו כרגע הצעה אחרת שמתקדמת — אולי בהמשך' },
+    { id: 3, text: 'כבר נפגשנו בעבר ולא מצאנו לנכון להמשיך' },
+    { id: 4, text: 'הצעה זו כבר הוצעה לנו בעבר' },
+];
+
 function Connections() {
     const [connections, setConnections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalPerson, setModalPerson] = useState(null);
+    const [cancelModal, setCancelModal] = useState(null); // { connectionId, name }
     const navigate = useNavigate();
 
     const user = JSON.parse(localStorage.getItem('user'));
@@ -44,6 +52,24 @@ function Connections() {
         fetchConnections(user.id);
     }, [navigate, token]);
 
+    const handleCancelConnection = async (connectionId, reason) => {
+        try {
+            const res = await fetch('http://localhost:3000/cancel-active-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ connectionId, reason })
+            });
+            if (res.ok) {
+                setCancelModal(null);
+                fetchConnections(user.id);
+            } else {
+                alert('שגיאה בביטול השידוך');
+            }
+        } catch {
+            alert('שגיאה בתקשורת עם השרת');
+        }
+    };
+
     const handleFinalApprove = async (connectionId) => {
         try {
             const res = await fetch('http://localhost:3000/finalize-connection', {
@@ -78,6 +104,34 @@ function Connections() {
                     token={token}
                 />
             )}
+
+            {/* מודל ביטול שידוך */}
+            {cancelModal && (
+                <div style={styles.overlay}>
+                    <div style={styles.cancelModalBox}>
+                        <h3 style={{ color: '#1e3a5f', margin: '0 0 6px' }}>💔 ביטול שידוך</h3>
+                        <p style={{ color: '#6b7280', margin: '0 0 16px', fontSize: '0.9rem' }}>
+                            עם: <strong>{cancelModal.name}</strong><br />
+                            בחר/י סיבה — תישלח לצד השני
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {CANCEL_REASONS.map(r => (
+                                <button
+                                    key={r.id}
+                                    onClick={() => handleCancelConnection(cancelModal.connectionId, r.text)}
+                                    style={styles.reasonBtn}
+                                >
+                                    {r.text}
+                                </button>
+                            ))}
+                        </div>
+                        <button onClick={() => setCancelModal(null)} style={styles.cancelModalCloseBtn}>
+                            ← חזור
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div style={styles.container}>
                 <h1 style={styles.title}>💍 השידוכים שלי</h1>
                 <p style={styles.subtitle}>כאן מופיעים פרטי הבירורים עבור התאמות מאושרות</p>
@@ -171,6 +225,13 @@ function Connections() {
                                                     style={alreadyApproved ? styles.doneBtn : styles.approveBtn}
                                                 >
                                                     {alreadyApproved ? 'הודעתך הועברה לשדכנית ✅' : 'סיימתי בירורים - אני מעוניין/ת 👍'}
+                                                </button>
+
+                                                <button
+                                                    onClick={() => setCancelModal({ connectionId: conn.id, name: conn.full_name })}
+                                                    style={styles.cancelConnBtn}
+                                                >
+                                                    ✕ ביטול שידוך
                                                 </button>
                                             </div>
                                         )}
@@ -347,6 +408,35 @@ const styles = {
         fontWeight: 'bold',
         fontSize: '0.9rem',
         textAlign: 'center'
+    },
+    cancelConnBtn: {
+        width: '100%', marginTop: '10px', padding: '11px',
+        background: 'transparent', color: '#9ca3af',
+        border: '1px solid #e5e7eb', borderRadius: '12px',
+        cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
+        fontFamily: 'inherit'
+    },
+    overlay: {
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 2000, padding: '20px'
+    },
+    cancelModalBox: {
+        background: '#fff', borderRadius: '16px', padding: '28px 30px',
+        maxWidth: '460px', width: '100%', direction: 'rtl',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+    },
+    reasonBtn: {
+        width: '100%', padding: '13px 16px', background: '#f8fafc',
+        border: '1px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer',
+        fontFamily: 'inherit', fontSize: '0.93rem', color: '#1e3a5f',
+        textAlign: 'right', fontWeight: 500
+    },
+    cancelModalCloseBtn: {
+        marginTop: '16px', width: '100%', padding: '11px',
+        background: '#f1f5f9', border: '1px solid #e2e8f0',
+        borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
+        fontSize: '0.9rem', color: '#64748b'
     }
 };
 

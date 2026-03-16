@@ -62,6 +62,14 @@ export default function Requests() {
     const [receivedPhoto, setReceivedPhoto] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalPerson, setModalPerson] = useState(null);
+    const [rejectPhotoModal, setRejectPhotoModal] = useState(null); // { requesterId, name }
+
+    const PHOTO_REJECT_REASONS = [
+        { id: 1, text: 'אינני מעוניין/ת לשתף תמונות בשלב זה' },
+        { id: 2, text: 'אשמח לשתף תמונות לאחר שגם אתה/ת תעלה/י תמונה לאתר' },
+        { id: 3, text: 'מעדיף/ה לשתף תמונות רק לאחר שיחות הבירור' },
+        { id: 4, text: 'אשמח לטפל בנושא זה דרך השדכנית בלבד' },
+    ];
 
     const fetchAll = useCallback(async () => {
         if (!token) { navigate('/login'); return; }
@@ -175,16 +183,18 @@ export default function Requests() {
         } catch { showToast('שגיאה', 'error'); }
     };
 
-    const handleRejectPhoto = async (requesterId) => {
-        if (!window.confirm('לדחות את בקשת התמונות?')) return;
-        await fetch('http://localhost:3000/respond-photo-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ requesterId, response: 'reject' })
-        });
-        showToast('בקשת התמונות נדחתה', 'info');
-        fetchAll();
-        window.dispatchEvent(new CustomEvent('requestsUpdated'));
+    const handleRejectPhotoWithReason = async (requesterId, reason) => {
+        try {
+            await fetch('http://localhost:3000/respond-photo-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ requesterId, response: 'reject', rejectMessage: `📷 בקשת הצפייה בתמונות נדחתה.\nסיבה: ${reason}` })
+            });
+            showToast('הבקשה נדחתה', 'info');
+            setRejectPhotoModal(null);
+            fetchAll();
+            window.dispatchEvent(new CustomEvent('requestsUpdated'));
+        } catch { showToast('שגיאה', 'error'); }
     };
 
     const totalReceived = receivedConn.length + receivedPhoto.length;
@@ -201,6 +211,29 @@ export default function Requests() {
     return (
         <div style={S.page}>
             {modalPerson && <MatchCardModal person={modalPerson} onClose={() => setModalPerson(null)} token={localStorage.getItem('token')} />}
+
+            {/* ── מודל דחיית בקשת תמונות ── */}
+            {rejectPhotoModal && (
+                <div style={S.overlay}>
+                    <div style={S.modal}>
+                        <h3 style={S.modalTitle}>❌ דחיית בקשת תמונות</h3>
+                        <p style={S.modalSub}>מאת: <strong>{rejectPhotoModal.name}</strong></p>
+                        <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '16px' }}>בחר/י סיבה — היא תישלח למבקש/ת:</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {PHOTO_REJECT_REASONS.map(r => (
+                                <button
+                                    key={r.id}
+                                    onClick={() => handleRejectPhotoWithReason(rejectPhotoModal.requesterId, r.text)}
+                                    style={S.reasonBtn}
+                                >
+                                    {r.text}
+                                </button>
+                            ))}
+                        </div>
+                        <button onClick={() => setRejectPhotoModal(null)} style={S.cancelModalBtn}>ביטול</button>
+                    </div>
+                </div>
+            )}
 
             <div style={S.container}>
                 <h1 style={S.title}>📋 הבקשות שלי</h1>
@@ -267,7 +300,10 @@ export default function Requests() {
                                                     onViewCard={handleViewCard}
                                                     onAction={() => (
                                                         <div style={{ display: 'flex', gap: 6 }}>
-                                                            <button onClick={() => handleRejectPhoto(item.requester_id)} style={S.rejectBtn}>❌</button>
+                                                            <button
+                                                                onClick={() => setRejectPhotoModal({ requesterId: item.requester_id, name: item.full_name })}
+                                                                style={S.rejectBtn}
+                                                            >❌ דחה</button>
                                                             <button onClick={() => handleApprovePhoto(item.requester_id)} style={S.approveBtn}>✅ אשר</button>
                                                         </div>
                                                     )}
@@ -421,6 +457,30 @@ const S = {
         color: '#fff', border: 'none', padding: '11px 28px',
         borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: '0.95rem',
         fontFamily: 'inherit'
+    },
+    overlay: {
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 2000, padding: '20px'
+    },
+    modal: {
+        background: '#fff', borderRadius: '16px', padding: '28px 30px',
+        maxWidth: '460px', width: '100%', direction: 'rtl',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+    },
+    modalTitle: { color: '#1e3a5f', margin: '0 0 6px', fontSize: '1.2rem' },
+    modalSub: { color: '#64748b', margin: '0 0 12px', fontSize: '0.95rem' },
+    reasonBtn: {
+        width: '100%', padding: '12px 16px', background: '#f8fafc',
+        border: '1px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer',
+        fontFamily: 'inherit', fontSize: '0.95rem', color: '#1e3a5f',
+        textAlign: 'right', transition: 'background 0.2s', fontWeight: 500
+    },
+    cancelModalBtn: {
+        marginTop: '16px', width: '100%', padding: '11px',
+        background: '#f1f5f9', border: '1px solid #e2e8f0',
+        borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
+        fontSize: '0.9rem', color: '#64748b'
     },
 };
 
