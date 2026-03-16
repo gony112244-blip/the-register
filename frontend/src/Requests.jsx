@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -78,10 +79,10 @@ export default function Requests() {
             const headers = { 'Authorization': `Bearer ${token}` };
 
             const [sc, sp, rc, rp] = await Promise.all([
-                fetch('http://localhost:3000/my-sent-requests', { headers }).then(r => r.json()),
-                fetch('http://localhost:3000/my-sent-photo-requests', { headers }).then(r => r.json()),
-                fetch(`http://localhost:3000/my-requests?userId=${user?.id}`, { headers }).then(r => r.json()),
-                fetch('http://localhost:3000/pending-photo-requests', { headers }).then(r => r.json()),
+                fetch(`${API_BASE}/my-sent-requests`, { headers }).then(r => r.json()),
+                fetch(`${API_BASE}/my-sent-photo-requests`, { headers }).then(r => r.json()),
+                fetch(`${API_BASE}/my-requests?userId=${user?.id}`, { headers }).then(r => r.json()),
+                fetch(`${API_BASE}/pending-photo-requests`, { headers }).then(r => r.json()),
             ]);
 
             setSentConn(Array.isArray(sc) ? sc : []);
@@ -101,7 +102,7 @@ export default function Requests() {
         const userId = item.user_id || item.id;
         setModalPerson(item);
         try {
-            const res = await fetch(`http://localhost:3000/match-card/${userId}`, {
+            const res = await fetch(`${API_BASE}/match-card/${userId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -112,7 +113,7 @@ export default function Requests() {
     // ── פעולות ──
     const handleApproveConn = async (connectionId) => {
         try {
-            const res = await fetch('http://localhost:3000/approve-request', {
+            const res = await fetch(`${API_BASE}/approve-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId, userId: user.id })
@@ -128,7 +129,7 @@ export default function Requests() {
     const handleRejectConn = async (connectionId) => {
         if (!window.confirm('לדחות את הפנייה?')) return;
         try {
-            await fetch('http://localhost:3000/reject-request', {
+            await fetch(`${API_BASE}/reject-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId })
@@ -142,7 +143,7 @@ export default function Requests() {
     const handleCancelConn = async (connectionId) => {
         if (!window.confirm('לבטל את הפנייה שנשלחה?')) return;
         try {
-            const res = await fetch('http://localhost:3000/cancel-request', {
+            const res = await fetch(`${API_BASE}/cancel-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId })
@@ -156,7 +157,7 @@ export default function Requests() {
 
     const handleApprovePhoto = async (requesterId) => {
         try {
-            await fetch('http://localhost:3000/respond-photo-request', {
+            await fetch(`${API_BASE}/respond-photo-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ requesterId, response: 'approve' })
@@ -170,7 +171,7 @@ export default function Requests() {
     const handleCancelPhoto = async (targetId) => {
         if (!window.confirm('לבטל את בקשת התמונות שנשלחה?')) return;
         try {
-            const res = await fetch('http://localhost:3000/cancel-photo-request', {
+            const res = await fetch(`${API_BASE}/cancel-photo-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ targetId })
@@ -185,7 +186,7 @@ export default function Requests() {
 
     const handleRejectPhotoWithReason = async (requesterId, reason) => {
         try {
-            await fetch('http://localhost:3000/respond-photo-request', {
+            await fetch(`${API_BASE}/respond-photo-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ requesterId, response: 'reject', rejectMessage: `📷 בקשת הצפייה בתמונות נדחתה.\nסיבה: ${reason}` })

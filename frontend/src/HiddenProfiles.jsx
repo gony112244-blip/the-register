@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -21,7 +22,7 @@ function HiddenProfiles() {
 
     const fetchHiddenProfiles = async () => {
         try {
-            const res = await fetch(`http://localhost:3000/api/my-hidden-profiles?userId=${user.id}`, {
+            const res = await fetch(`${API_BASE}/api/my-hidden-profiles?userId=${user.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -42,7 +43,7 @@ function HiddenProfiles() {
         setHiddenProfiles(prev => prev.filter(p => p.id !== hiddenUserId));
 
         try {
-            await fetch('http://localhost:3000/api/unhide-profile', {
+            await fetch(`${API_BASE}/api/unhide-profile`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

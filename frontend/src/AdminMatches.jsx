@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MatchCardModal from './components/MatchCardModal';
@@ -60,7 +61,7 @@ function AdminMatches() {
 
     const fetchMatches = async () => {
         try {
-            const res = await fetch('http://localhost:3000/admin/matches-to-handle', {
+            const res = await fetch(`${API_BASE}/admin/matches-to-handle`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -70,7 +71,7 @@ function AdminMatches() {
 
     const fetchShadchaniot = async () => {
         try {
-            const res = await fetch('http://localhost:3000/admin/shadchaniot', {
+            const res = await fetch(`${API_BASE}/admin/shadchaniot`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -80,7 +81,7 @@ function AdminMatches() {
 
     const fetchSuccessful = async () => {
         try {
-            const res = await fetch('http://localhost:3000/admin/successful-matches', {
+            const res = await fetch(`${API_BASE}/admin/successful-matches`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -93,8 +94,8 @@ function AdminMatches() {
         if (!shadchanitForm.name.trim()) { alert('שם חובה'); return; }
         try {
             const url = editingShadchanit
-                ? `http://localhost:3000/admin/shadchaniot/${editingShadchanit}`
-                : 'http://localhost:3000/admin/shadchaniot';
+                ? `${API_BASE}/admin/shadchaniot/${editingShadchanit}`
+                : `${API_BASE}/admin/shadchaniot`;
             const method = editingShadchanit ? 'PUT' : 'POST';
             const res = await fetch(url, {
                 method,
@@ -114,7 +115,7 @@ function AdminMatches() {
     const handleDeleteShadchanit = async (id) => {
         if (!window.confirm('למחוק שדכנית זו?')) return;
         try {
-            await fetch(`http://localhost:3000/admin/shadchaniot/${id}`, {
+            await fetch(`${API_BASE}/admin/shadchaniot/${id}`, {
                 method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
             });
             showToast('🗑️ שדכנית נמחקה');
@@ -126,7 +127,7 @@ function AdminMatches() {
         if (selectedShadchanitId === shadchanitId) { setSelectedShadchanitId(null); setShadchanitHistory(null); return; }
         setSelectedShadchanitId(shadchanitId);
         try {
-            const res = await fetch(`http://localhost:3000/admin/shadchanit-history/${shadchanitId}`, {
+            const res = await fetch(`${API_BASE}/admin/shadchanit-history/${shadchanitId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -137,7 +138,7 @@ function AdminMatches() {
     // --- שיוך שדכנית לשידוך ---
     const handleAssignShadchanit = async (connectionId, shadchanitId) => {
         try {
-            const res = await fetch(`http://localhost:3000/admin/match-shadchanit/${connectionId}`, {
+            const res = await fetch(`${API_BASE}/admin/match-shadchanit/${connectionId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ shadchanitId: shadchanitId || null })
@@ -157,7 +158,7 @@ function AdminMatches() {
     const handleSendCards = async (connectionId) => {
         if (!window.confirm('לשלוח כרטיסיות לשדכנית המשויכת?')) return;
         try {
-            const res = await fetch(`http://localhost:3000/admin/send-match-cards/${connectionId}`, {
+            const res = await fetch(`${API_BASE}/admin/send-match-cards/${connectionId}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -172,7 +173,7 @@ function AdminMatches() {
         if (closeForm.succeeded === null) { alert('בחר האם השידוך הצליח'); return; }
         if (!closeForm.succeeded && !closeForm.failReason.trim()) { alert('נא לציין סיבת סגירה'); return; }
         try {
-            const res = await fetch(`http://localhost:3000/admin/close-match/${closeModal.connectionId}`, {
+            const res = await fetch(`${API_BASE}/admin/close-match/${closeModal.connectionId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({

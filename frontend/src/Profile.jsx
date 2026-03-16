@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -83,7 +84,7 @@ function Profile() {
             }
 
             try {
-                const res = await fetch('http://localhost:3000/my-profile-data', {
+                const res = await fetch(`${API_BASE}/my-profile-data`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -346,7 +347,7 @@ function Profile() {
                     if (SAFE_FIELDS.has(key)) safeData[key] = val;
                 });
 
-                const safeRes = await fetch('http://localhost:3000/update-safe-fields', {
+                const safeRes = await fetch(`${API_BASE}/update-safe-fields`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(safeData)
@@ -377,7 +378,7 @@ function Profile() {
                         "לשלוח לבדיקת המנהל?"
                     );
                     if (confirmed) {
-                        await fetch('http://localhost:3000/request-profile-update', {
+                        await fetch(`${API_BASE}/request-profile-update`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                             body: JSON.stringify({ changes: sensitiveData })
@@ -392,7 +393,7 @@ function Profile() {
                 navigate('/matches');
             } else {
                 // פרופיל חדש או לא מאושר - עדכון רגיל
-                const res = await fetch('http://localhost:3000/update-profile', {
+                const res = await fetch(`${API_BASE}/update-profile`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify(dataToSend)
@@ -424,7 +425,7 @@ function Profile() {
         formData.append('idOwner', user.contact_person_type === 'self' ? 'self' : (user.id_card_owner_type || 'candidate'));
 
         try {
-            const res = await fetch('http://localhost:3000/upload-id-card', {
+            const res = await fetch(`${API_BASE}/upload-id-card`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` },
                 body: formData
@@ -1527,7 +1528,7 @@ function Profile() {
                                             onClick={async () => {
                                                 if (!window.confirm('למחוק את התמונה?')) return;
                                                 try {
-                                                    const res = await fetch('http://localhost:3000/delete-profile-image', {
+                                                    const res = await fetch(`${API_BASE}/delete-profile-image`, {
                                                         method: 'POST',
                                                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                                                         body: JSON.stringify({ imageUrl: imgUrl })
@@ -1570,7 +1571,7 @@ function Profile() {
                                             formData.append('profileImage', file);
 
                                             try {
-                                                const res = await fetch('http://localhost:3000/upload-profile-image', {
+                                                const res = await fetch(`${API_BASE}/upload-profile-image`, {
                                                     method: 'POST',
                                                     headers: { 'Authorization': `Bearer ${token}` },
                                                     body: formData

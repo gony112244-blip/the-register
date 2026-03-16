@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -110,7 +111,7 @@ function Register() {
 
         setIsSubmitting(true);
         try {
-            const response = await fetch('http://localhost:3000/register', {
+            const response = await fetch(`${API_BASE}/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -154,7 +155,7 @@ function Register() {
         setIsVerifying(true);
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:3000/verify-email', {
+            const response = await fetch(`${API_BASE}/verify-email`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -183,7 +184,7 @@ function Register() {
         setIsSkipping(true);
         try {
             const token = localStorage.getItem('token');
-            await fetch('http://localhost:3000/skip-email-verification', {
+            await fetch(`${API_BASE}/skip-email-verification`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -198,7 +199,7 @@ function Register() {
     const handleResendCode = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:3000/resend-verification', {
+            const response = await fetch(`${API_BASE}/resend-verification`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

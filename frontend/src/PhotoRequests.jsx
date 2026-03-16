@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,7 +23,7 @@ function PhotoRequests() {
 
     const fetchRequests = async () => {
         try {
-            const res = await fetch('http://localhost:3000/pending-photo-requests', {
+            const res = await fetch(`${API_BASE}/pending-photo-requests`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -36,7 +37,7 @@ function PhotoRequests() {
 
     const handleResponse = async (requesterId, response, rejectMessage = null) => {
         try {
-            const res = await fetch('http://localhost:3000/respond-photo-request', {
+            const res = await fetch(`${API_BASE}/respond-photo-request`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

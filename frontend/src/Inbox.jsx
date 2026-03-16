@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,7 +24,7 @@ function Inbox() {
             const user = JSON.parse(localStorage.getItem('user'));
 
             // 1. הודעות מערכת
-            const msgRes = await fetch('http://localhost:3000/my-messages', {
+            const msgRes = await fetch(`${API_BASE}/my-messages`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const msgData = await msgRes.json();
@@ -31,7 +32,7 @@ function Inbox() {
 
             // 2. בקשות שידוך
             if (user && user.id) { // וודוא שיש ID
-                const reqRes = await fetch(`http://localhost:3000/my-requests?userId=${user.id}`, {
+                const reqRes = await fetch(`${API_BASE}/my-requests?userId=${user.id}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const reqData = await reqRes.json();
@@ -39,7 +40,7 @@ function Inbox() {
             }
 
             // 3. בקשות תמונות
-            const photoRes = await fetch('http://localhost:3000/pending-photo-requests', {
+            const photoRes = await fetch(`${API_BASE}/pending-photo-requests`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const photoData = await photoRes.json();
@@ -54,7 +55,7 @@ function Inbox() {
 
     const handleMarkAsRead = async (id) => {
         try {
-            await fetch(`http://localhost:3000/mark-message-read/${id}`, {
+            await fetch(`${API_BASE}/mark-message-read/${id}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -68,7 +69,7 @@ function Inbox() {
     const handleApproveConnection = async (connectionId) => {
         const user = JSON.parse(localStorage.getItem('user'));
         try {
-            const res = await fetch('http://localhost:3000/approve-request', {
+            const res = await fetch(`${API_BASE}/approve-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId, userId: user.id })
@@ -85,7 +86,7 @@ function Inbox() {
     const handleRejectConnection = async (connectionId) => {
         if (!window.confirm("לדחות את השידוך?")) return;
         try {
-            await fetch('http://localhost:3000/reject-request', {
+            await fetch(`${API_BASE}/reject-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId })

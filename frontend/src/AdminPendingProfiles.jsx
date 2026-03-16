@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileView from './ProfileView';
@@ -25,7 +26,7 @@ function AdminPendingProfiles() {
 
     const fetchPending = async () => {
         try {
-            const res = await fetch('http://localhost:3000/admin/pending-profiles', {
+            const res = await fetch(`${API_BASE}/admin/pending-profiles`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -49,7 +50,7 @@ function AdminPendingProfiles() {
         if (!window.confirm('לאשר את השינויים?')) return;
 
         try {
-            const res = await fetch(`http://localhost:3000/admin/approve-profile-changes/${id}`, {
+            const res = await fetch(`${API_BASE}/admin/approve-profile-changes/${id}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -72,7 +73,7 @@ function AdminPendingProfiles() {
         }
 
         try {
-            const res = await fetch(`http://localhost:3000/admin/reject-profile-changes/${id}`, {
+            const res = await fetch(`${API_BASE}/admin/reject-profile-changes/${id}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

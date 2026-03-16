@@ -1,3 +1,4 @@
+import API_BASE from '../config';
 import { useState, useEffect } from 'react';
 import { useToast } from './ToastProvider';
 
@@ -45,7 +46,7 @@ export default function EmailReminderModal({ user, onUpdateUser }) {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:3000/update-email-and-send-code', {
+            const res = await fetch(`${API_BASE}/update-email-and-send-code`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -76,7 +77,7 @@ export default function EmailReminderModal({ user, onUpdateUser }) {
         setLoading(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:3000/verify-email', {
+            const res = await fetch(`${API_BASE}/verify-email`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -104,7 +105,7 @@ export default function EmailReminderModal({ user, onUpdateUser }) {
     const handleNeverAsk = async () => {
         try {
             const token = localStorage.getItem('token');
-            await fetch('http://localhost:3000/never-ask-email', {
+            await fetch(`${API_BASE}/never-ask-email`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

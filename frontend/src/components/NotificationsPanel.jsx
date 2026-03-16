@@ -1,3 +1,4 @@
+import API_BASE from '../config';
 import { useState, useEffect, useRef } from 'react';
 import { useToast } from './ToastProvider';
 
@@ -86,7 +87,7 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
         }
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/update-email-and-send-code', {
+            const res = await fetch(`${API_BASE}/update-email-and-send-code`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify({ email: emailToSend })
@@ -108,7 +109,7 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
         if (codeInput.length !== 6) { showToast('נא להזין קוד בן 6 ספרות', 'warning'); return; }
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/verify-email', {
+            const res = await fetch(`${API_BASE}/verify-email`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify({ code: codeInput })
@@ -131,7 +132,7 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
         const newVal = !user?.email_notifications_enabled;
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/toggle-email-notifications', {
+            const res = await fetch(`${API_BASE}/toggle-email-notifications`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify({ enabled: newVal })
@@ -153,7 +154,7 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
         if (!clean) { showToast('נא להזין מספר טלפון', 'warning'); return; }
         setPhoneLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/update-phone', {
+            const res = await fetch(`${API_BASE}/update-phone`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
                 body: JSON.stringify({ phone: clean })

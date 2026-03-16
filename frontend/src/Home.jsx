@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Home.css';
@@ -7,7 +8,7 @@ function Home() {
   const [openFaq, setOpenFaq] = useState(null);
 
   useEffect(() => {
-    fetch('http://localhost:3000/api/stats')
+    fetch(`${API_BASE}/api/stats`)
       .then(res => res.json())
       .then(data => setUserCount(data.totalUsers))
       .catch(err => console.error("Error fetching stats:", err));

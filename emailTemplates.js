@@ -238,7 +238,7 @@ const baseTemplate = (content, previewText = '') => `
             &nbsp;·&nbsp;
             <a href="${APP_URL}/profile">הפרופיל שלי</a>
             &nbsp;·&nbsp;
-            <a href="mailto:hapinkas.contact@gmail.com">צור קשר</a>
+            <a href="mailto:office@hapinkas.co.il">צור קשר</a>
             <br>
             <p>קיבלת מייל זה כי נרשמת למערכת "הפנקס".</p>
             <div class="footer-copy">© ${new Date().getFullYear()} הפנקס · כל הזכויות שמורות</div>

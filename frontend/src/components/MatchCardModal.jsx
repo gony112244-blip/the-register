@@ -1,3 +1,4 @@
+import API_BASE from '../config';
 import { useState, useEffect } from 'react';
 
 // ── תרגומים ──
@@ -73,8 +74,8 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
         setLoadingFull(true);
         // אדמין — משתמש ב-endpoint מלא של מנהל
         const url = isAdmin
-            ? `http://localhost:3000/admin/user/${targetId}/full`
-            : `http://localhost:3000/match-card/${targetId}`;
+            ? `${API_BASE}/admin/user/${targetId}/full`
+            : `${API_BASE}/match-card/${targetId}`;
         fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
             .then(r => r.ok ? r.json() : null)
             .then(data => { if (data) setFullData(data); })
@@ -88,7 +89,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
 
         if (isAdmin) {
             // אדמין — גישה ישירה לתמונות ללא בדיקת הרשאות
-            fetch(`http://localhost:3000/admin/user-photos/${targetId}`, {
+            fetch(`${API_BASE}/admin/user-photos/${targetId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
                 .then(r => r.json())
@@ -100,14 +101,14 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
             return;
         }
 
-        fetch(`http://localhost:3000/check-photo-access/${targetId}`, {
+        fetch(`${API_BASE}/check-photo-access/${targetId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
             .then(r => r.json())
             .then(data => {
                 setPhotoAccess(data);
                 if (data.canView) {
-                    fetch(`http://localhost:3000/get-user-photos/${targetId}`, {
+                    fetch(`${API_BASE}/get-user-photos/${targetId}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     })
                         .then(r => r.json())

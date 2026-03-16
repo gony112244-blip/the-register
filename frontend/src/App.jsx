@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ToastProvider } from './components/ToastProvider';
 import { useEffect, useState } from 'react';
@@ -84,7 +85,7 @@ function AppContent() {
             navigate('/profile');
           } else {
             // משתמש רשום כבר — אם יש מגדר וגיל, שלח להתאמות/הודעות (גם אם מחכה לאישור)
-            fetch('http://localhost:3000/my-messages', {
+            fetch(`${API_BASE}/my-messages`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             .then(res => res.json())

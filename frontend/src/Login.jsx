@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -13,7 +14,7 @@ function Login() {
         e.preventDefault();
 
         try {
-            const response = await fetch('http://localhost:3000/login', {
+            const response = await fetch(`${API_BASE}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, password })
@@ -41,7 +42,7 @@ function Login() {
                 } else if (loggedUser.gender && (loggedUser.age || loggedUser.birth_date)) {
                     // משתמש עם מגדר ותאריך לידה / גיל — שלח להתאמות/הודעות
                     try {
-                        const msgRes = await fetch('http://localhost:3000/my-messages', {
+                        const msgRes = await fetch(`${API_BASE}/my-messages`, {
                             headers: { 'Authorization': `Bearer ${data.token}` }
                         });
                         const msgData = await msgRes.json();

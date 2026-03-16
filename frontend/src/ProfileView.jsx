@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +16,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
             return;
         }
         if (!token) { navigate('/login'); return; }
-        fetch('http://localhost:3000/my-profile', {
+        fetch(`${API_BASE}/my-profile`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
             .then(res => res.json())

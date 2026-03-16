@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import NotificationsPanel from './components/NotificationsPanel';
@@ -11,8 +12,8 @@ function RequestsLink({ token, userId }) {
     if (!token || !userId) return;
     const h = { 'Authorization': `Bearer ${token}` };
     Promise.all([
-      fetch(`http://localhost:3000/my-requests?userId=${userId}`, { headers: h }).then(r => r.json()).catch(() => []),
-      fetch('http://localhost:3000/pending-photo-requests', { headers: h }).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE}/my-requests?userId=${userId}`, { headers: h }).then(r => r.json()).catch(() => []),
+      fetch(`${API_BASE}/pending-photo-requests`, { headers: h }).then(r => r.json()).catch(() => []),
     ]).then(([conn, photo]) => {
       setCount((Array.isArray(conn) ? conn.length : 0) + (Array.isArray(photo) ? photo.length : 0));
     });
@@ -73,7 +74,7 @@ function Navbar() {
   const fetchAdminStats = useCallback(() => {
     if (!user?.is_admin) return;
     const token = localStorage.getItem('token');
-    fetch('http://localhost:3000/admin/stats', {
+    fetch(`${API_BASE}/admin/stats`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
@@ -93,7 +94,7 @@ function Navbar() {
   useEffect(() => {
     if (!user || user.is_admin) return;
     const token = localStorage.getItem('token');
-    fetch(`http://localhost:3000/my-connections?userId=${user.id}`, {
+    fetch(`${API_BASE}/my-connections?userId=${user.id}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(r => r.json())

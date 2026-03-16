@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileView from './ProfileView';
@@ -45,7 +46,7 @@ function AdminUsers() {
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch('http://localhost:3000/admin/all-users', {
+            const res = await fetch(`${API_BASE}/admin/all-users`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -63,7 +64,7 @@ function AdminUsers() {
         setHistoryData(null);
         setActiveTab('profile');
         try {
-            const res = await fetch(`http://localhost:3000/admin/user/${userId}/full`, {
+            const res = await fetch(`${API_BASE}/admin/user/${userId}/full`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -80,7 +81,7 @@ function AdminUsers() {
     const fetchHistory = async (userId) => {
         setHistoryLoading(true);
         try {
-            const res = await fetch(`http://localhost:3000/admin/user-history/${userId}`, {
+            const res = await fetch(`${API_BASE}/admin/user-history/${userId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -95,7 +96,7 @@ function AdminUsers() {
     const handleApprove = async (userId) => {
         if (!window.confirm('האם לאשר את המשתמש?')) return;
         try {
-            const res = await fetch(`http://localhost:3000/admin/approve/${userId}`, {
+            const res = await fetch(`${API_BASE}/admin/approve/${userId}`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -115,7 +116,7 @@ function AdminUsers() {
         const reason = block ? prompt('סיבת החסימה (אופציונלי):') : null;
         if (block && reason === null) return;
         try {
-            const res = await fetch('http://localhost:3000/admin/block-user', {
+            const res = await fetch(`${API_BASE}/admin/block-user`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ userId, block, reason })
@@ -133,7 +134,7 @@ function AdminUsers() {
 
     const handleSaveNote = async () => {
         try {
-            const res = await fetch('http://localhost:3000/admin/user-note', {
+            const res = await fetch(`${API_BASE}/admin/user-note`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ userId: selectedUser.id, note: noteText })
@@ -152,7 +153,7 @@ function AdminUsers() {
     const handleDelete = async (userId) => {
         if (!window.confirm('⚠️ האם למחוק את המשתמש לצמיתות? פעולה זו אינה ניתנת לביטול!')) return;
         try {
-            const res = await fetch(`http://localhost:3000/admin/delete-user/${userId}`, {
+            const res = await fetch(`${API_BASE}/admin/delete-user/${userId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -171,7 +172,7 @@ function AdminUsers() {
     const handleSendMessage = async () => {
         if (!messageText.trim()) return;
         try {
-            const res = await fetch('http://localhost:3000/admin/send-message', {
+            const res = await fetch(`${API_BASE}/admin/send-message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ userId: selectedUser.id, message: messageText })

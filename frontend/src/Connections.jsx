@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MatchCardModal from './components/MatchCardModal';
@@ -21,7 +22,7 @@ function Connections() {
 
     const fetchConnections = async (userId) => {
         try {
-            const res = await fetch(`http://localhost:3000/my-connections?userId=${userId}`, {
+            const res = await fetch(`${API_BASE}/my-connections?userId=${userId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
@@ -54,7 +55,7 @@ function Connections() {
 
     const handleCancelConnection = async (connectionId, reason) => {
         try {
-            const res = await fetch('http://localhost:3000/cancel-active-connection', {
+            const res = await fetch(`${API_BASE}/cancel-active-connection`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId, reason })
@@ -72,7 +73,7 @@ function Connections() {
 
     const handleFinalApprove = async (connectionId) => {
         try {
-            const res = await fetch('http://localhost:3000/finalize-connection', {
+            const res = await fetch(`${API_BASE}/finalize-connection`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

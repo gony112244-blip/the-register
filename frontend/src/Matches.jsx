@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -41,7 +42,7 @@ function Matches() {
     const fetchMatches = useCallback(async () => {
         try {
             setLoading(true);
-            const res = await fetch(`http://localhost:3000/matches?userId=${user.id}`, {
+            const res = await fetch(`${API_BASE}/matches?userId=${user.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -60,7 +61,7 @@ function Matches() {
 
     const fetchSentRequests = useCallback(async () => {
         try {
-            const res = await fetch('http://localhost:3000/my-sent-requests', {
+            const res = await fetch(`${API_BASE}/my-sent-requests`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -74,7 +75,7 @@ function Matches() {
 
     const checkPhotoStatus = async (targetId) => {
         try {
-            const res = await fetch(`http://localhost:3000/check-photo-access/${targetId}`, {
+            const res = await fetch(`${API_BASE}/check-photo-access/${targetId}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -90,7 +91,7 @@ function Matches() {
         setModalMatch(match);
         // ואז ננסה לטעון פרטים מלאים יותר ברקע
         try {
-            const res = await fetch(`http://localhost:3000/match-card/${match.id}`, {
+            const res = await fetch(`${API_BASE}/match-card/${match.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -101,7 +102,7 @@ function Matches() {
     const handleRequestPhoto = async (targetId) => {
         setRequestingPhoto(targetId);
         try {
-            const res = await fetch('http://localhost:3000/request-photo-access', {
+            const res = await fetch(`${API_BASE}/request-photo-access`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ targetId })
@@ -123,7 +124,7 @@ function Matches() {
     const handleConnect = async (targetId) => {
         setConnectingId(targetId);
         try {
-            const res = await fetch('http://localhost:3000/connect', {
+            const res = await fetch(`${API_BASE}/connect`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ myId: user.id, targetId })
@@ -147,7 +148,7 @@ function Matches() {
         if (!window.confirm('להעביר את הפרופיל לסל המיחזור?')) return;
         setMatches(prev => prev.filter(m => m.id !== hiddenUserId));
         try {
-            await fetch('http://localhost:3000/api/hide-profile', {
+            await fetch(`${API_BASE}/api/hide-profile`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ userId: user.id, hiddenUserId })

@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,7 +27,7 @@ function ForgotPassword() {
 
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/forgot-password', {
+            const res = await fetch(`${API_BASE}/forgot-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, method, email })
@@ -58,7 +59,7 @@ function ForgotPassword() {
 
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/verify-reset-code', {
+            const res = await fetch(`${API_BASE}/verify-reset-code`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, code })
@@ -94,7 +95,7 @@ function ForgotPassword() {
 
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:3000/reset-password', {
+            const res = await fetch(`${API_BASE}/reset-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, code, newPassword })

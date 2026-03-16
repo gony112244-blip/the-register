@@ -1,3 +1,4 @@
+import API_BASE from './config';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -16,7 +17,7 @@ function AdminDashboard() {
 
     const fetchStats = async (token) => {
         try {
-            const res = await fetch('http://localhost:3000/admin/stats', {
+            const res = await fetch(`${API_BASE}/admin/stats`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();

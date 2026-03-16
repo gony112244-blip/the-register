@@ -59,8 +59,7 @@ app.use(express.json());
 
 
 
-// הסבר: הגדרת תיקיית uploads כסטטית - כך אפשר לגשת לתמונות מהדפדפן
-// לדוגמא: http://localhost:3000/uploads/image-123.jpg
+// הגדרת תיקיות סטטיות
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const port = process.env.PORT || 3000;
@@ -3556,6 +3555,16 @@ async function updateDbSchema() {
 }
 
 updateDbSchema().then(() => {
+    // הגשת frontend בפרודקשן — חייב להיות אחרי כל ה-API routes
+    const distPath = path.join(__dirname, 'frontend', 'dist');
+    if (require('fs').existsSync(distPath)) {
+        app.use(express.static(distPath));
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(distPath, 'index.html'));
+        });
+        console.log('📦 Frontend served from dist/');
+    }
+
     app.listen(port, () => {
         console.log(`🚀 שרת השידוכים רץ בפורט ${port}: http://localhost:${port}/status`);
     });
