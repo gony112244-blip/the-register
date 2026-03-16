@@ -1306,19 +1306,21 @@ app.get('/check-photo-access/:targetId', authenticateToken, async (req, res) => 
     if (isNaN(targetId)) return res.status(400).json({ canView: false });
 
     try {
-        // בדיקה דו-כיוונית: אם אחד מהצדדים אישר — שניהם רואים, ל-48 שעות
+        // בדיקה דו-כיוונית: אם אחד מהצדדים אישר — שניהם רואים
+        // updated_at IS NULL מייצג רשומות ישנות שאושרו לפני הוספת העמודה — עדיין מאפשרות צפייה
         const result = await pool.query(
-            `SELECT status, updated_at FROM photo_approvals 
+            `SELECT status, updated_at FROM photo_approvals
              WHERE status = 'approved'
-               AND updated_at > NOW() - INTERVAL '48 hours'
+               AND (updated_at IS NULL OR updated_at > NOW() - INTERVAL '48 hours')
                AND ((requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1))
              LIMIT 1`,
             [requesterId, targetId]
         );
 
         const canView = result.rows.length > 0;
-        const expiresAt = canView
-            ? new Date(new Date(result.rows[0].updated_at).getTime() + 48 * 60 * 60 * 1000).toISOString()
+        const updatedAt = result.rows[0]?.updated_at;
+        const expiresAt = (canView && updatedAt)
+            ? new Date(new Date(updatedAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
             : null;
 
         res.json({ canView, expiresAt });
@@ -1334,11 +1336,11 @@ app.get('/get-user-photos/:targetId', authenticateToken, async (req, res) => {
     if (isNaN(targetId)) return res.status(400).json({ message: "מזהה לא תקין" });
 
     try {
-        // בדיקת הרשאה דו-כיוונית עם חלון 48 שעות
+        // בדיקת הרשאה דו-כיוונית (updated_at IS NULL = רשומות ישנות, מאפשרות צפייה)
         const permission = await pool.query(
             `SELECT id FROM photo_approvals 
              WHERE status = 'approved'
-               AND updated_at > NOW() - INTERVAL '48 hours'
+               AND (updated_at IS NULL OR updated_at > NOW() - INTERVAL '48 hours')
                AND ((requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1))
              LIMIT 1`,
             [requesterId, targetId]
@@ -2248,11 +2250,11 @@ app.post('/admin/send-message', authenticateToken, async (req, res) => {
 app.post('/connect', authenticateToken, async (req, res) => {
     const { myId, targetId } = req.body;
     try {
-        // בדיקה אם כבר יש בקשה פעילה/ממתינה בין השניים (למנוע כפילויות)
+        // בדיקה אם כבר יש בקשה פעילה/ממתינה בין השניים (ביטול ודחייה מאפשרים פנייה מחדש)
         const existing = await pool.query(
-            `SELECT id FROM connections 
+            `SELECT id FROM connections
              WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
-             AND status != 'rejected'`,
+             AND status NOT IN ('rejected', 'cancelled')`,
             [myId, targetId]
         );
         if (existing.rows.length > 0) {
@@ -2373,10 +2375,21 @@ app.post('/cancel-request', authenticateToken, async (req, res) => {
     const { connectionId } = req.body;
     try {
         const check = await pool.query(
-            'SELECT id FROM connections WHERE id = $1 AND sender_id = $2 AND status = \'pending\'',
+            `SELECT c.id, c.receiver_id, u.full_name AS sender_name
+             FROM connections c JOIN users u ON u.id = c.sender_id
+             WHERE c.id = $1 AND c.sender_id = $2 AND c.status = 'pending'`,
             [connectionId, userId]
         );
         if (check.rows.length === 0) return res.status(403).json({ message: "לא ניתן לבטל" });
+
+        const { receiver_id, sender_name } = check.rows[0];
+
+        // שליחת הודעה למקבל לפני המחיקה
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES ($1, $2, $3, 'system')`,
+            [userId, receiver_id, `ℹ️ ${sender_name} ביטל/ה את פנייתו/ה.`]
+        );
+
         await pool.query('DELETE FROM connections WHERE id = $1', [connectionId]);
         res.json({ message: "הבקשה בוטלה" });
     } catch (err) {

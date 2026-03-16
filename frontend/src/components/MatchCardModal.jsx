@@ -189,7 +189,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                     {photoAccess?.canView && photos.length > 0 ? (
                         <div style={{ padding: '12px 20px 16px' }}>
                             <div style={{ color: '#c9a227', fontWeight: 'bold', marginBottom: 8, fontSize: '0.9rem' }}>
-                                📷 תמונות (גלוי עד {new Date(photoAccess.expiresAt).toLocaleString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })})
+                                📷 תמונות {photoAccess.expiresAt ? `(גלוי עד ${new Date(photoAccess.expiresAt).toLocaleString('he-IL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })})` : ''}
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 {photos.map((url, i) => (
