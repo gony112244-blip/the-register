@@ -2547,15 +2547,18 @@ app.get('/admin/matches-to-handle', authenticateToken, async (req, res) => {
         const query = `
             SELECT 
                 c.id AS connection_id,
+                c.status, c.shadchanit_id,
                 -- פרטי צד א' (השולח)
+                c.sender_id,
                 u1.full_name AS sender_name, u1.phone AS sender_phone, 
-                u1.age AS sender_age, u1.sector AS sender_sector,
+                u1.age AS sender_age, u1.heritage_sector AS sender_sector,
                 u1.rabbi_name AS sender_rabbi, u1.rabbi_phone AS sender_rabbi_phone,
                 u1.reference_1_name AS s_ref1, u1.reference_1_phone AS s_ref1_phone,
                 
                 -- פרטי צד ב' (המקבל)
+                c.receiver_id,
                 u2.full_name AS receiver_name, u2.phone AS receiver_phone, 
-                u2.age AS receiver_age, u2.sector AS receiver_sector,
+                u2.age AS receiver_age, u2.heritage_sector AS receiver_sector,
                 u2.rabbi_name AS receiver_rabbi, u2.rabbi_phone AS receiver_rabbi_phone,
                 u2.reference_1_name AS r_ref1, u2.reference_1_phone AS r_ref1_phone
 
@@ -2563,6 +2566,7 @@ app.get('/admin/matches-to-handle', authenticateToken, async (req, res) => {
             JOIN users u1 ON c.sender_id = u1.id
             JOIN users u2 ON c.receiver_id = u2.id
             WHERE c.status = 'waiting_for_shadchan'
+            ORDER BY c.updated_at DESC
         `;
 
         const result = await pool.query(query);
@@ -2571,6 +2575,251 @@ app.get('/admin/matches-to-handle', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error("Error fetching admin matches:", err);
         res.status(500).json({ message: "שגיאת שרת בשליפת שידוכים" });
+    }
+});
+
+// ==========================================
+// 👰 ניהול שדכניות ושידוכים
+// ==========================================
+
+// סגירת תיק שידוך - סימון כטופל (ישן)
+app.put('/admin/mark-handled/:connectionId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { connectionId } = req.params;
+    try {
+        await pool.query(`UPDATE connections SET status = 'handled' WHERE id = $1`, [connectionId]);
+        res.json({ message: "התיק סומן כטופל" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// שליפת כל השדכניות
+app.get('/admin/shadchaniot', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    try {
+        const result = await pool.query(
+            `SELECT s.*, 
+                    COUNT(c.id) FILTER (WHERE c.status NOT IN ('handled','rejected','cancelled')) AS active_matches,
+                    COUNT(c.id) FILTER (WHERE c.match_succeeded = true) AS successful_matches
+             FROM shadchaniot s
+             LEFT JOIN connections c ON c.shadchanit_id = s.id
+             GROUP BY s.id
+             ORDER BY s.name`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// הוספת שדכנית
+app.post('/admin/shadchaniot', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { name, phone, email } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO shadchaniot (name, phone, email) VALUES ($1, $2, $3) RETURNING *`,
+            [name, phone, email]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// עדכון שדכנית
+app.put('/admin/shadchaniot/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { name, phone, email } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE shadchaniot SET name=$1, phone=$2, email=$3 WHERE id=$4 RETURNING *`,
+            [name, phone, email, req.params.id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// מחיקת שדכנית
+app.delete('/admin/shadchaniot/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    try {
+        await pool.query(`UPDATE connections SET shadchanit_id = NULL WHERE shadchanit_id = $1`, [req.params.id]);
+        await pool.query(`DELETE FROM shadchaniot WHERE id = $1`, [req.params.id]);
+        res.json({ message: "נמחקה" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// שיוך שדכנית לשידוך
+app.put('/admin/match-shadchanit/:connectionId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { shadchanitId } = req.body;
+    try {
+        await pool.query(`UPDATE connections SET shadchanit_id = $1 WHERE id = $2`, [shadchanitId || null, req.params.connectionId]);
+        res.json({ message: "שדכנית עודכנה" });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// שליחת כרטיסיות לשדכנית במייל
+app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { connectionId } = req.params;
+    try {
+        // שליפת פרטי השידוך, המשתמשים, והשדכנית
+        const matchRes = await pool.query(`
+            SELECT c.*,
+                u1.full_name AS sender_name, u1.last_name AS sender_last, u1.age AS sender_age,
+                u1.phone AS sender_phone, u1.email AS sender_email,
+                u1.city AS sender_city, u1.heritage_sector AS sender_sector,
+                u1.rabbi_name AS sender_rabbi, u1.rabbi_phone AS sender_rabbi_phone,
+                u1.contact_person_name AS sender_contact, u1.contact_phone_1 AS sender_contact_phone,
+                u1.gender AS sender_gender, u1.profile_images AS sender_images,
+                u2.full_name AS receiver_name, u2.last_name AS receiver_last, u2.age AS receiver_age,
+                u2.phone AS receiver_phone, u2.email AS receiver_email,
+                u2.city AS receiver_city, u2.heritage_sector AS receiver_sector,
+                u2.rabbi_name AS receiver_rabbi, u2.rabbi_phone AS receiver_rabbi_phone,
+                u2.contact_person_name AS receiver_contact, u2.contact_phone_1 AS receiver_contact_phone,
+                u2.gender AS receiver_gender, u2.profile_images AS receiver_images,
+                s.name AS shadchanit_name, s.email AS shadchanit_email
+            FROM connections c
+            JOIN users u1 ON c.sender_id = u1.id
+            JOIN users u2 ON c.receiver_id = u2.id
+            LEFT JOIN shadchaniot s ON c.shadchanit_id = s.id
+            WHERE c.id = $1
+        `, [connectionId]);
+
+        if (!matchRes.rows.length) return res.status(404).json({ message: "שידוך לא נמצא" });
+        const m = matchRes.rows[0];
+
+        if (!m.shadchanit_email) return res.status(400).json({ message: "לא שויכה שדכנית לשידוך זה" });
+
+        const sectorLabels = {
+            haredi: 'חרדי', dati_leumi: 'דתי לאומי', ashkenazi: 'אשכנזי',
+            sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב'
+        };
+
+        const cardHTML = (side, data) => `
+            <div style="background:#f8f9fa;padding:16px;border-radius:10px;margin-bottom:16px;border-right:4px solid #c9a227">
+                <h3 style="color:#1e3a5f;margin:0 0 10px">${side}</h3>
+                <p><strong>שם:</strong> ${data.name} ${data.last || ''}</p>
+                <p><strong>גיל:</strong> ${data.age}</p>
+                <p><strong>עיר:</strong> ${data.city || 'לא צוין'}</p>
+                <p><strong>מגזר:</strong> ${sectorLabels[data.sector] || data.sector || 'לא צוין'}</p>
+                <p><strong>טלפון:</strong> ${data.phone || 'לא צוין'}</p>
+                <p><strong>מייל:</strong> ${data.email || 'לא צוין'}</p>
+                <p><strong>רב/ממליץ:</strong> ${data.rabbi || 'לא צוין'} ${data.rabbiPhone ? `(${data.rabbiPhone})` : ''}</p>
+                <p><strong>איש קשר:</strong> ${data.contact || 'לא צוין'} ${data.contactPhone ? `(${data.contactPhone})` : ''}</p>
+            </div>
+        `;
+
+        const emailBody = `
+            <div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+                <h2 style="color:#1e3a5f;text-align:center">💍 כרטיסיות שידוך</h2>
+                <p>שלום ${m.shadchanit_name},</p>
+                <p>להלן פרטי הזוג שהועבר לטיפולך:</p>
+                ${cardHTML('צד א׳', {
+                    name: m.sender_name, last: m.sender_last, age: m.sender_age,
+                    city: m.sender_city, sector: m.sender_sector, phone: m.sender_phone,
+                    email: m.sender_email, rabbi: m.sender_rabbi, rabbiPhone: m.sender_rabbi_phone,
+                    contact: m.sender_contact, contactPhone: m.sender_contact_phone
+                })}
+                ${cardHTML('צד ב׳', {
+                    name: m.receiver_name, last: m.receiver_last, age: m.receiver_age,
+                    city: m.receiver_city, sector: m.receiver_sector, phone: m.receiver_phone,
+                    email: m.receiver_email, rabbi: m.receiver_rabbi, rabbiPhone: m.receiver_rabbi_phone,
+                    contact: m.receiver_contact, contactPhone: m.receiver_contact_phone
+                })}
+                <p style="color:#666;font-size:0.85rem;margin-top:20px">נשלח ממערכת השידוכים האדמיניסטרטיבית</p>
+            </div>
+        `;
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+            to: m.shadchanit_email,
+            subject: `💍 כרטיסיות שידוך: ${m.sender_name} & ${m.receiver_name}`,
+            html: emailBody
+        });
+
+        res.json({ message: "הכרטיסיות נשלחו בהצלחה" });
+    } catch (err) {
+        console.error("Error sending match cards:", err);
+        res.status(500).json({ message: "שגיאה בשליחת המייל" });
+    }
+});
+
+// סגירת שידוך (הצלחה / כישלון)
+app.post('/admin/close-match/:connectionId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { connectionId } = req.params;
+    const { succeeded, failReason, summary } = req.body;
+    try {
+        if (succeeded) {
+            await pool.query(
+                `UPDATE connections SET status = 'successful', match_succeeded = true, close_summary = $1, closed_at = NOW() WHERE id = $2`,
+                [summary || null, connectionId]
+            );
+        } else {
+            // כישלון: מחזירים למצב רגיל ומוחקים מהמסך
+            await pool.query(
+                `UPDATE connections SET status = 'rejected', match_succeeded = false, fail_reason = $1, close_summary = $2, closed_at = NOW() WHERE id = $3`,
+                [failReason || null, summary || null, connectionId]
+            );
+            // מחיקת כל האישורים כדי שיוכלו להתחיל מחדש
+            await pool.query(`DELETE FROM photo_approvals WHERE connection_id = $1`, [connectionId]);
+        }
+        res.json({ message: "השידוך נסגר" });
+    } catch (err) {
+        console.error("Error closing match:", err);
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// שליפת שידוכים שהצליחו
+app.get('/admin/successful-matches', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    try {
+        const result = await pool.query(`
+            SELECT c.id, c.closed_at, c.close_summary,
+                u1.full_name AS sender_name, u1.age AS sender_age,
+                u2.full_name AS receiver_name, u2.age AS receiver_age,
+                s.name AS shadchanit_name
+            FROM connections c
+            JOIN users u1 ON c.sender_id = u1.id
+            JOIN users u2 ON c.receiver_id = u2.id
+            LEFT JOIN shadchaniot s ON c.shadchanit_id = s.id
+            WHERE c.match_succeeded = true
+            ORDER BY c.closed_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// היסטוריית שדכנית
+app.get('/admin/shadchanit-history/:shadchanitId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    try {
+        const result = await pool.query(`
+            SELECT c.id, c.status, c.closed_at, c.match_succeeded, c.fail_reason, c.close_summary,
+                u1.full_name AS sender_name, u2.full_name AS receiver_name
+            FROM connections c
+            JOIN users u1 ON c.sender_id = u1.id
+            JOIN users u2 ON c.receiver_id = u2.id
+            WHERE c.shadchanit_id = $1 AND c.closed_at IS NOT NULL
+            ORDER BY c.closed_at DESC
+        `, [req.params.shadchanitId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
     }
 });
 
@@ -2687,6 +2936,41 @@ app.get('/admin/all-users', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error("Error fetching all users:", err);
         res.status(500).json({ message: "שגיאה בטעינת משתמשים" });
+    }
+});
+
+// היסטוריית משתמש (הודעות + חיבורים) - לשימוש מנהל
+app.get('/admin/user-history/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const { userId } = req.params;
+    try {
+        const messages = await pool.query(
+            `SELECT m.*, 
+                    u_from.full_name AS from_name
+             FROM messages m
+             LEFT JOIN users u_from ON m.from_user_id = u_from.id
+             WHERE m.to_user_id = $1 OR m.from_user_id = $1
+             ORDER BY m.created_at DESC
+             LIMIT 50`,
+            [userId]
+        );
+
+        const connections = await pool.query(
+            `SELECT c.id, c.status, c.created_at, c.updated_at,
+                    u1.full_name AS sender_name, u1.id AS sender_id,
+                    u2.full_name AS receiver_name, u2.id AS receiver_id
+             FROM connections c
+             JOIN users u1 ON c.sender_id = u1.id
+             JOIN users u2 ON c.receiver_id = u2.id
+             WHERE c.sender_id = $1 OR c.receiver_id = $1
+             ORDER BY c.created_at DESC`,
+            [userId]
+        );
+
+        res.json({ messages: messages.rows, connections: connections.rows });
+    } catch (err) {
+        console.error("Error fetching user history:", err);
+        res.status(500).json({ message: "שגיאה בטעינת היסטוריה" });
     }
 });
 
@@ -3012,7 +3296,25 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 // ==========================================
 async function updateDbSchema() {
     try {
-        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(255);');
+        // טבלת שדכניות
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS shadchaniot (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                phone VARCHAR(50),
+                email VARCHAR(255),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        // עמודות נוספות לטבלת connections
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS shadchanit_id INTEGER REFERENCES shadchaniot(id)`);
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS match_succeeded BOOLEAN`);
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS fail_reason TEXT`);
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS close_summary TEXT`);
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`);
+
+        await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(255)');
         // 7. הוספת עמודות לוויזארד החדש (אם חסרות)
         // birth_date
         await pool.query(`

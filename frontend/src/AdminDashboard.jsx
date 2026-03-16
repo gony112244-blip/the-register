@@ -1,45 +1,26 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
-import { Doughnut, Bar } from 'react-chartjs-2';
-
-// רישום רכיבי הגרפים
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
 function AdminDashboard() {
     const navigate = useNavigate();
-    const [stats, setStats] = useState({
-        total: 0,
-        pending: 0,
-        matches: 0,
-        sectors: [],
-        monthly: []
-    });
+    const [stats, setStats] = useState({ total: 0, pending: 0, matches: 0, sectors: [], monthly: [] });
     const [loading, setLoading] = useState(true);
+    const [showStats, setShowStats] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
         const user = JSON.parse(localStorage.getItem('user'));
-
-        if (!token || !user?.is_admin) {
-            navigate('/login');
-            return;
-        }
-
+        if (!token || !user?.is_admin) { navigate('/login'); return; }
         fetchStats(token);
     }, [navigate]);
 
     const fetchStats = async (token) => {
         try {
-            // קריאה אחת יעילה לכל הנתונים
             const res = await fetch('http://localhost:3000/admin/stats', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-
-            if (res.ok) {
-                setStats(data);
-            }
+            if (res.ok) setStats(data);
         } catch (err) {
             console.error("שגיאה בטעינת דשבורד", err);
         }
@@ -47,215 +28,215 @@ function AdminDashboard() {
     };
 
     if (loading) return (
-        <div style={styles.loadingContainer}>
-            <div style={styles.spinner}></div>
-            <h2>טוען דשבורד...</h2>
+        <div style={s.loadingContainer}>
+            <div style={s.spinner}></div>
+            <h2 style={{ color: '#fff' }}>טוען...</h2>
         </div>
     );
 
-    // נתוני גרף עוגה (מגזרים)
-    const pieData = {
-        labels: stats.sectors.map(s => s.sector || 'לא מוגדר'),
-        datasets: [{
-            data: stats.sectors.map(s => s.count),
-            backgroundColor: ['#36A2EB', '#FF6384', '#FFCE56', '#4BC0C0', '#9966FF', '#C9CBCF'],
-            borderWidth: 2,
-            borderColor: '#fff'
-        }],
-    };
-
-    // נתוני גרף עמודות (הרשמות חודשיות)
-    const barData = {
-        labels: stats.monthly.map(m => m.month),
-        datasets: [{
-            label: 'נרשמים חדשים',
-            data: stats.monthly.map(m => m.count),
-            backgroundColor: '#c9a227',
-            borderRadius: 5
-        }]
-    };
-
-    const barOptions = {
-        responsive: true,
-        plugins: {
-            legend: { display: false },
-            title: { display: true, text: 'מגמת הצטרפות (חצי שנה אחרונה)' }
-        }
+    const sectorLabels = {
+        ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני',
+        haredi: 'חרדי', dati_leumi: 'דתי לאומי', mixed: 'מעורב', other: 'אחר'
     };
 
     return (
-        <div style={styles.page}>
-            <div style={styles.container}>
-                <h1 style={styles.title}>📊 דשבורד מנהל</h1>
-                <p style={styles.subtitle}>תמונת מצב בזמן אמת</p>
-                
-                {/* התראת משימות לטיפול */}
+        <div style={s.page}>
+            <div style={s.container}>
+                <h1 style={s.title}>🏠 לוח בקרה</h1>
+
+                {/* התראות פעולות נדרשות */}
                 {(stats.pending > 0 || stats.matches > 0) && (
-                    <div style={styles.alertBanner}>
-                        <div style={{fontSize: '1.5rem'}}>🔔</div>
-                        <div>
-                            <strong>פעולות ממתינות לטיפול:</strong><br/>
-                            {stats.pending > 0 && <span>- ישנם {stats.pending} משתמשים הממתינים לאישור או עדכון פרופיל.<br/></span>}
-                            {stats.matches > 0 && <span>- ישנם {stats.matches} הצעות שידוך פעילות שכדאי לבדוק או להעביר לשדכנית.<br/></span>}
+                    <div style={s.alertBanner}>
+                        <span style={{ fontSize: '1.4rem' }}>🔔</span>
+                        <div style={{ flex: 1 }}>
+                            {stats.pending > 0 && (
+                                <div>⚠️ <strong>{stats.pending}</strong> משתמשים ממתינים לאישור</div>
+                            )}
+                            {stats.matches > 0 && (
+                                <div>💍 <strong>{stats.matches}</strong> שידוכים פעילים הממתינים לטיפול</div>
+                            )}
                         </div>
-                        <button onClick={() => navigate(stats.pending > 0 ? '/admin/pending-profiles' : '/admin/matches')} style={styles.alertBtn}>
-                            לטפל עכשיו ←
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {stats.pending > 0 && (
+                                <button onClick={() => navigate('/admin/pending-profiles')} style={s.alertBtn}>
+                                    לאישורים ←
+                                </button>
+                            )}
+                            {stats.matches > 0 && (
+                                <button onClick={() => navigate('/admin/matches')} style={{ ...s.alertBtn, background: '#1e3a5f' }}>
+                                    לשידוכים ←
+                                </button>
+                            )}
+                        </div>
                     </div>
                 )}
 
-                {/* KPI Cards */}
-                <div style={styles.statsGrid}>
-                    <div style={styles.statCard}>
-                        <div style={styles.statIcon}>👥</div>
-                        <div style={styles.statNumber}>{stats.total}</div>
-                        <div style={styles.statLabel}>סה"כ משתמשים</div>
+                {/* כרטיסי KPI */}
+                <div style={s.kpiGrid}>
+                    <div style={{ ...s.kpiCard, cursor: 'pointer' }} onClick={() => navigate('/admin/users')}>
+                        <div style={s.kpiIcon}>👥</div>
+                        <div style={s.kpiNum}>{stats.total}</div>
+                        <div style={s.kpiLabel}>סה"כ משתמשים</div>
+                        <div style={s.kpiLink}>צפה ברשימה ←</div>
                     </div>
-                    <div style={{ ...styles.statCard, borderRight: '5px solid #ffc107' }}>
-                        <div style={styles.statIcon}>⏳</div>
-                        <div style={styles.statNumber}>{stats.pending}</div>
-                        <div style={styles.statLabel}>ממתינים לאישור</div>
+                    <div style={{ ...s.kpiCard, borderTop: '4px solid #f59e0b', cursor: 'pointer' }} onClick={() => navigate('/admin/pending-profiles')}>
+                        <div style={s.kpiIcon}>⏳</div>
+                        <div style={{ ...s.kpiNum, color: stats.pending > 0 ? '#d97706' : '#1e3a5f' }}>{stats.pending}</div>
+                        <div style={s.kpiLabel}>ממתינים לאישור</div>
+                        <div style={s.kpiLink}>לטיפול ←</div>
                     </div>
-                    <div style={{ ...styles.statCard, borderRight: '5px solid #28a745' }}>
-                        <div style={styles.statIcon}>💍</div>
-                        <div style={styles.statNumber}>{stats.matches}</div>
-                        <div style={styles.statLabel}>שידוכים פעילים</div>
-                    </div>
-                </div>
-
-                {/* Charts Section */}
-                <div style={styles.chartsGrid}>
-                    <div style={styles.chartCard}>
-                        <h3 style={styles.chartTitle}>פילוח לפי מגזר</h3>
-                        <div style={{ height: '250px', display: 'flex', justifyContent: 'center' }}>
-                            <Doughnut data={pieData} options={{ maintainAspectRatio: false }} />
-                        </div>
-                    </div>
-                    <div style={styles.chartCard}>
-                        <h3 style={styles.chartTitle}>צמיחה חודשית</h3>
-                        <div style={{ height: '250px' }}>
-                            <Bar data={barData} options={{ ...barOptions, maintainAspectRatio: false }} />
-                        </div>
+                    <div style={{ ...s.kpiCard, borderTop: '4px solid #10b981', cursor: 'pointer' }} onClick={() => navigate('/admin/matches')}>
+                        <div style={s.kpiIcon}>💍</div>
+                        <div style={{ ...s.kpiNum, color: stats.matches > 0 ? '#059669' : '#1e3a5f' }}>{stats.matches}</div>
+                        <div style={s.kpiLabel}>שידוכים פעילים</div>
+                        <div style={s.kpiLink}>ניהול שידוכים ←</div>
                     </div>
                 </div>
 
-                {/* Quick Navigation */}
-                <div style={styles.quickNav}>
-                    <h2 style={styles.sectionTitle}>⚡ פעולות מהירות</h2>
-                    <div style={styles.navGrid}>
-                        <button style={styles.navBtn} onClick={() => navigate('/admin/users')}>
-                            👥 משתמשים
+                {/* ניווט מהיר */}
+                <div style={s.section}>
+                    <h2 style={s.sectionTitle}>⚡ פעולות מהירות</h2>
+                    <div style={s.navGrid}>
+                        <button style={s.navBtn} onClick={() => navigate('/admin/users')}>
+                            <div style={{ fontSize: '2rem' }}>👥</div>
+                            <div style={{ fontWeight: 'bold', marginTop: '8px' }}>ניהול משתמשים</div>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '4px' }}>חיפוש, סינון, עריכה</div>
                         </button>
-                        <button style={styles.navBtn} onClick={() => navigate('/admin/matches')}>
-                            💍 שידוכים ({stats.matches})
+                        <button style={s.navBtn} onClick={() => navigate('/admin/matches')}>
+                            <div style={{ fontSize: '2rem' }}>💍</div>
+                            <div style={{ fontWeight: 'bold', marginTop: '8px' }}>ניהול שידוכים</div>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '4px' }}>שדכניות, כרטיסיות, סגירה</div>
                         </button>
-                        <button style={styles.navBtn} onClick={() => navigate('/admin/pending-profiles')}>
-                            📝 אישורים ({stats.pending})
+                        <button style={s.navBtn} onClick={() => navigate('/admin/pending-profiles')}>
+                            <div style={{ fontSize: '2rem' }}>📝</div>
+                            <div style={{ fontWeight: 'bold', marginTop: '8px' }}>אישורי פרופיל</div>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '4px' }}>
+                                {stats.pending > 0 ? `${stats.pending} ממתינים` : 'הכל מטופל ✓'}
+                            </div>
                         </button>
                     </div>
+                </div>
+
+                {/* סטטיסטיקות מורחבות */}
+                <div style={s.section}>
+                    <button style={s.statsToggle} onClick={() => setShowStats(!showStats)}>
+                        📊 {showStats ? 'הסתר' : 'הצג'} סטטיסטיקות מפורטות
+                    </button>
+
+                    {showStats && (
+                        <div style={s.statsPanel}>
+                            {stats.sectors.length > 0 && (
+                                <div style={s.statsBlock}>
+                                    <h3 style={s.statsBlockTitle}>פילוח לפי מגזר</h3>
+                                    <div style={s.statsGrid}>
+                                        {stats.sectors.map((s2, i) => (
+                                            <div key={i} style={s.statRow}>
+                                                <span style={s.statRowLabel}>{sectorLabels[s2.sector] || s2.sector || 'לא מוגדר'}</span>
+                                                <span style={s.statRowVal}>{s2.count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {stats.monthly.length > 0 && (
+                                <div style={s.statsBlock}>
+                                    <h3 style={s.statsBlockTitle}>הרשמות — 6 חודשים אחרונים</h3>
+                                    <div style={s.statsGrid}>
+                                        {stats.monthly.map((m, i) => (
+                                            <div key={i} style={s.statRow}>
+                                                <span style={s.statRowLabel}>{m.month}</span>
+                                                <span style={s.statRowVal}>{m.count} נרשמים</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 }
 
-const styles = {
+const s = {
     page: {
         minHeight: '100vh',
         background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 40%, #3d5a7f 100%)',
-        padding: '20px',
+        padding: '30px 20px',
         fontFamily: "'Heebo', sans-serif",
         direction: 'rtl'
     },
-    container: { maxWidth: '1200px', margin: '0 auto' },
+    container: { maxWidth: '900px', margin: '0 auto' },
     loadingContainer: {
-        height: '100vh',
-        color: 'white',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center'
+        height: '100vh', display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', alignItems: 'center',
+        background: 'linear-gradient(165deg, #1e3a5f 0%, #2d4a6f 100%)'
     },
     spinner: {
-        width: '50px', height: '50px',
-        border: '5px solid rgba(255,255,255,0.3)',
-        borderTopColor: '#fff',
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite'
+        width: '45px', height: '45px',
+        border: '5px solid rgba(255,255,255,0.3)', borderTopColor: '#fff',
+        borderRadius: '50%', animation: 'spin 1s linear infinite'
     },
-    title: { color: 'white', fontSize: '2.5rem', margin: '0 0 10px' },
-    subtitle: { color: '#cbd5e1', marginBottom: '30px' },
+    title: { color: '#fff', fontSize: '2rem', margin: '0 0 25px' },
 
     alertBanner: {
-        background: 'rgba(201, 162, 39, 0.9)',
-        color: '#1e3a5f',
-        padding: '15px 25px',
-        borderRadius: '12px',
-        marginBottom: '30px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        boxShadow: '0 5px 20px rgba(201, 162, 39, 0.4)',
-        border: '1px solid #ffd700'
+        background: 'rgba(251, 191, 36, 0.95)', color: '#1e3a5f',
+        padding: '18px 22px', borderRadius: '14px', marginBottom: '28px',
+        display: 'flex', alignItems: 'center', gap: '15px',
+        boxShadow: '0 4px 20px rgba(251,191,36,0.4)',
+        lineHeight: 1.8
     },
     alertBtn: {
-        marginRight: 'auto',
-        background: '#1e3a5f',
-        color: '#fff',
-        border: 'none',
-        padding: '8px 15px',
-        borderRadius: '8px',
-        fontWeight: 'bold',
-        cursor: 'pointer'
+        background: '#c9a227', color: '#1e3a5f', border: 'none',
+        padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold',
+        cursor: 'pointer', whiteSpace: 'nowrap'
     },
 
-    statsGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '20px',
-        marginBottom: '30px'
+    kpiGrid: {
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '16px', marginBottom: '30px'
     },
-    statCard: {
-        background: 'white',
-        padding: '25px',
-        borderRadius: '15px',
-        boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
-        textAlign: 'center',
-        transition: 'transform 0.2s',
-        cursor: 'default'
+    kpiCard: {
+        background: '#fff', borderRadius: '14px', padding: '22px',
+        textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+        borderTop: '4px solid #1e3a5f', transition: 'transform 0.2s',
     },
-    statIcon: { fontSize: '2.5rem', marginBottom: '10px' },
-    statNumber: { fontSize: '3rem', fontWeight: '800', color: '#1e3a5f', lineHeight: 1 },
-    statLabel: { color: '#64748b', fontSize: '1rem', marginTop: '5px' },
+    kpiIcon: { fontSize: '2.2rem', marginBottom: '8px' },
+    kpiNum: { fontSize: '2.8rem', fontWeight: '800', color: '#1e3a5f', lineHeight: 1 },
+    kpiLabel: { color: '#64748b', fontSize: '0.95rem', marginTop: '6px' },
+    kpiLink: { marginTop: '10px', color: '#c9a227', fontSize: '0.85rem', fontWeight: 'bold' },
 
-    chartsGrid: {
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-        gap: '20px',
-        marginBottom: '30px'
-    },
-    chartCard: {
-        background: 'white',
-        padding: '20px',
-        borderRadius: '15px',
-        boxShadow: '0 5px 20px rgba(0,0,0,0.1)'
-    },
-    chartTitle: { textAlign: 'center', color: '#1e3a5f', marginBottom: '20px' },
-
-    sectionTitle: { color: 'white', marginBottom: '15px' },
-    navGrid: { display: 'flex', gap: '15px', flexWrap: 'wrap' },
+    section: { marginBottom: '30px' },
+    sectionTitle: { color: '#fff', margin: '0 0 15px', fontSize: '1.2rem' },
+    navGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px' },
     navBtn: {
-        flex: 1,
-        padding: '15px',
-        background: 'rgba(255,255,255,0.1)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        color: 'white',
-        borderRadius: '10px',
-        fontSize: '1.1rem',
-        cursor: 'pointer',
-        transition: 'background 0.2s',
-        minWidth: '200px'
-    }
+        background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.25)',
+        color: '#fff', borderRadius: '14px', padding: '22px 18px',
+        cursor: 'pointer', textAlign: 'center', transition: 'background 0.2s',
+        width: '100%'
+    },
+
+    statsToggle: {
+        background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)',
+        color: '#fff', borderRadius: '10px', padding: '12px 22px',
+        cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
+    },
+    statsPanel: {
+        marginTop: '16px', background: '#fff', borderRadius: '14px',
+        padding: '20px', display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px'
+    },
+    statsBlock: {},
+    statsBlockTitle: { color: '#1e3a5f', margin: '0 0 12px', fontSize: '1rem', fontWeight: 'bold' },
+    statsGrid: { display: 'flex', flexDirection: 'column', gap: '8px' },
+    statRow: {
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '8px 12px', background: '#f8fafc', borderRadius: '8px'
+    },
+    statRowLabel: { color: '#374151', fontSize: '0.95rem' },
+    statRowVal: { color: '#1e3a5f', fontWeight: 'bold', fontSize: '1rem' },
 };
 
 export default AdminDashboard;
