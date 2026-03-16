@@ -55,7 +55,7 @@ function FreeText({ label, text }) {
 }
 
 // ── הקומפוננטה הראשית ──
-export default function MatchCardModal({ person, onClose, token }) {
+export default function MatchCardModal({ person, onClose, token: tokenProp, targetId: targetIdProp, isAdmin }) {
     const [activeTab, setActiveTab] = useState(1);
     const [fullData, setFullData] = useState(null);
     const [loadingFull, setLoadingFull] = useState(false);
@@ -63,25 +63,43 @@ export default function MatchCardModal({ person, onClose, token }) {
     const [photoAccess, setPhotoAccess] = useState(null);
     const [zoomedPhoto, setZoomedPhoto] = useState(null);
 
-    // targetId מחושב מהאובייקט הראשוני — לא תלוי ב-fullData
-    const targetId = person?.id || person?.user_id;
+    // targetId — ממה שנמסר ישירות, או מהאובייקט
+    const targetId = targetIdProp || person?.id || person?.user_id;
+    const token = tokenProp || localStorage.getItem('token');
 
     // טעינת כרטיס מלא מיד עם פתיחה
     useEffect(() => {
         if (!targetId || !token) return;
         setLoadingFull(true);
-        fetch(`http://localhost:3000/match-card/${targetId}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        })
+        // אדמין — משתמש ב-endpoint מלא של מנהל
+        const url = isAdmin
+            ? `http://localhost:3000/admin/user/${targetId}/full`
+            : `http://localhost:3000/match-card/${targetId}`;
+        fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
             .then(r => r.ok ? r.json() : null)
             .then(data => { if (data) setFullData(data); })
             .catch(() => {})
             .finally(() => setLoadingFull(false));
-    }, [targetId, token]);
+    }, [targetId, token, isAdmin]);
 
     // בדיקת גישה לתמונות וטעינתן
     useEffect(() => {
         if (!targetId || !token) return;
+
+        if (isAdmin) {
+            // אדמין — גישה ישירה לתמונות ללא בדיקת הרשאות
+            fetch(`http://localhost:3000/admin/user-photos/${targetId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+                .then(r => r.json())
+                .then(d => {
+                    setPhotos(Array.isArray(d.photos) ? d.photos : []);
+                    setPhotoAccess({ canView: true });
+                })
+                .catch(() => {});
+            return;
+        }
+
         fetch(`http://localhost:3000/check-photo-access/${targetId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
@@ -98,7 +116,7 @@ export default function MatchCardModal({ person, onClose, token }) {
                 }
             })
             .catch(() => {});
-    }, [targetId, token]);
+    }, [targetId, token, isAdmin]);
 
     const p = fullData || person;
     if (!p) return null;

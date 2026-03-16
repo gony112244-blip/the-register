@@ -2578,6 +2578,25 @@ app.get('/admin/matches-to-handle', authenticateToken, async (req, res) => {
     }
 });
 
+// תמונות משתמש לאדמין (ללא בדיקת הרשאות 48 שעות)
+app.get('/admin/user-photos/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    const userId = parseInt(req.params.userId, 10);
+    try {
+        let photos = [];
+        const fromTable = await pool.query('SELECT image_url FROM user_images WHERE user_id = $1 ORDER BY id', [userId]);
+        photos = fromTable.rows.map(r => r.image_url);
+        if (photos.length === 0) {
+            const fromUsers = await pool.query('SELECT profile_images FROM users WHERE id = $1', [userId]);
+            const raw = fromUsers.rows[0]?.profile_images;
+            photos = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+        }
+        res.json({ photos });
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
 // ==========================================
 // 👰 ניהול שדכניות ושידוכים
 // ==========================================
@@ -3306,6 +3325,11 @@ async function updateDbSchema() {
                 created_at TIMESTAMP DEFAULT NOW()
             )
         `);
+
+        // עמודות חיוניות לטבלת photo_approvals
+        await pool.query(`ALTER TABLE photo_approvals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
+        await pool.query(`ALTER TABLE photo_approvals ADD COLUMN IF NOT EXISTS connection_id INTEGER`);
+        await pool.query(`ALTER TABLE photo_approvals ADD COLUMN IF NOT EXISTS auto_approve BOOLEAN DEFAULT FALSE`);
 
         // עמודות נוספות לטבלת connections
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS shadchanit_id INTEGER REFERENCES shadchaniot(id)`);

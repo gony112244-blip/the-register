@@ -478,6 +478,7 @@ function AdminMatches() {
             {cardModal && (
                 <MatchCardModal
                     targetId={cardModal.userId}
+                    isAdmin={true}
                     onClose={() => setCardModal(null)}
                 />
             )}

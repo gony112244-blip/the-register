@@ -12,8 +12,8 @@ const STATUS_MAP = {
 };
 
 const SECTOR_LABELS = {
-    haredi: 'חרדי', dati_leumi: 'דתי לאומי', ashkenazi: 'אשכנזי',
-    sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב', other: 'אחר'
+    ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני',
+    mixed: 'מעורב', other: 'אחר'
 };
 
 function AdminUsers() {
@@ -61,13 +61,16 @@ function AdminUsers() {
         setSelectedUser(null);
         setShowHistory(false);
         setHistoryData(null);
+        setActiveTab('profile');
         try {
             const res = await fetch(`http://localhost:3000/admin/user/${userId}/full`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
             setSelectedUser(data);
-            setNoteText(noteDefault || data.admin_notes || '');
+            // admin_notes מגיע מהשרת תמיד - עדיפות לערך מהשרת
+            const note = data.admin_notes || noteDefault || '';
+            setNoteText(note);
         } catch (err) {
             console.error(err);
         }
@@ -271,9 +274,9 @@ function AdminUsers() {
                         </div>
                     </div>
                     <div style={st.filterRow}>
-                        {/* מגזר */}
+                        {/* מוצא */}
                         <div style={st.filterGroup}>
-                            <label style={st.filterLabel}>מגזר</label>
+                            <label style={st.filterLabel}>מוצא</label>
                             <select value={filterSector} onChange={e => setFilterSector(e.target.value)} style={st.select}>
                                 <option value="">הכל</option>
                                 {Object.entries(SECTOR_LABELS).map(([k, v]) => (
@@ -404,6 +407,11 @@ function AdminUsers() {
                                                 <div style={st.adminActionsGrid}>
                                                     <div style={st.section}>
                                                         <h4 style={st.sectionH}>📝 הערות פנימיות</h4>
+                                                        {selectedUser?.admin_notes && (
+                                                            <div style={st.existingNote}>
+                                                                <strong>הערה נוכחית:</strong> {selectedUser.admin_notes}
+                                                            </div>
+                                                        )}
                                                         <textarea
                                                             value={noteText}
                                                             onChange={(e) => setNoteText(e.target.value)}
@@ -648,6 +656,11 @@ const st = {
     historyItem: {
         background: '#f8fafc', borderRadius: '8px', padding: '10px 14px',
         marginBottom: '8px', borderRight: '3px solid #c9a227'
+    },
+    existingNote: {
+        background: '#fef9ec', border: '1px solid #fcd34d', borderRadius: '8px',
+        padding: '10px 14px', marginBottom: '12px', color: '#92400e', fontSize: '0.9rem',
+        lineHeight: 1.5
     }
 };
 

@@ -63,7 +63,7 @@ function AdminDashboard() {
                                 </button>
                             )}
                             {stats.matches > 0 && (
-                                <button onClick={() => navigate('/admin/matches')} style={{ ...s.alertBtn, background: '#1e3a5f' }}>
+                                <button onClick={() => navigate('/admin/matches')} style={{ ...s.alertBtn, background: '#059669', color: '#fff' }}>
                                     לשידוכים ←
                                 </button>
                             )}
@@ -131,7 +131,7 @@ function AdminDashboard() {
                                     <div style={s.statsGrid}>
                                         {stats.sectors.map((s2, i) => (
                                             <div key={i} style={s.statRow}>
-                                                <span style={s.statRowLabel}>{sectorLabels[s2.sector] || s2.sector || 'לא מוגדר'}</span>
+                                                <span style={s.statRowLabel}>{sectorLabels[s2.heritage_sector] || s2.heritage_sector || 'לא מוגדר'}</span>
                                                 <span style={s.statRowVal}>{s2.count}</span>
                                             </div>
                                         ))}
