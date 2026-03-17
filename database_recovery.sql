@@ -145,7 +145,9 @@ CREATE TABLE users (
     pending_changes_at TIMESTAMP,
     
     -- System Preferences
-    email_notifications_enabled BOOLEAN DEFAULT TRUE
+    email_notifications_enabled BOOLEAN DEFAULT TRUE,
+    is_email_verified BOOLEAN DEFAULT FALSE,
+    email_verification_code VARCHAR(6)
 );
 
 -- ==========================================

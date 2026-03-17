@@ -3558,6 +3558,17 @@ async function updateDbSchema() {
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='profile_images_count') THEN 
                 ALTER TABLE users ADD COLUMN profile_images_count INTEGER DEFAULT 0; 
             END IF;
+            
+            -- עמודות התראות ואימות מייל
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_notifications_enabled') THEN 
+                ALTER TABLE users ADD COLUMN email_notifications_enabled BOOLEAN DEFAULT TRUE; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_email_verified') THEN 
+                ALTER TABLE users ADD COLUMN is_email_verified BOOLEAN DEFAULT FALSE; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_verification_code') THEN 
+                ALTER TABLE users ADD COLUMN email_verification_code VARCHAR(6); 
+            END IF;
         END $$;
     `);
 
