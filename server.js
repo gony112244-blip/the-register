@@ -32,8 +32,14 @@ app.use(cors({
 // 🛡️ הגדרות אבטחה (Security)
 // ==========================================
 
-// 1. Helmet - הגנה על כותרות HTTP
-app.use(helmet());
+// 1. Helmet - הגנה על כותרות HTTP (מוגדר לעבודה על HTTP ללא HTTPS)
+app.use(helmet({
+    contentSecurityPolicy: false,
+    hsts: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    originAgentCluster: false
+}));
 
 // הגדרת חריגה ל-Helmet כדי לאפשר הצגת תמונות מקומית (Cross-Origin Resource Policy)
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
@@ -421,27 +427,37 @@ app.post('/register', async (req, res) => {
             { expiresIn: '30d' }
         );
 
-        // 6. שליחת הודעת ברוכים הבאים (במערכת + במייל)
+        // 6. שליחת הודעת ברוכים הבאים (במערכת + במייל) — non-blocking
         const welcomeContent = `👋 ברוכים הבאים ל"הפנקס"! \nנא להשלים את הפרופיל בטאב "הפרופיל שלי" כדי להתחיל לקבל הצעות.`;
+        const newUserId = newUser.rows[0].id;
 
-        await pool.query(
-            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
-            [newUser.rows[0].id, welcomeContent]
-        );
+        setImmediate(async () => {
+            try {
+                await pool.query(
+                    `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+                    [newUserId, welcomeContent]
+                );
+            } catch (msgErr) {
+                console.error('[Register] Failed to insert welcome message:', msgErr.message);
+            }
 
-        // מייל אימות (חובה לוודא שזה האימייל שלו)
-        if (emailToSave) {
-            await sendTemplateEmail(
-                emailToSave,
-                'verification',
-                { 
-                    fullName: full_name || '', 
-                    code: verificationCode,
-                    userId: newUser.rows[0].id
-                },
-                newUser.rows[0].id
-            );
-        }
+            if (emailToSave) {
+                try {
+                    await sendTemplateEmail(
+                        emailToSave,
+                        'verification',
+                        {
+                            fullName: full_name || '',
+                            code: verificationCode,
+                            userId: newUserId
+                        },
+                        newUserId
+                    );
+                } catch (mailErr) {
+                    console.error('[Register] Failed to send verification email:', mailErr.message);
+                }
+            }
+        });
 
         res.status(201).json({
             message: "ההרשמה בוצע בהצלחה!",
@@ -459,12 +475,10 @@ app.post('/register', async (req, res) => {
                 never_ask_email: newUser.rows[0].never_ask_email
             }
         });
-        res.end();
 
     } catch (err) {
         console.error("Register error:", err);
         res.status(500).json({ message: "שגיאה בתהליך ההרשמה" });
-        res.end();
     }
 });
 
@@ -3559,7 +3573,7 @@ updateDbSchema().then(() => {
     const distPath = path.join(__dirname, 'frontend', 'dist');
     if (require('fs').existsSync(distPath)) {
         app.use(express.static(distPath));
-        app.get('*', (req, res) => {
+        app.get('/{*splat}', (req, res) => {
             res.sendFile(path.join(distPath, 'index.html'));
         });
         console.log('📦 Frontend served from dist/');
