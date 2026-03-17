@@ -138,6 +138,7 @@ CREATE TABLE users (
     search_financial_discuss BOOLEAN,
     search_occupations TEXT,
     search_life_aspirations TEXT,
+    search_heritage_sectors TEXT,
     
     -- Approval System
     is_profile_pending BOOLEAN DEFAULT FALSE,

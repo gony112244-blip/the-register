@@ -3569,6 +3569,56 @@ async function updateDbSchema() {
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_verification_code') THEN 
                 ALTER TABLE users ADD COLUMN email_verification_code VARCHAR(6); 
             END IF;
+
+            -- עמודות חיפוש והעדפות (Search Preferences)
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_min_age') THEN 
+                ALTER TABLE users ADD COLUMN search_min_age INTEGER; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_max_age') THEN 
+                ALTER TABLE users ADD COLUMN search_max_age INTEGER; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_height_min') THEN 
+                ALTER TABLE users ADD COLUMN search_height_min INTEGER; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_height_max') THEN 
+                ALTER TABLE users ADD COLUMN search_height_max INTEGER; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_body_types') THEN 
+                ALTER TABLE users ADD COLUMN search_body_types TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_appearances') THEN 
+                ALTER TABLE users ADD COLUMN search_appearances TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_skin_tones') THEN 
+                ALTER TABLE users ADD COLUMN search_skin_tones TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_statuses') THEN 
+                ALTER TABLE users ADD COLUMN search_statuses TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_backgrounds') THEN 
+                ALTER TABLE users ADD COLUMN search_backgrounds TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_heritage_sectors') THEN 
+                ALTER TABLE users ADD COLUMN search_heritage_sectors TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='mixed_heritage_ok') THEN 
+                ALTER TABLE users ADD COLUMN mixed_heritage_ok BOOLEAN; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_financial_min') THEN 
+                ALTER TABLE users ADD COLUMN search_financial_min VARCHAR(100); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_financial_discuss') THEN 
+                ALTER TABLE users ADD COLUMN search_financial_discuss BOOLEAN DEFAULT FALSE; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_occupations') THEN 
+                ALTER TABLE users ADD COLUMN search_occupations TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='search_life_aspirations') THEN 
+                ALTER TABLE users ADD COLUMN search_life_aspirations TEXT; 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='city') THEN 
+                ALTER TABLE users ADD COLUMN city VARCHAR(255); 
+            END IF;
         END $$;
     `);
 
