@@ -11,16 +11,19 @@ export default function EmailReminderModal({ user, onUpdateUser }) {
     const { showToast } = useToast();
 
     useEffect(() => {
-        // בודקים אם כבר הראינו בסשן הנוכחי
         const hasShownThisSession = sessionStorage.getItem('email_reminder_shown');
-        
-        // בודקים אם המשתמש מחובר, לא מאומת ולא ביקש שלא לשאול שוב
-        const shouldShow = user && 
-                          !user.is_admin && 
-                          user.is_email_verified !== true && 
-                          user.never_ask_email !== true &&
+        // קריאה מ-localStorage כדי לקבל ערך מעודכן (אחרי אימות מלינק)
+        let storedUser = user;
+        try {
+            const parsed = JSON.parse(localStorage.getItem('user') || '{}');
+            if (parsed && Object.keys(parsed).length) storedUser = parsed;
+        } catch (_) {}
+        const isVerified = storedUser?.is_email_verified === true;
+        const shouldShow = storedUser && 
+                          !storedUser.is_admin && 
+                          !isVerified && 
+                          storedUser.never_ask_email !== true &&
                           !hasShownThisSession;
-        
         if (shouldShow) {
             const timer = setTimeout(() => {
                 setShow(true);

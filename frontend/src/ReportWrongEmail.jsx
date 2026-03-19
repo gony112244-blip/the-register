@@ -24,7 +24,6 @@ function ReportWrongEmail() {
                         <span style={iconStyle}>✉️</span>
                         <h2 style={titleStyle}>האימייל הוסר מהמערכת</h2>
                         <p style={textStyle}>מצטערים על אי הנוחות. האימייל שלך הוסר ולא תקבל מאיתנו הודעות נוספות.</p>
-                        <button onClick={() => navigate('/')} style={btnStyle}>חזרה לאתר</button>
                     </>
                 )}
                 {status === 'error' && (

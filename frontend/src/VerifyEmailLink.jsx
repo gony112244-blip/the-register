@@ -19,14 +19,17 @@ function VerifyEmailLink() {
         fetch(`${API_BASE}/verify-email-link?code=${code}&userId=${userId}`)
             .then(res => {
                 if (res.ok) {
-                    setStatus('success');
-                    // עדכון localStorage — סימון אימות + הסתרת ה-reminder modal
+                    // עדכון localStorage + הודעה ל-App כדי שלא יקפוץ ה-modal
                     try {
                         const user = JSON.parse(localStorage.getItem('user') || '{}');
                         user.is_email_verified = true;
                         localStorage.setItem('user', JSON.stringify(user));
+                        window.dispatchEvent(new CustomEvent('userUpdated', { detail: user }));
                     } catch (_) {}
                     sessionStorage.setItem('email_reminder_shown', 'true');
+                    // מעבר ישיר להשלמת פרופיל
+                    setStatus('success');
+                    setTimeout(() => navigate('/profile'), 1500);
                 } else {
                     setStatus('error');
                 }
@@ -48,10 +51,7 @@ function VerifyEmailLink() {
                     <>
                         <span style={iconStyle}>✅</span>
                         <h2 style={titleStyle}>המייל אומת בהצלחה!</h2>
-                        <p style={textStyle}>תודה שאימתת את חשבונך. כעת תוכל לקבל הצעות שידוך והתראות מהמערכת.</p>
-                        <button onClick={() => navigate('/matches')} style={btnStyle}>
-                            כנס למערכת →
-                        </button>
+                        <p style={textStyle}>מעבירים אותך להשלמת הפרופיל...</p>
                     </>
                 )}
                 {status === 'error' && (
