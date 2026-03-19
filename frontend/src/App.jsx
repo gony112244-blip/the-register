@@ -18,6 +18,7 @@ import ForgotPassword from './ForgotPassword';
 import Requests from './Requests';
 import PWAInstallPrompt from './components/PWAInstallPrompt'; // התקנת PWA
 import EmailReminderModal from './components/EmailReminderModal'; // תזכורת אימות מייל
+import VerifyEmailLink from './VerifyEmailLink';
 
 import AdminMatches from './AdminMatches';
 import AdminPendingProfiles from './AdminPendingProfiles';
@@ -119,6 +120,7 @@ function AppContent() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/verify-email-link" element={<VerifyEmailLink />} />
 
         {/* דפים של המשתמש הרגיל */}
         <Route path="/matches" element={<Matches />} />
