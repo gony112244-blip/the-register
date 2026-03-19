@@ -20,12 +20,13 @@ function VerifyEmailLink() {
             .then(res => {
                 if (res.ok) {
                     setStatus('success');
-                    // עדכון localStorage אם המשתמש מחובר
+                    // עדכון localStorage — סימון אימות + הסתרת ה-reminder modal
                     try {
                         const user = JSON.parse(localStorage.getItem('user') || '{}');
                         user.is_email_verified = true;
                         localStorage.setItem('user', JSON.stringify(user));
                     } catch (_) {}
+                    sessionStorage.setItem('email_reminder_shown', 'true');
                 } else {
                     setStatus('error');
                 }

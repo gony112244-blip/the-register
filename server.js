@@ -3369,6 +3369,14 @@ async function updateDbSchema() {
             )
         `);
 
+        // עמודות חיפוש שחסרות
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_heritage_sectors TEXT`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_occupations TEXT`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_life_aspirations TEXT`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mixed_heritage_ok BOOLEAN`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_financial_min VARCHAR(100)`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_financial_discuss BOOLEAN DEFAULT FALSE`);
+
         // טבלת שדכניות
         await pool.query(`
             CREATE TABLE IF NOT EXISTS shadchaniot (
