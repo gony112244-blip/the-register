@@ -1471,7 +1471,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
             `UPDATE users SET 
-                full_name = $1, last_name = $2, age = $3, gender = $4, phone = $5,
+                full_name = $1, last_name = $2, age = $3, gender = $4, phone = COALESCE($5, phone),
                 birth_date = $6, country_of_birth = $7,
                 status = $8, has_children = $9, children_count = $10,
                 contact_person_type = $11, contact_person_name = $12, contact_phone_1 = $13, contact_phone_2 = $14,
@@ -3355,6 +3355,20 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 // ==========================================
 async function updateDbSchema() {
     try {
+        // טבלת תמונות משתמשים
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_images (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                image_url TEXT NOT NULL,
+                is_approved BOOLEAN DEFAULT FALSE,
+                uploaded_at TIMESTAMP DEFAULT NOW(),
+                approved_at TIMESTAMP,
+                rejected_at TIMESTAMP,
+                rejection_reason TEXT
+            )
+        `);
+
         // טבלת שדכניות
         await pool.query(`
             CREATE TABLE IF NOT EXISTS shadchaniot (
