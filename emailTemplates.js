@@ -2,6 +2,7 @@
 
 const APP_URL = process.env.APP_URL || 'http://localhost:5173';
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
+const CONTACT_EMAIL = process.env.EMAIL_USER || 'office@hapinkas.co.il';
 
 // --- תבנית בסיס ---
 const baseTemplate = (content, previewText = '') => `
@@ -238,7 +239,7 @@ const baseTemplate = (content, previewText = '') => `
             &nbsp;·&nbsp;
             <a href="${APP_URL}/profile">הפרופיל שלי</a>
             &nbsp;·&nbsp;
-            <a href="mailto:office@hapinkas.co.il">צור קשר</a>
+            <a href="mailto:${CONTACT_EMAIL}">צור קשר</a>
             <br>
             <p>קיבלת מייל זה כי נרשמת למערכת "הפנקס".</p>
             <div class="footer-copy">© ${new Date().getFullYear()} הפנקס · כל הזכויות שמורות</div>

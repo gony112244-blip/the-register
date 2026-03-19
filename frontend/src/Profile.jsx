@@ -1,4 +1,4 @@
-import API_BASE from './config';
+import { API_BASE, FILE_BASE_URL } from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -71,7 +71,8 @@ function Profile() {
     });
 
     const [activeSection, setActiveSection] = useState(1); // איזה חלק פתוח
-    const [uploading, setUploading] = useState(false);
+    const [idUploading, setIdUploading] = useState(false);
+    const [imageUploading, setImageUploading] = useState(false);
     const [errors, setErrors] = useState({}); // שגיאות ולידציה
     const [message, setMessage] = useState('');
 
@@ -419,7 +420,7 @@ function Profile() {
         const file = e.target.files[0];
         if (!file) return;
 
-        setUploading(true);
+        setIdUploading(true);
         const formData = new FormData();
         formData.append('idCard', file);
         formData.append('idOwner', user.contact_person_type === 'self' ? 'self' : (user.id_card_owner_type || 'candidate'));
@@ -451,7 +452,7 @@ function Profile() {
             console.error("Upload error:", err);
             showToast("שגיאה בתקשורת או בשרת (ראה קונסול)", "error");
         }
-        setUploading(false);
+        setIdUploading(false);
     };
 
     const isMale = user.gender === 'male';
@@ -1445,7 +1446,7 @@ function Profile() {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
                                         <div style={{ position: 'relative' }}>
                                             <img
-                                                src={`http://localhost:3000${user.id_card_image_url}`}
+                                                src={`${FILE_BASE_URL}${user.id_card_image_url}`}
                                                 alt="תצוגת ת.ז"
                                                 style={{
                                                     maxWidth: '220px',
@@ -1468,7 +1469,7 @@ function Profile() {
                                         </div>
                                         <button
                                             onClick={() => document.getElementById('idCardInput').click()}
-                                            disabled={uploading}
+                                            disabled={idUploading}
                                             style={{
                                                 padding: '10px 20px',
                                                 background: '#f1f5f9',
@@ -1486,23 +1487,23 @@ function Profile() {
                                             onMouseOut={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
                                         >
                                             <span>🔄</span>
-                                            {uploading ? 'מעלה...' : 'החלף תמונה'}
+                                            {idUploading ? 'מעלה...' : 'החלף תמונה'}
                                         </button>
                                     </div>
                                 ) : (
                                     <button
                                         onClick={() => document.getElementById('idCardInput').click()}
-                                        disabled={uploading}
+                                        disabled={idUploading}
                                         style={{
                                             ...styles.saveButton,
                                             margin: '0 auto',
                                             maxWidth: '300px',
-                                            background: uploading ? '#ccc' : 'linear-gradient(135deg, #1e3a5f, #334155)',
+                                            background: idUploading ? '#ccc' : 'linear-gradient(135deg, #1e3a5f, #334155)',
                                             color: '#fff',
                                             boxShadow: '0 4px 12px rgba(30, 58, 95, 0.2)'
                                         }}
                                     >
-                                        {uploading ? '⏳ מעלה...' : '📤 העלה צילום תעודת זהות'}
+                                        {idUploading ? '⏳ מעלה...' : '📤 העלה צילום תעודת זהות'}
                                     </button>
                                 )}
                             </div>
@@ -1520,7 +1521,7 @@ function Profile() {
                                 {(user.profile_images || []).map((imgUrl, idx) => (
                                     <div key={idx} style={{ position: 'relative' }}>
                                         <img
-                                            src={`http://localhost:3000${imgUrl}`}
+                                            src={`${FILE_BASE_URL}${imgUrl}`}
                                             alt={`תמונה ${idx + 1}`}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '10px', border: '3px solid #c9a227' }}
                                         />
@@ -1564,7 +1565,7 @@ function Profile() {
                                             const file = e.target.files[0];
                                             if (!file) return;
 
-                                            setUploading(true);
+                                            setIdUploading(true);
                                             // showToast('⏳ מעלה תמונה...', 'info');
 
                                             const formData = new FormData();
@@ -1587,18 +1588,18 @@ function Profile() {
                                             } catch (err) {
                                                 showToast('❌ שגיאה בהעלאה', 'error');
                                             }
-                                            setUploading(false);
+                                            setIdUploading(false);
                                         }}
                                     />
                                     <button
                                         onClick={() => document.getElementById('profileImageInput').click()}
-                                        disabled={uploading}
+                                        disabled={imageUploading}
                                         style={{
                                             ...styles.saveButton,
-                                            background: uploading ? '#ccc' : 'linear-gradient(135deg, #22c55e, #16a34a)'
+                                            background: imageUploading ? '#ccc' : 'linear-gradient(135deg, #22c55e, #16a34a)'
                                         }}
                                     >
-                                        {uploading ? '⏳ מעלה...' : `📤 הוסף תמונה (${(user.profile_images || []).length}/3)`}
+                                        {imageUploading ? '⏳ מעלה...' : `📤 הוסף תמונה (${(user.profile_images || []).length}/3)`}
                                     </button>
                                 </>
                             )}

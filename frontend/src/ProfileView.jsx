@@ -1,4 +1,4 @@
-import API_BASE from './config';
+import { API_BASE, FILE_BASE_URL } from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -84,7 +84,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                             <div style={S.photosRow}>
                                 {images.slice(0, 3).map((img, i) => (
                                     <img key={i}
-                                        src={`http://localhost:3000${img}`}
+                                        src={`${FILE_BASE_URL}${img}`}
                                         alt={`תמונה ${i + 1}`}
                                         style={{ ...S.profilePhoto, ...(i === 0 ? S.photoPrimary : S.photoSecondary) }}
                                         onError={(e) => { e.target.style.display = 'none'; }}
@@ -140,7 +140,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                         {show(user.phone) && <span style={S.contactValue}>📞 {user.phone}</span>}
                         {show(user.email) && <span style={S.contactValue}>📧 {user.email}</span>}
                         {show(user.id_card_image_url) && (
-                            <a href={`http://localhost:3000${user.id_card_image_url}`} target="_blank" rel="noreferrer"
+                            <a href={`${FILE_BASE_URL}${user.id_card_image_url}`} target="_blank" rel="noreferrer"
                                style={{color: '#be123c', fontWeight: 'bold', textDecoration: 'underline'}}>
                                 🖼️ צילום ת.ז
                             </a>

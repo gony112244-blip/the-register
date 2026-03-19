@@ -157,7 +157,7 @@ async function sendEmail(to, subject, htmlContent, userId = null) {
 
     try {
         const info = await transporter.sendMail({
-            from: '"הפנקס - שידוכים" <office@hapinkas.co.il>',
+            from: `"הפנקס - שידוכים" <${process.env.EMAIL_USER || 'hapinkas.contact@gmail.com'}>`,
             to: to,
             subject: subject,
             html: htmlContent,
@@ -818,7 +818,7 @@ app.get('/verify-email-link', async (req, res) => {
   <span class="icon">✅</span>
   <h1>המייל אומת בהצלחה!</h1>
   <p>תודה שאימתת את חשבונך. כעת תוכל לקבל הצעות שידוך והתראות מהמערכת.</p>
-  <a href="http://localhost:5173">חזרה לפנקס →</a>
+  <a href="${process.env.APP_URL || 'http://localhost:5173'}">חזרה לפנקס →</a>
 </div></body></html>`);
         } else {
             res.send(`<!DOCTYPE html>
@@ -1651,34 +1651,6 @@ app.post('/request-profile-update', authenticateToken, async (req, res) => {
 // ==========================================
 // 📸 העלאת קבצים (File Uploads)
 // ==========================================
-
-// העלאת תמונת תעודת זהות
-// הסבר: המשתמש מעלה תמונת ת.ז. לאימות זהות
-app.post('/upload-id-card', authenticateToken, upload.single('id_card'), async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ message: "לא התקבל קובץ" });
-        }
-
-        const userId = req.user.id; // מזהה המשתמש מהטוקן
-        const imageUrl = `/uploads/${req.file.filename}`; // הנתיב לתמונה
-
-        // עדכון הקישור בדאטאבייס
-        await pool.query(
-            'UPDATE users SET id_card_image_url = $1 WHERE id = $2',
-            [imageUrl, userId]
-        );
-
-        res.json({
-            message: "תמונת ת.ז. הועלתה בהצלחה! ✅",
-            imageUrl: imageUrl
-        });
-
-    } catch (err) {
-        console.error("Upload error:", err);
-        res.status(500).json({ message: "שגיאה בהעלאת הקובץ" });
-    }
-});
 
 // העלאת תמונת פרופיל
 // הסבר: המשתמש יכול להעלות עד 3 תמונות פרופיל

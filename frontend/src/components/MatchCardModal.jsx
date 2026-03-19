@@ -1,4 +1,4 @@
-import API_BASE from '../config';
+import { API_BASE, FILE_BASE_URL } from '../config';
 import { useState, useEffect } from 'react';
 
 // ── תרגומים ──
@@ -147,7 +147,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                 onClick={() => setZoomedPhoto(null)}
             >
                 <img
-                    src={`http://localhost:3000${zoomedPhoto}`}
+                    src={`${FILE_BASE_URL}${zoomedPhoto}`}
                     alt="תמונה מוגדלת"
                     style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 0 40px rgba(0,0,0,0.8)' }}
                     onClick={e => e.stopPropagation()}
@@ -196,7 +196,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                                 {photos.map((url, i) => (
                                     <img
                                         key={i}
-                                        src={`http://localhost:3000${url}`}
+                                        src={`${FILE_BASE_URL}${url}`}
                                         alt={`תמונה ${i + 1}`}
                                         style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, cursor: 'pointer', border: '2px solid #c9a227' }}
                                         onClick={() => setZoomedPhoto(url)}
