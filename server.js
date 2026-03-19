@@ -3369,6 +3369,10 @@ async function updateDbSchema() {
             )
         `);
 
+        // עמודות שחסרות
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_skip_verification BOOLEAN DEFAULT FALSE`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS never_ask_email BOOLEAN DEFAULT FALSE`);
+
         // עמודות חיפוש שחסרות
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_heritage_sectors TEXT`);
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_occupations TEXT`);
