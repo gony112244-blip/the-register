@@ -7,7 +7,9 @@
     "start": "node server.js",
     "db:setup": "node setup_database.js",
     "db:backup": "node backup_database.js",
-    "db:restore": "node restore_from_backup.js"
+    "db:restore": "node restore_from_backup.js",
+    "seed:demo": "node seed_demo_users.js",
+    "verify:narrow": "node verify_narrow_demo.js"
   },
   "keywords": [],
   "author": "",
