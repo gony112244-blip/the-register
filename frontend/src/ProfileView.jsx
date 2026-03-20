@@ -53,11 +53,37 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
     const tr = (field, val) => T[field]?.[val] || val || '—';
     const show = (val) => val && val !== '' && val !== '0' && val !== 0 && val !== 'null' && val !== 'undefined';
 
-    const images = Array.isArray(user.profile_images)
-        ? user.profile_images
-        : (typeof user.profile_images === 'string' && user.profile_images.startsWith('[')
-            ? JSON.parse(user.profile_images)
-            : []);
+    /** תמונות פרופיל: תומך במערך Postgres, JSON מחרוזת, או נתיב יחיד */
+    const normalizeProfileImages = (raw) => {
+        if (raw == null) return [];
+        if (Array.isArray(raw)) return raw.filter(Boolean);
+        if (typeof raw === 'string') {
+            const s = raw.trim();
+            if (!s) return [];
+            if (s.startsWith('[')) {
+                try {
+                    const p = JSON.parse(s);
+                    return Array.isArray(p) ? p.filter(Boolean) : [];
+                } catch {
+                    return [];
+                }
+            }
+            return [s];
+        }
+        return [];
+    };
+
+    const images = normalizeProfileImages(user.profile_images);
+
+    /** כתובת קובץ תמונה — תומך בנתיב יחסי או URL מלא */
+    const mediaUrl = (path) => {
+        if (path == null || path === '') return '';
+        const s = String(path).trim();
+        if (/^https?:\/\//i.test(s)) return s;
+        const base = FILE_BASE_URL || '';
+        const p = s.startsWith('/') ? s : `/${s}`;
+        return `${base}${p}`;
+    };
 
     const tabs = [
         { id: 1, label: '📝 פרטים' },
@@ -84,7 +110,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                             <div style={S.photosRow}>
                                 {images.slice(0, 3).map((img, i) => (
                                     <img key={i}
-                                        src={`${FILE_BASE_URL}${img}`}
+                                        src={mediaUrl(img)}
                                         alt={`תמונה ${i + 1}`}
                                         style={{ ...S.profilePhoto, ...(i === 0 ? S.photoPrimary : S.photoSecondary) }}
                                         onError={(e) => { e.target.style.display = 'none'; }}
@@ -134,16 +160,59 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
 
                 {/* ── Admin Info (Only if isAdminView is true) ── */}
                 {isAdminView && (
-                    <div style={{...S.contactBox, background: '#fff1f2', borderBottom: '2px solid #fda4af', padding: '14px 24px'}}>
-                        <span style={{...S.contactLabel, color: '#be123c', marginLeft: '12px'}}>🛡️ פרטי מערכת (מנהל בלבד):</span>
-                        {show(user.real_id_number) && <span style={S.contactValue}>🪪 ת.ז: {user.real_id_number}</span>}
-                        {show(user.phone) && <span style={S.contactValue}>📞 {user.phone}</span>}
-                        {show(user.email) && <span style={S.contactValue}>📧 {user.email}</span>}
+                    <div style={{...S.contactBox, background: '#fff1f2', borderBottom: '2px solid #fda4af', padding: '14px 24px', flexDirection: 'column', alignItems: 'stretch', gap: '12px'}}>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                            <span style={{...S.contactLabel, color: '#be123c', marginLeft: '12px'}}>🛡️ פרטי מערכת (מנהל בלבד):</span>
+                            {show(user.real_id_number) && <span style={S.contactValue}>🪪 ת.ז: {user.real_id_number}</span>}
+                            {show(user.phone) && <span style={S.contactValue}>📞 {user.phone}</span>}
+                            {show(user.email) && <span style={S.contactValue}>📧 {user.email}</span>}
+                            {show(user.id_card_image_url) && (
+                                <a href={mediaUrl(user.id_card_image_url)} target="_blank" rel="noreferrer"
+                                   style={{color: '#be123c', fontWeight: 'bold', textDecoration: 'underline'}}>
+                                    🖼️ פתח צילום ת.ז בלשונית חדשה
+                                </a>
+                            )}
+                        </div>
                         {show(user.id_card_image_url) && (
-                            <a href={`${FILE_BASE_URL}${user.id_card_image_url}`} target="_blank" rel="noreferrer"
-                               style={{color: '#be123c', fontWeight: 'bold', textDecoration: 'underline'}}>
-                                🖼️ צילום ת.ז
-                            </a>
+                            <div style={{ background: '#fff', borderRadius: '12px', padding: '12px', border: '1px solid #fecdd3' }}>
+                                <div style={{ fontWeight: '800', color: '#9f1239', marginBottom: '10px', fontSize: '0.95rem' }}>🆔 תצוגה מקדימה — תעודת זהות</div>
+                                <img
+                                    src={mediaUrl(user.id_card_image_url)}
+                                    alt="צילום תעודת זהות"
+                                    style={{
+                                        width: '100%',
+                                        maxHeight: isAdminView ? 'min(70vh, 520px)' : '320px',
+                                        objectFit: 'contain',
+                                        borderRadius: '10px',
+                                        border: '2px solid #e5e7eb',
+                                        background: '#f8fafc'
+                                    }}
+                                    onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                            </div>
+                        )}
+                        {isAdminView && images.length > 0 && (
+                            <div style={{ background: '#fff', borderRadius: '12px', padding: '12px', border: '1px solid #fecdd3' }}>
+                                <div style={{ fontWeight: '800', color: '#9f1239', marginBottom: '10px', fontSize: '0.95rem' }}>📷 כל תמונות הפרופיל ({images.length})</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
+                                    {images.map((img, i) => (
+                                        <a key={i} href={mediaUrl(img)} target="_blank" rel="noreferrer">
+                                            <img
+                                                src={mediaUrl(img)}
+                                                alt={`פרופיל ${i + 1}`}
+                                                style={{
+                                                    width: '140px',
+                                                    height: '170px',
+                                                    objectFit: 'cover',
+                                                    borderRadius: '12px',
+                                                    border: '3px solid #c9a227'
+                                                }}
+                                                onError={(e) => { e.target.style.display = 'none'; }}
+                                            />
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
                 )}
@@ -243,7 +312,11 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                     {/* ════ TAB 3 - References ════ */}
                     {activeTab === 3 && (
                         <div>
-                            <div style={S.lockedNote}>🔒 פרטים אלו נחשפים רק לאחר הסכמה הדדית</div>
+                            <div style={isAdminView ? { ...S.lockedNote, background: '#ecfdf5', color: '#166534', border: '1px solid #86efac' } : S.lockedNote}>
+                                {isAdminView
+                                    ? '👁️ צפייה מנהלית — כל הפרטים גלויים לצורך אישור ובדיקה'
+                                    : '🔒 פרטים אלו נחשפים רק לאחר הסכמה הדדית'}
+                            </div>
                             <div style={S.tabGrid}>
 
                                 <Section title="📍 פרטים מזהים" color="#fef2f2" border="#fca5a5">

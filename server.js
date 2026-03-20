@@ -296,8 +296,11 @@ const authenticateToken = (req, res, next) => {
 // 📡 נתיבי מערכת כלליים (ללא אימות)
 // ==========================================
 
-// נתיב זמני לאיפוס סיסמה לבדיקות (סודי!)
+// נתיב זמני לאיפוס סיסמה — רק מחוץ לפרודקשן (מסוכן אחרת)
 app.get('/debug/reset-user/:email', async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ message: 'Not found' });
+    }
     const { email } = req.params;
     try {
         const hashedPassword = await bcrypt.hash('123456', 10);
@@ -1455,6 +1458,52 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         search_occupations, search_life_aspirations
     } = req.body;
 
+    const isMissing = (value) => value === undefined || value === null || value === '';
+    const requiredProfileFields = [
+        'full_name', 'last_name', 'birth_date', 'gender', 'country_of_birth', 'city', 'status',
+        'contact_phone_1', 'contact_person_type', 'family_background', 'heritage_sector',
+        'siblings_count', 'height', 'body_type', 'skin_tone', 'appearance', 'current_occupation',
+        'has_children',
+        'full_address', 'father_full_name', 'mother_full_name',
+        'reference_1_name', 'reference_1_phone', 'reference_2_name', 'reference_2_phone',
+        'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
+        'search_statuses', 'search_backgrounds', 'search_heritage_sectors',
+        'search_occupations', 'search_life_aspirations',
+    ];
+
+    const payload = req.body || {};
+    const missingFields = requiredProfileFields.filter((field) => isMissing(payload[field]));
+    if (payload.country_of_birth === 'abroad') {
+        if (isMissing(payload.origin_country)) missingFields.push('origin_country');
+        if (isMissing(payload.aliyah_age)) missingFields.push('aliyah_age');
+    }
+    if (payload.gender === 'male' && isMissing(payload.yeshiva_name)) {
+        missingFields.push('yeshiva_name');
+    }
+    if (['working', 'both', 'fixed_times'].includes(payload.current_occupation) && isMissing(payload.work_field)) {
+        missingFields.push('work_field');
+    }
+    if (payload.apartment_help === 'yes' && isMissing(payload.apartment_amount)) {
+        missingFields.push('apartment_amount');
+    }
+    if (payload.has_children === true && isMissing(payload.children_count)) {
+        missingFields.push('children_count');
+    }
+
+    const minAgeNum = Number(payload.search_min_age);
+    const maxAgeNum = Number(payload.search_max_age);
+    const minHeightNum = Number(payload.search_height_min);
+    const maxHeightNum = Number(payload.search_height_max);
+    if (!Number.isNaN(minAgeNum) && !Number.isNaN(maxAgeNum) && minAgeNum > maxAgeNum) {
+        return res.status(400).json({ message: "טווח הגילאים אינו תקין", missingFields: ['search_min_age', 'search_max_age'] });
+    }
+    if (!Number.isNaN(minHeightNum) && !Number.isNaN(maxHeightNum) && minHeightNum > maxHeightNum) {
+        return res.status(400).json({ message: "טווח הגובה אינו תקין", missingFields: ['search_height_min', 'search_height_max'] });
+    }
+    if (missingFields.length > 0) {
+        return res.status(400).json({ message: "לא ניתן לשמור פרופיל לא מלא", missingFields: [...new Set(missingFields)] });
+    }
+
     // פונקציית עזר לניקוי ערכים מספריים (ריק הופך ל-null)
     const toNum = (val) => (val === '' || val === undefined || val === null) ? null : Number(val);
 
@@ -1572,6 +1621,45 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
     const changes = req.body; // כל השדות הבטוחים
 
     try {
+        const currentUserRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+        if (currentUserRes.rows.length === 0) {
+            return res.status(404).json({ message: "משתמש לא נמצא" });
+        }
+        const mergedProfile = { ...currentUserRes.rows[0], ...changes };
+        const isMissing = (value) => value === undefined || value === null || value === '';
+        const requiredForMatching = [
+            'birth_date', 'gender', 'city', 'status',
+            'family_background', 'heritage_sector',
+            'height', 'body_type', 'skin_tone', 'appearance',
+            'current_occupation',
+            'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
+            'search_statuses', 'search_backgrounds', 'search_heritage_sectors',
+            'search_occupations', 'search_life_aspirations',
+        ];
+        const missingFields = requiredForMatching.filter((field) => isMissing(mergedProfile[field]));
+        if (mergedProfile.gender === 'male' && isMissing(mergedProfile.yeshiva_name)) {
+            missingFields.push('yeshiva_name');
+        }
+        if (['working', 'both', 'fixed_times'].includes(mergedProfile.current_occupation) && isMissing(mergedProfile.work_field)) {
+            missingFields.push('work_field');
+        }
+        if (mergedProfile.has_children === true && isMissing(mergedProfile.children_count)) {
+            missingFields.push('children_count');
+        }
+        const minAgeNum = Number(mergedProfile.search_min_age);
+        const maxAgeNum = Number(mergedProfile.search_max_age);
+        const minHeightNum = Number(mergedProfile.search_height_min);
+        const maxHeightNum = Number(mergedProfile.search_height_max);
+        if (!Number.isNaN(minAgeNum) && !Number.isNaN(maxAgeNum) && minAgeNum > maxAgeNum) {
+            return res.status(400).json({ message: "טווח הגילאים אינו תקין", missingFields: ['search_min_age', 'search_max_age'] });
+        }
+        if (!Number.isNaN(minHeightNum) && !Number.isNaN(maxHeightNum) && minHeightNum > maxHeightNum) {
+            return res.status(400).json({ message: "טווח הגובה אינו תקין", missingFields: ['search_height_min', 'search_height_max'] });
+        }
+        if (missingFields.length > 0) {
+            return res.status(400).json({ message: "לא ניתן לשמור לפני שהפרופיל מלא", missingFields: [...new Set(missingFields)] });
+        }
+
         // סינון לשדות מאושרים בלבד
         const safeEntries = Object.entries(changes).filter(([key]) => SAFE_FIELDS.has(key));
         if (safeEntries.length === 0) {
@@ -1648,86 +1736,7 @@ app.post('/request-profile-update', authenticateToken, async (req, res) => {
     }
 });
 
-// ==========================================
-// 📸 העלאת קבצים (File Uploads)
-// ==========================================
-
-// העלאת תמונת פרופיל
-// הסבר: המשתמש יכול להעלות עד 3 תמונות פרופיל
-app.post('/upload-profile-image', authenticateToken, upload.single('profile_image'), async (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ message: "לא התקבל קובץ" });
-        }
-
-        const userId = req.user.id;
-        const imageUrl = `/uploads/${req.file.filename}`;
-
-        // בדיקה כמה תמונות יש למשתמש
-        const countResult = await pool.query(
-            'SELECT COUNT(*) FROM user_images WHERE user_id = $1',
-            [userId]
-        );
-
-        if (parseInt(countResult.rows[0].count) >= 3) {
-            return res.status(400).json({ message: "מותר עד 3 תמונות בלבד" });
-        }
-
-        // הוספת התמונה לטבלה
-        const result = await pool.query(
-            'INSERT INTO user_images (user_id, image_url) VALUES ($1, $2) RETURNING *',
-            [userId, imageUrl]
-        );
-
-        res.json({
-            message: "התמונה הועלתה בהצלחה! ✅",
-            image: result.rows[0],
-            imageUrl: imageUrl // כדי שהקלאיינט יקבל ישר את ה-URL
-        });
-
-    } catch (err) {
-        console.error("Upload error:", err);
-        res.status(500).json({ message: "שגיאה בהעלאת הקובץ" });
-    }
-});
-
-// מחיקת תמונת פרופיל
-app.post('/delete-profile-image', authenticateToken, async (req, res) => {
-    const { imageUrl } = req.body;
-    const userId = req.user.id;
-
-    if (!imageUrl) return res.status(400).json({ message: "חסר נתיב תמונה" });
-
-    try {
-        // ווידוא שהתמונה שייכת למשתמש
-        const result = await pool.query(
-            'SELECT * FROM user_images WHERE user_id = $1 AND image_url = $2',
-            [userId, imageUrl]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "תמונה לא נמצאה או לא שייכת לך" });
-        }
-
-        // מחיקה מהדאטאבייס
-        await pool.query(
-            'DELETE FROM user_images WHERE id = $1',
-            [result.rows[0].id]
-        );
-
-        // מחיקה מהדיסק (אופציונלי - רק אם רוצים לחסוך מקום)
-        const filePath = path.join(__dirname, imageUrl);
-        fs.unlink(filePath, (err) => {
-            if (err) console.error("Error deleting file:", err);
-        });
-
-        res.json({ message: "התמונה נמחקה בהצלחה 🗑️" });
-
-    } catch (err) {
-        console.error("Delete error:", err);
-        res.status(500).json({ message: "שגיאה במחיקת התמונה" });
-    }
-});
+// (הוסר כפילות) upload/delete-profile-image — נתיב יחיד למעלה עם profileImage + users.profile_images
 
 // --- קבלת פרטי המשתמש הנוכחי (כולל תמונות) ---
 app.get('/my-profile-data', authenticateToken, async (req, res) => {
@@ -1779,6 +1788,11 @@ app.get('/matches', authenticateToken, async (req, res) => {
             return res.status(404).json({ message: "משתמש לא נמצא" });
         }
         let currentUser = userResult.rows[0];
+
+        // רק משתמש מאושר רואה רשימת התאמות (הפרונט גם חוסם; כאן הגנה כפולה)
+        if (!currentUser.is_approved) {
+            return res.json([]);
+        }
 
         // מיזוג pending_changes — כדי שקריטריוני החיפוש והפרטים האישיים
         // (גובה, גוון עור, מגזר וכו') ישמשו אפילו לפני אישור המנהל
@@ -2190,10 +2204,30 @@ app.get('/admin/user/:id/full', authenticateToken, async (req, res) => {
 
         // שליפת תמונות מהטבלה user_images (תמונות שהועלו אחרי ההרשמה)
         const imagesRes = await pool.query('SELECT image_url FROM user_images WHERE user_id = $1', [id]);
-        if (imagesRes.rows.length > 0) {
-            user.profile_images = imagesRes.rows.map(img => img.image_url);
+        const fromUserImagesTable = imagesRes.rows.map((img) => img.image_url).filter(Boolean);
+
+        // מיזוג עם עמודת users.profile_images (מערך Postgres / טקסט) — המנהל רואה את כל מה שקיים
+        let fromColumn = [];
+        const rawCol = user.profile_images;
+        if (Array.isArray(rawCol)) {
+            fromColumn = rawCol.filter(Boolean);
+        } else if (typeof rawCol === 'string' && rawCol.trim()) {
+            const t = rawCol.trim();
+            if (t.startsWith('[')) {
+                try {
+                    const parsed = JSON.parse(t);
+                    fromColumn = Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+                } catch {
+                    fromColumn = [];
+                }
+            } else {
+                fromColumn = [t];
+            }
         }
-        // אם אין בטבלה user_images, נשתמש בעמודת profile_images (תמונות מהרשמה)
+        const merged = [...new Set([...fromUserImagesTable, ...fromColumn])];
+        if (merged.length > 0) {
+            user.profile_images = merged;
+        }
 
         res.json(user);
     } catch (err) {
@@ -2233,7 +2267,11 @@ app.post('/admin/send-message', authenticateToken, async (req, res) => {
 
 // שליחת "לייק" / יצירת קשר
 app.post('/connect', authenticateToken, async (req, res) => {
-    const { myId, targetId } = req.body;
+    const myId = req.user.id;
+    const { targetId } = req.body;
+    if (!targetId || Number(targetId) === Number(myId)) {
+        return res.status(400).json({ message: "בקשה לא תקינה" });
+    }
     try {
         // בדיקה אם כבר יש בקשה פעילה/ממתינה בין השניים (ביטול ודחייה מאפשרים פנייה מחדש)
         const existing = await pool.query(
@@ -2264,7 +2302,7 @@ app.post('/connect', authenticateToken, async (req, res) => {
 
 // דואר נכנס (Inbox) - בקשות שממתינות לי
 app.get('/my-requests', authenticateToken, async (req, res) => {
-    const userId = req.query.userId || req.user.id;
+    const userId = req.user.id;
     try {
         const result = await pool.query(
             `SELECT c.id AS connection_id, c.created_at,
@@ -2404,11 +2442,21 @@ app.post('/cancel-photo-request', authenticateToken, async (req, res) => {
 
 // אישור בקשה (שלב 1)
 app.post('/approve-request', authenticateToken, async (req, res) => {
-    const { connectionId, userId } = req.body;
+    const { connectionId } = req.body;
+    const userId = req.user.id;
     try {
-        // שלוף את sender_id לפני העדכון כדי להודיע לו
-        const connInfo = await pool.query('SELECT sender_id FROM connections WHERE id = $1', [connectionId]);
-        const originalSenderId = connInfo.rows[0]?.sender_id;
+        const connRow = await pool.query(
+            'SELECT sender_id, receiver_id, status FROM connections WHERE id = $1',
+            [connectionId]
+        );
+        if (connRow.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
+        const { sender_id: originalSenderId, receiver_id, status: connStatus } = connRow.rows[0];
+        if (connStatus !== 'pending') {
+            return res.status(400).json({ message: "הבקשה כבר לא ממתינה" });
+        }
+        if (receiver_id !== userId) {
+            return res.status(403).json({ message: "רק מקבל הבקשה יכול לאשר" });
+        }
 
         await pool.query(
             `UPDATE connections SET status = 'active', updated_at = NOW(), last_action_by = $1 WHERE id = $2`,
@@ -2432,8 +2480,20 @@ app.post('/approve-request', authenticateToken, async (req, res) => {
 
 // דחיית בקשה
 app.post('/reject-request', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
     const { connectionId } = req.body;
     try {
+        const connRow = await pool.query(
+            'SELECT receiver_id, status FROM connections WHERE id = $1',
+            [connectionId]
+        );
+        if (connRow.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
+        if (connRow.rows[0].receiver_id !== userId) {
+            return res.status(403).json({ message: "רק מקבל הבקשה יכול לדחות" });
+        }
+        if (connRow.rows[0].status !== 'pending') {
+            return res.status(400).json({ message: "הבקשה כבר לא ממתינה" });
+        }
         await pool.query(`UPDATE connections SET status = 'rejected' WHERE id = $1`, [connectionId]);
         res.json({ message: "הבקשה נדחתה." });
     } catch (err) {
@@ -2485,7 +2545,7 @@ app.post('/cancel-active-connection', authenticateToken, async (req, res) => {
 
 // השיחות הפעילות שלי
 app.get('/my-connections', authenticateToken, async (req, res) => {
-    const { userId } = req.query;
+    const userId = req.user.id;
     try {
         const result = await pool.query(
             `SELECT c.id, c.status, c.sender_id, c.receiver_id, c.sender_final_approve, c.receiver_final_approve,
@@ -2505,12 +2565,16 @@ app.get('/my-connections', authenticateToken, async (req, res) => {
 
 // אישור סופי (רצון להתקדם לשדכן)
 app.post('/finalize-connection', authenticateToken, async (req, res) => {
-    const { connectionId, userId } = req.body;
+    const { connectionId } = req.body;
+    const userId = req.user.id;
     try {
         const checkUser = await pool.query(`SELECT sender_id, receiver_id FROM connections WHERE id = $1`, [connectionId]);
         if (checkUser.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
 
         const conn = checkUser.rows[0];
+        if (conn.sender_id !== userId && conn.receiver_id !== userId) {
+            return res.status(403).json({ message: "אין הרשאה" });
+        }
         let updateField = conn.sender_id === userId ? 'sender_final_approve' : 'receiver_final_approve';
 
         await pool.query(`UPDATE connections SET ${updateField} = TRUE WHERE id = $1`, [connectionId]);
@@ -2536,7 +2600,9 @@ app.post('/finalize-connection', authenticateToken, async (req, res) => {
 
 // הוספת תמונה (עד 3)
 app.post('/api/upload-image', authenticateToken, async (req, res) => {
-    const { userId, imageUrl } = req.body;
+    const userId = req.user.id;
+    const { imageUrl } = req.body;
+    if (!imageUrl) return res.status(400).json({ message: "חסר נתיב תמונה" });
     try {
         const countCheck = await pool.query('SELECT COUNT(*) FROM user_images WHERE user_id = $1', [userId]);
         if (parseInt(countCheck.rows[0].count) >= 3) {
@@ -2557,7 +2623,10 @@ app.post('/api/upload-image', authenticateToken, async (req, res) => {
 // מחיקת תמונה
 app.delete('/api/delete-image/:imageId', authenticateToken, async (req, res) => {
     const { imageId } = req.params;
+    const userId = req.user.id;
     try {
+        const row = await pool.query('SELECT id FROM user_images WHERE id = $1 AND user_id = $2', [imageId, userId]);
+        if (row.rows.length === 0) return res.status(403).json({ message: "אין הרשאה" });
         await pool.query('DELETE FROM user_images WHERE id = $1', [imageId]);
         res.json({ message: "התמונה נמחקה" });
     } catch (err) {
@@ -2568,6 +2637,11 @@ app.delete('/api/delete-image/:imageId', authenticateToken, async (req, res) => 
 // שליפת תמונות של משתמש
 app.get('/api/user-images/:userId', authenticateToken, async (req, res) => {
     const { userId } = req.params;
+    const me = req.user.id;
+    const isAdmin = req.user.is_admin === true;
+    if (!isAdmin && String(userId) !== String(me)) {
+        return res.status(403).json({ message: "אין הרשאה" });
+    }
     try {
         const result = await pool.query('SELECT * FROM user_images WHERE user_id = $1', [userId]);
         res.json(result.rows);
@@ -2977,26 +3051,7 @@ app.get('/api/my-hidden-profiles', authenticateToken, async (req, res) => {
     }
 });
 
-// ==========================================
-// 🛡️ ניהול מנהל - Admin Routes
-// ==========================================
-
-// שליפת כל המשתמשים (לניהול)
-app.get('/admin/all-users', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
-    try {
-        const result = await pool.query(
-            `SELECT *
-             FROM users
-             WHERE is_admin = FALSE
-             ORDER BY created_at DESC`
-        );
-        res.json(result.rows);
-    } catch (err) {
-        console.error("Error fetching all users:", err);
-        res.status(500).json({ message: "שגיאה בטעינת משתמשים" });
-    }
-});
+// --- ניהול מנהל (המשך): היסטוריה, אישור, מחיקה — all-users/block/note/send-message כבר מוגדרים למעלה ---
 
 // היסטוריית משתמש (הודעות + חיבורים) - לשימוש מנהל
 app.get('/admin/user-history/:userId', authenticateToken, async (req, res) => {
@@ -3056,64 +3111,6 @@ app.put('/admin/approve/:userId', authenticateToken, async (req, res) => {
     } catch (err) {
         console.error("Error approving user:", err);
         res.status(500).json({ message: "שגיאה באישור" });
-    }
-});
-
-// חסימה/שחרור משתמש
-app.post('/admin/block-user', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
-    const { userId, block, reason } = req.body;
-    try {
-        await pool.query(
-            'UPDATE users SET is_blocked = $1, blocked_reason = $2 WHERE id = $3',
-            [block, reason || null, userId]
-        );
-
-        if (block) {
-            await pool.query(
-                `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
-                [userId, `🚫 חשבונך נחסם. סיבה: ${reason || 'לא צוינה'}`]
-            );
-        }
-
-        res.json({ message: block ? "המשתמש נחסם" : "החסימה הוסרה" });
-    } catch (err) {
-        console.error("Error blocking user:", err);
-        res.status(500).json({ message: "שגיאה בחסימה" });
-    }
-});
-
-// שמירת הערת מנהל
-app.post('/admin/user-note', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
-    const { userId, note } = req.body;
-    try {
-        await pool.query('UPDATE users SET admin_notes = $1 WHERE id = $2', [note, userId]);
-        res.json({ message: "ההערה נשמרה" });
-    } catch (err) {
-        console.error("Error saving note:", err);
-        res.status(500).json({ message: "שגיאה בשמירת הערה" });
-    }
-});
-
-// שליחת הודעה למשתמש (מהמנהל) - גרסה נוספת (איחוד ההתנהגות למייל)
-app.post('/admin/send-message', authenticateToken, async (req, res) => {
-    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
-    const { userId, message } = req.body;
-    try {
-        const finalContent = message;
-
-        await pool.query(
-            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'admin')`,
-            [userId, finalContent]
-        );
-
-        await sendNewMessageEmail(userId, 'מנהל המערכת', finalContent);
-
-        res.json({ message: "ההודעה נשלחה" });
-    } catch (err) {
-        console.error("Error sending message:", err);
-        res.status(500).json({ message: "שגיאה בשליחת הודעה" });
     }
 });
 

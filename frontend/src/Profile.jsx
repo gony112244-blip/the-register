@@ -326,7 +326,12 @@ function Profile() {
     // שמירה לשרת
     const handleSave = async () => {
         // ולידציה סופית לפני שמירה
+        if (!validateBeforeSubmit()) {
+            return;
+        }
         if (!user.id_card_image_url) {
+            setActiveSection(4);
+            window.scrollTo(0, 0);
             showToast("חובה להעלות תעודת זהות לפני השליחה לאישור", "error");
             return;
         }
@@ -457,8 +462,11 @@ function Profile() {
 
     const isMale = user.gender === 'male';
 
+    const isEmptyValue = (value) => value === undefined || value === null || value === '';
+
     // ולידציה לשלב הנוכחי
-    const validateStep = (step) => {
+    const validateStep = (step, options = {}) => {
+        const { showErrorToast: shouldShowErrorToast = true } = options;
         let required = [];
         if (step === 1) {
             required = ['full_name', 'last_name', 'birth_date', 'gender', 'country_of_birth', 'city', 'status', 'contact_phone_1', 'contact_person_type', 'family_background', 'heritage_sector', 'siblings_count', 'height', 'body_type', 'skin_tone', 'appearance', 'current_occupation', 'has_children'];
@@ -472,26 +480,62 @@ function Profile() {
         } else if (step === 2) {
             required = ['full_address', 'father_full_name', 'mother_full_name', 'reference_1_name', 'reference_1_phone', 'reference_2_name', 'reference_2_phone'];
         } else if (step === 3) {
-            // חלק ג - ללא חובה קריטית
-            return true;
+            // חלק ג' קריטי להתאמות חיפוש
+            required = [
+                'search_min_age', 'search_max_age',
+                'search_height_min', 'search_height_max',
+                'search_statuses', 'search_backgrounds',
+                'search_heritage_sectors', 'search_occupations', 'search_life_aspirations'
+            ];
         }
 
         const newErrors = {};
         let isValid = true;
         required.forEach(field => {
-            if (user[field] === undefined || user[field] === null || user[field] === '') {
+            if (isEmptyValue(user[field])) {
                 newErrors[field] = true;
                 isValid = false;
             }
         });
 
+        // בדיקות טווחים מספריים בחלק ג'
+        if (step === 3 && isValid) {
+            const minAge = Number(user.search_min_age);
+            const maxAge = Number(user.search_max_age);
+            const minHeight = Number(user.search_height_min);
+            const maxHeight = Number(user.search_height_max);
+
+            if (minAge > maxAge) {
+                newErrors.search_min_age = true;
+                newErrors.search_max_age = true;
+                isValid = false;
+            }
+            if (minHeight > maxHeight) {
+                newErrors.search_height_min = true;
+                newErrors.search_height_max = true;
+                isValid = false;
+            }
+        }
+
         setErrors(newErrors);
 
-        if (!isValid) {
+        if (!isValid && shouldShowErrorToast) {
             showToast("נא למלא את כל השדות המסומנים באדום", "error");
             // גלילה לשדה הראשון שחסר (אופציונלי, כרגע נסתפק בהודעה וסימון)
         }
         return isValid;
+    };
+
+    const validateBeforeSubmit = () => {
+        for (const step of [1, 2, 3]) {
+            if (!validateStep(step, { showErrorToast: false })) {
+                setActiveSection(step);
+                window.scrollTo(0, 0);
+                showToast("לא ניתן לשלוח לפני שהפרופיל מלא בכל השלבים", "error");
+                return false;
+            }
+        }
+        return true;
     };
 
     const nextStep = () => {
