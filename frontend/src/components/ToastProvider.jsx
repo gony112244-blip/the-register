@@ -1,5 +1,4 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 
 const ToastContext = createContext();
 
@@ -7,6 +6,23 @@ export const useToast = () => useContext(ToastContext);
 
 export function ToastProvider({ children }) {
     const [toasts, setToasts] = useState([]);
+    const containerRef = useRef(null);
+
+    // יצירת div ייעודי פעם אחת — מחוץ לעץ ה-React רגיל, אבל מנוהל ע"י ref
+    useEffect(() => {
+        const el = document.createElement('div');
+        el.id = 'toast-portal-root';
+        document.body.appendChild(el);
+        containerRef.current = el;
+        return () => {
+            // ניקוי בטוח
+            try {
+                if (el.parentNode === document.body) {
+                    document.body.removeChild(el);
+                }
+            } catch (_) {}
+        };
+    }, []);
 
     const showToast = useCallback((message, type = 'info', duration = 4000) => {
         const id = Date.now();
@@ -22,96 +38,94 @@ export function ToastProvider({ children }) {
     const info = (msg) => showToast(msg, 'info');
     const warning = (msg) => showToast(msg, 'warning');
 
-    const toastLayer = (
-        <div style={styles.container}>
-            {toasts.map(toast => (
-                <div key={toast.id} style={{ ...styles.toast, ...styles[toast.type] }}>
-                    <span style={styles.icon}>
-                        {toast.type === 'success' && '✅'}
-                        {toast.type === 'error' && '❌'}
-                        {toast.type === 'warning' && '⚠️'}
-                        {toast.type === 'info' && 'ℹ️'}
-                    </span>
-                    <span style={styles.message}>{toast.message}</span>
-                    <button
-                        type="button"
-                        onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
-                        style={styles.closeBtn}
-                    >
-                        ✕
-                    </button>
-                </div>
-            ))}
-        </div>
-    );
+    // רינדור ה-toasts ישירות ב-DOM — ללא createPortal בכלל
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+
+        // נבנה את ה-HTML ישירות — בלי Portal
+        if (toasts.length === 0) {
+            el.innerHTML = '';
+            return;
+        }
+
+        el.innerHTML = '';
+        Object.assign(el.style, {
+            position: 'fixed',
+            top: '80px',
+            left: '20px',
+            zIndex: '9999',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            maxWidth: '400px'
+        });
+
+        toasts.forEach(toast => {
+            const div = document.createElement('div');
+            const bgColors = {
+                success: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                error: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                warning: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                info: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)'
+            };
+            const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+
+            Object.assign(div.style, {
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '15px 20px',
+                borderRadius: '12px',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                animation: 'slideIn 0.3s ease-out',
+                direction: 'rtl',
+                fontFamily: "'Heebo', sans-serif",
+                background: bgColors[toast.type] || bgColors.info,
+                color: '#fff'
+            });
+
+            const iconSpan = document.createElement('span');
+            iconSpan.style.fontSize = '1.2rem';
+            iconSpan.textContent = icons[toast.type] || 'ℹ️';
+
+            const msgSpan = document.createElement('span');
+            msgSpan.style.flex = '1';
+            msgSpan.style.fontWeight = '500';
+            msgSpan.textContent = toast.message;
+
+            const closeBtn = document.createElement('button');
+            Object.assign(closeBtn.style, {
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                color: '#fff',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+            });
+            closeBtn.textContent = '✕';
+            closeBtn.onclick = () => {
+                setToasts(prev => prev.filter(t => t.id !== toast.id));
+            };
+
+            div.appendChild(iconSpan);
+            div.appendChild(msgSpan);
+            div.appendChild(closeBtn);
+            el.appendChild(div);
+        });
+    }, [toasts]);
 
     return (
         <ToastContext.Provider value={{ showToast, success, error, info, warning }}>
             {children}
-            {typeof document !== 'undefined' ? createPortal(toastLayer, document.body) : null}
         </ToastContext.Provider>
     );
 }
-
-const styles = {
-    container: {
-        position: 'fixed',
-        top: '80px',
-        left: '20px',
-        zIndex: 9999,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        maxWidth: '400px'
-    },
-    toast: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '15px 20px',
-        borderRadius: '12px',
-        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-        animation: 'slideIn 0.3s ease-out',
-        direction: 'rtl',
-        fontFamily: "'Heebo', sans-serif"
-    },
-    success: {
-        background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-        color: '#fff'
-    },
-    error: {
-        background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-        color: '#fff'
-    },
-    warning: {
-        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-        color: '#fff'
-    },
-    info: {
-        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)',
-        color: '#fff'
-    },
-    icon: {
-        fontSize: '1.2rem'
-    },
-    message: {
-        flex: 1,
-        fontWeight: '500'
-    },
-    closeBtn: {
-        background: 'rgba(255,255,255,0.2)',
-        border: 'none',
-        color: '#fff',
-        width: '24px',
-        height: '24px',
-        borderRadius: '50%',
-        cursor: 'pointer',
-        fontSize: '12px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-    }
-};
 
 // CSS Animation (add to index.css or global styles)
 const cssAnimation = `
