@@ -887,22 +887,31 @@ app.get('/health', async (req, res) => {
 // אחסון קודי איפוס (בזיכרון - בפרודקשן צריך Redis)
 const resetCodes = new Map();
 
-// שלב 1: שליחת קוד איפוס
+// שלב 1: שליחת קוד אימוש
 app.post('/forgot-password', async (req, res) => {
-    const { phone, method, email } = req.body;
+    const { phone, method, email: emailFromClient } = req.body;
 
     try {
-        // בדיקה אם המשתמש קיים
-        const result = await pool.query('SELECT id, email FROM users WHERE phone = $1', [phone]);
+        // 1. בדיקה אם המשתמש קיים ושליפת המייל שלו מהדאטאבייס (אבטחה)
+        const result = await pool.query('SELECT id, email, full_name FROM users WHERE phone = $1', [phone]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({ message: "מספר הטלפון לא נמצא במערכת" });
         }
 
-        // יצירת קוד 6 ספרות
+        const user = result.rows[0];
+        
+        // קביעת כתובת המייל - עדיפות למה שיש ב-DB, אם אין (ורק אם זה בטוח) משתמשים במה שנשלח
+        const targetEmail = user.email || emailFromClient;
+
+        if (method === 'email' && !targetEmail) {
+            return res.status(400).json({ message: "לא מוגדרת כתובת מייל למשתמש זה. נא לפנות לתמיכה." });
+        }
+
+        // 2. יצירת קוד 6 ספרות
         const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // שמירת הקוד עם תוקף של 10 דקות
+        // 3. שמירת הקוד בזיכרון (resetCodes)
         resetCodes.set(phone, {
             code,
             expires: Date.now() + 10 * 60 * 1000,
@@ -910,30 +919,24 @@ app.post('/forgot-password', async (req, res) => {
             method
         });
 
+        // 4. שליחה לפי השיטה שנבחרה
         if (method === 'email') {
-            const htmlContent = `
-                <div style="direction: rtl; font-family: sans-serif; padding: 20px; background: #f9f9f9;">
-                    <h2 style="color: #1e3a5f;">שחזור סיסמה - הפנקס</h2>
-                    <p>קיבלנו בקשה לאיפוס הסיסמה שלך.</p>
-                    <p>קוד האימות שלך הוא:</p>
-                    <h1 style="color: #c9a227; letter-spacing: 5px;">${code}</h1>
-                    <p>הקוד תקף ל-10 דקות.</p>
-                </div>
-            `;
-
-            const sent = await sendEmail(email, '🔑 קוד לאיפוס סיסמה', htmlContent);
-
-            res.json({
-                message: sent ? "קוד אימות נשלח למייל!" : "שגיאה בשליחת המייל (בדוק לוגים)",
-                // code: code // למפתחים - אפשר להשאיר או למחוק
+            const sent = await sendTemplateEmail(targetEmail, 'reset_password', {
+                code,
+                fullName: user.full_name
             });
+
+            if (sent) {
+                res.json({ message: "📧 קוד אימות נשלח למייל שלך!" });
+            } else {
+                res.status(500).json({ message: "תקלה בשליחת המייל, נא לנסות שוב מאוחר יותר" });
+            }
         } else if (method === 'call') {
-            // TODO: בפרודקשן - להתחבר לשירות IVR (כמו Twilio)
+            // לצרכי פיתוח - מדפיסים ללוג ומחזירים ב-JSON (בפרודקשן להסיר את ה-code מהתגובה)
             console.log(`📞 שיחה קולית לטלפון ${phone} עם הקוד: ${code}`);
-            // לצרכי פיתוח - מחזירים את הקוד
             res.json({
-                message: "שיחה קולית יוצאת אליך עכשיו",
-                code: code // הסר בפרודקשן!
+                message: "📞 שיחה קולית יוצאת אליך עכשיו עם הקוד",
+                code: process.env.NODE_ENV === 'production' ? null : code 
             });
         } else {
             res.status(400).json({ message: "נא לבחור שיטת קבלת קוד" });
@@ -941,7 +944,7 @@ app.post('/forgot-password', async (req, res) => {
 
     } catch (err) {
         console.error("Forgot password error:", err);
-        res.status(500).json({ message: "שגיאת שרת" });
+        res.status(500).json({ message: "שגיאת שרת פנימית" });
     }
 });
 
