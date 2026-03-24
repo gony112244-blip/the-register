@@ -373,7 +373,7 @@ function Register() {
                         </button>
 
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '18px', fontSize: '14px', color: '#64748b' }}>
-                            <span>כבר רשום?</span>
+                            <span>כבר רשום? </span>
                             <span onClick={() => navigate('/login')} style={{ color: '#c9a227', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline' }}>היכנס כאן</span>
                         </div>
                     </>

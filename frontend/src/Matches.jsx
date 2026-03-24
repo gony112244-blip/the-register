@@ -302,7 +302,7 @@ function Matches() {
                                                     disabled={connectingId === match.id}
                                                     style={styles.connectBtn}
                                                 >
-                                                    {connectingId === match.id ? '⏳ שולח...' : '💌 שלח פנייה'}
+                                                    {connectingId === match.id ? '⏳ שולח...' : '📩 שלח פנייה'}
                                                 </button>
                                             ) : (
                                                 <div style={styles.sentBadge}>✉️ פנייה נשלחה — ממתינה לתשובה</div>
