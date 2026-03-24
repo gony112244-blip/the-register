@@ -24,6 +24,16 @@ function ForgotPassword() {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    // פונקציה לעדכון מצב בטוח
+    const safeSetStep = (newStep) => {
+        console.log(`[ForgotPassword] Switching from step ${step} to ${newStep}`);
+        try {
+            setStep(newStep);
+        } catch (err) {
+            console.error('[ForgotPassword] Error during setStep:', err);
+        }
+    };
+
     const handleSendCode = async (e) => {
         e.preventDefault();
         if (!phone) {
@@ -50,7 +60,7 @@ function ForgotPassword() {
                 } else {
                     setMessage('📞 תקבל שיחה עם הקוד בעוד רגע...');
                 }
-                setStep(2);
+                setTimeout(() => safeSetStep(2), 100); // השהייה קטנה למנוע race condition
             } else {
                 setMessage(data.message || 'שגיאה בשליחת הקוד');
             }
@@ -77,8 +87,8 @@ function ForgotPassword() {
             const data = await parseResponseJson(res);
 
             if (res.ok) {
-                setMessage('');
-                setStep(3);
+                setMessage('✅ הקוד אומת בהצלחה');
+                setTimeout(() => safeSetStep(3), 100);
             } else {
                 setMessage(data.message || 'קוד שגוי');
             }

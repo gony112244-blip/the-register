@@ -76,30 +76,38 @@ function AppContent() {
 
     // רשימת דפים ציבוריים שאין סיבה לראות אם אתה מחובר
     const publicPages = ['/', '/login', '/register'];
+    const isForgotPass = location.pathname === '/forgot-password';
 
-    if (token && userStr && publicPages.includes(location.pathname)) {
+    if (token && userStr && publicPages.includes(location.pathname) && !isForgotPass) {
       try {
-        const user = JSON.parse(userStr);
-        if (user) {
-          if (user.is_admin) {
-            navigate('/admin');
-          } else if (!user.gender || (!user.age && !user.birth_date)) {
-            navigate('/profile');
-          } else {
-            // משתמש רשום כבר — אם יש מגדר וגיל, שלח להתאמות/הודעות (גם אם מחכה לאישור)
-            fetch(`${API_BASE}/my-messages`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data) && data.some(m => !m.is_read)) {
-                    navigate('/inbox');
+        const loggedUser = JSON.parse(userStr);
+        if (loggedUser) {
+                // ניתוב לפי סוג משתמש
+                if (loggedUser.is_admin) {
+                    navigate('/admin');
+                } else if (loggedUser.gender && (loggedUser.age || loggedUser.birth_date)) {
+                    // משתמש עם מגדר ותאריך לידה / גיל — שלח להתאמות/הודעות
+                    const checkMessages = async () => {
+                        try {
+                            const msgRes = await fetch(`${API_BASE}/my-messages`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            const msgData = await msgRes.json();
+                            const hasUnread = Array.isArray(msgData) && msgData.some(m => !m.is_read);
+                            
+                            if (hasUnread) {
+                                navigate('/inbox');
+                            } else {
+                                navigate('/matches');
+                            }
+                        } catch (e) {
+                            navigate('/matches');
+                        }
+                    };
+                    checkMessages();
                 } else {
-                    navigate('/matches');
+                    navigate('/profile');
                 }
-            })
-            .catch(() => navigate('/matches'));
-          }
         }
       } catch (e) {
         console.error("Error parsing user from localStorage:", e);

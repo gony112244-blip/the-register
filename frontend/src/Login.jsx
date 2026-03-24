@@ -36,30 +36,28 @@ function Login() {
             const loggedUser = data.user;
 
                 // ניתוב לפי סוג משתמש
-            setTimeout(async () => {
-                if (loggedUser.is_admin) {
-                    navigate('/admin');
-                } else if (loggedUser.gender && (loggedUser.age || loggedUser.birth_date)) {
-                    // משתמש עם מגדר ותאריך לידה / גיל — שלח להתאמות/הודעות
-                    try {
-                        const msgRes = await fetch(`${API_BASE}/my-messages`, {
-                            headers: { 'Authorization': `Bearer ${data.token}` }
-                        });
-                        const msgData = await msgRes.json();
-                        const hasUnread = Array.isArray(msgData) && msgData.some(m => !m.is_read);
-                        
-                        if (hasUnread) {
-                            navigate('/inbox');
-                        } else {
-                            navigate('/matches');
-                        }
-                    } catch (e) {
+            if (loggedUser.is_admin) {
+                navigate('/admin');
+            } else if (loggedUser.gender && (loggedUser.age || loggedUser.birth_date)) {
+                // משתמש עם מגדר ותאריך לידה / גיל — שלח להתאמות/הודעות
+                try {
+                    const msgRes = await fetch(`${API_BASE}/my-messages`, {
+                        headers: { 'Authorization': `Bearer ${data.token}` }
+                    });
+                    const msgData = await msgRes.json();
+                    const hasUnread = Array.isArray(msgData) && msgData.some(m => !m.is_read);
+                    
+                    if (hasUnread) {
+                        navigate('/inbox');
+                    } else {
                         navigate('/matches');
                     }
-                } else {
-                    navigate('/profile');
+                } catch (e) {
+                    navigate('/matches');
                 }
-            }, 1000); // השהייה קטנה כדי לראות את ה-toast
+            } else {
+                navigate('/profile');
+            }
 
         } catch (err) {
             console.error("Login error:", err);
