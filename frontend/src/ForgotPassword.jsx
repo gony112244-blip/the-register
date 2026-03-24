@@ -95,7 +95,7 @@ function ForgotPassword() {
             return;
         }
         if (newPassword !== confirmPassword) {
-            setMessage('הסיסמאות לא תואמות');
+            setMessage('הסיסמאות אינן תואמות');
             return;
         }
         if (newPassword.length < 6) {
@@ -113,8 +113,7 @@ function ForgotPassword() {
             const data = await parseResponseJson(res);
 
             if (res.ok) {
-                setMessage('✅ הסיסמה שונתה בהצלחה!');
-                setTimeout(() => navigate('/login'), 2000);
+                setStep(4); // שלב הצלחה - מסך נפרד
             } else {
                 setMessage(data.message || 'שגיאה באיפוס הסיסמה');
             }
@@ -263,6 +262,18 @@ function ForgotPassword() {
                             {loading ? '⏳ משנה...' : '🔐 שנה סיסמה'}
                         </button>
                     </form>
+                )}
+
+                {/* Step 4: Success */}
+                {step === 4 && (
+                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                        <div style={{ fontSize: '4rem', marginBottom: '16px' }}>✅</div>
+                        <h3 style={{ color: '#22c55e', marginBottom: '8px' }}>הסיסמה שונתה בהצלחה!</h3>
+                        <p style={{ color: '#64748b', marginBottom: '24px' }}>כעת תוכל להיכנס עם הסיסמה החדשה שלך.</p>
+                        <button onClick={() => navigate('/login')} style={styles.button}>
+                            🔑 כניסה לחשבון
+                        </button>
+                    </div>
                 )}
 
                 {message && (

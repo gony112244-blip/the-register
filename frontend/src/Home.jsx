@@ -20,29 +20,6 @@ function Home() {
 
   const sitePhoneNumber = "072-XXX-XXXX";
 
-  const faqList = [
-    {
-      question: "למי מיועד הפנקס?",
-      answer: "הפנקס מיועד לבני תורה המחפשים שידוך בדרך מכובדת וצנועה. המערכת בנויה תוך הבנה עמוקה של הצרכים והרגישויות של הציבור החרדי."
-    },
-    {
-      question: "מה ההבדל בינכם לאתרי שידוכים אחרים?",
-      answer: "בניגוד ל\"לוח מודעות\" שבו כולם רואים את כולם - אצלנו הפרופיל שלך מוצג רק למועמדים מתאימים. אתה לא \"מוצר על מדף\". זו גישה שמכבדת את האדם ושומרת על הצניעות."
-    },
-    {
-      question: "אפשר להירשם גם דרך הטלפון?",
-      answer: "כל השירותים זמינים גם בשיחת טלפון. למעט ההרשמה הראשונית המתבצעת באתר, ניתן לעדכן פרטים, לברר ולקבל הצעות - הכל בשיחת טלפון פשוטה."
-    },
-    {
-      question: "כמה זה עולה?",
-      answer: "ההרשמה והשימוש הבסיסי במערכת הם בחינם. יש אפשרויות מתקדמות בתשלום סמלי."
-    },
-    {
-      question: "מי רואה את הפרטים שלי?",
-      answer: "רק מועמדים שמתאימים לקריטריונים שהגדרת, ושאתה מתאים לקריטריונים שלהם. בנוסף, צוות המערכת (לצורך אישור ותמיכה). אנחנו שומרים על פרטיותך."
-    }
-  ];
-
   return (
     <div className="home-page">
 
@@ -63,8 +40,8 @@ function Home() {
           </p>
 
           <div className="hero-buttons">
-            <Link to="/register" className="btn-primary">הרשמה למערכת</Link>
-            <Link to="/login" className="btn-secondary">כניסה לרשומים</Link>
+            <Link to="/register" className="btn-primary">הירשם עכשיו</Link>
+            <Link to="/login" className="btn-secondary">כניסה לחברים</Link>
           </div>
 
           <div className="user-count-badge">
@@ -119,7 +96,7 @@ function Home() {
 
       {/* Features Section */}
       <section className="features-section">
-        <h2 className="section-title">למה הפנקס?</h2>
+        <h2 className="section-title">למה אנחנו?</h2>
         <div className="features-grid">
 
           <div className="feature-card">
@@ -127,7 +104,7 @@ function Home() {
             <h3 className="feature-title">פרטיות מוחלטת</h3>
             <p className="feature-desc">
               הפרופיל שלך לא מוצג לכולם. רק מועמדים שמתאימים לקריטריונים שלך - רואים אותך.
-              אתה לא "מוצר על מדף".
+              אינך "מוצר על מדף".
             </p>
           </div>
 
@@ -136,7 +113,7 @@ function Home() {
             <h3 className="feature-title">התאמות מדויקות</h3>
             <p className="feature-desc">
               המערכת מציגה לך רק מועמדים שעונים להעדפות שהגדרת - גיל, מגזר, ועוד.
-              בלי לבזבז זמן.
+              ללא בזבוז זמן.
             </p>
           </div>
 
@@ -161,7 +138,7 @@ function Home() {
             <div className="step-number">1</div>
             <div className="step-content">
               <h3>נרשמים ומקבלים אישור</h3>
-              <p>ממלאים פרטים בסיסיים, מעלים צילום ת.ז. (לאימות בלבד), וממתינים לאישור. אנחנו מוודאים שכולם פה רציניים.</p>
+              <p>ממלאים פרטים בסיסיים, מעלים צילום ת.ז. (לאימות בלבד), וממתינים לאישור. אנחנו מוודאים שכולם כאן רציניים.</p>
             </div>
           </div>
 
@@ -197,13 +174,8 @@ function Home() {
         <h2 className="section-title">שאלות ותשובות</h2>
         <div className="faq-container">
 
-          <div
-            className={`faq-item ${openFaq === 0 ? 'open' : ''}`}
-          >
-            <div
-              className="faq-question"
-              onClick={() => toggleFaq(0)}
-            >
+          <div className={`faq-item ${openFaq === 0 ? 'open' : ''}`}>
+            <div className="faq-question" onClick={() => toggleFaq(0)}>
               <span className="question-text">
                 <span className="question-icon">?</span>
                 למי מיועד הפנקס?
@@ -211,17 +183,12 @@ function Home() {
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              הפנקס מיועד לבני תורה ובנות סמינר איכותיים, המחפשים שידוך בדרך מכובדת וצנועה. המערכת בנויה תוך הבנה עמוקה של הצרכים והרגישויות של הציבור החרדי.
+              הפנקס מיועד לבני תורה ובנות סמינר, המחפשים שידוך בדרך מכובדת וצנועה. המערכת בנויה תוך הבנה עמוקה של הצרכים והרגישויות של הציבור החרדי.
             </p>
           </div>
 
-          <div
-            className={`faq-item ${openFaq === 1 ? 'open' : ''}`}
-          >
-            <div
-              className="faq-question"
-              onClick={() => toggleFaq(1)}
-            >
+          <div className={`faq-item ${openFaq === 1 ? 'open' : ''}`}>
+            <div className="faq-question" onClick={() => toggleFaq(1)}>
               <span className="question-text">
                 <span className="question-icon">?</span>
                 מה ההבדל בינכם לאתרי שידוכים אחרים?
@@ -229,17 +196,12 @@ function Home() {
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              בניגוד ל"לוח מודעות" שבו כולם רואים את כולם - אצלנו הפרופיל שלך מוצג רק למועמדים מתאימים. אתה לא "מוצר על מדף". זו גישה שמכבדת את האדם ושומרת על הצניעות.
+              בניגוד ל"לוח מודעות" שבו כולם רואים את כולם - אצלנו הפרופיל שלך מוצג רק למועמדים מתאימים. אינך "מוצר על מדף". זו גישה שמכבדת את האדם ושומרת על הצניעות.
             </p>
           </div>
 
-          <div
-            className={`faq-item ${openFaq === 2 ? 'open' : ''}`}
-          >
-            <div
-              className="faq-question"
-              onClick={() => toggleFaq(2)}
-            >
+          <div className={`faq-item ${openFaq === 2 ? 'open' : ''}`}>
+            <div className="faq-question" onClick={() => toggleFaq(2)}>
               <span className="question-text">
                 <span className="question-icon">?</span>
                 אפשר להירשם גם דרך הטלפון?
@@ -251,13 +213,8 @@ function Home() {
             </p>
           </div>
 
-          <div
-            className={`faq-item ${openFaq === 3 ? 'open' : ''}`}
-          >
-            <div
-              className="faq-question"
-              onClick={() => toggleFaq(3)}
-            >
+          <div className={`faq-item ${openFaq === 3 ? 'open' : ''}`}>
+            <div className="faq-question" onClick={() => toggleFaq(3)}>
               <span className="question-text">
                 <span className="question-icon">?</span>
                 מי רואה את הפרטים שלי?
@@ -269,13 +226,8 @@ function Home() {
             </p>
           </div>
 
-          <div
-            className={`faq-item ${openFaq === 4 ? 'open' : ''}`}
-          >
-            <div
-              className="faq-question"
-              onClick={() => toggleFaq(4)}
-            >
+          <div className={`faq-item ${openFaq === 4 ? 'open' : ''}`}>
+            <div className="faq-question" onClick={() => toggleFaq(4)}>
               <span className="question-text">
                 <span className="question-icon">?</span>
                 נתקלתי בקושי או שיש לי שאלה, איך יוצרים קשר?
@@ -283,7 +235,14 @@ function Home() {
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              אנחנו כאן לכל שאלה! ניתן לפנות אלינו במייל: <a href="mailto:hapinkas.contact@gmail.com" title="פתיחת תוכנת דואר במחשב זה" style={{ color: 'inherit', fontWeight: 'bold' }}>hapinkas.contact@gmail.com</a>
+              אנחנו כאן לכל שאלה! ניתן לפנות אלינו במייל:{' '}
+              <a href="mailto:hapinkas.contact@gmail.com" style={{ color: 'inherit', fontWeight: 'bold' }}>
+                hapinkas.contact@gmail.com
+              </a>
+              <br />
+              <small style={{ color: '#94a3b8', fontSize: '12px' }}>
+                (אם לא קיבלת מייל מהמערכת, כדאי לבדוק בתיקיית הספאם/דואר זבל)
+              </small>
             </p>
           </div>
 
@@ -298,7 +257,9 @@ function Home() {
             <div className="footer-contact">
               <span>📞 {sitePhoneNumber}</span>
               <span className="separator">|</span>
-              <a href="mailto:hapinkas.contact@gmail.com" className="email-link" title="פתיחת תוכנת דואר במחשב זה">📧 hapinkas.contact@gmail.com</a>
+              <a href="mailto:hapinkas.contact@gmail.com" className="email-link" title="שליחת מייל">
+                📧 hapinkas.contact@gmail.com
+              </a>
             </div>
           </div>
         </div>

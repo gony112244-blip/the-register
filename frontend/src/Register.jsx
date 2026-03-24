@@ -369,12 +369,12 @@ function Register() {
                                 color: (isFormValid && !isSubmitting) ? '#fff' : '#64748b'
                             }}
                         >
-                            {isSubmitting ? "יוצר חשבון..." : "להירשם עכשיו"}
+                            {isSubmitting ? "יוצר חשבון..." : "הירשם עכשיו"}
                         </button>
 
-                        <div style={registerFooterRowStyle}>
-                            <span style={linkStyle}>כבר רשום?</span>
-                            <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
+                        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '18px', fontSize: '14px', color: '#64748b' }}>
+                            <span>כבר רשום?</span>
+                            <span onClick={() => navigate('/login')} style={{ color: '#c9a227', fontWeight: '700', cursor: 'pointer', textDecoration: 'underline' }}>היכנס כאן</span>
                         </div>
                     </>
                 ) : (
@@ -393,6 +393,9 @@ function Register() {
                             <p style={verifyMethodLabel}>🔗 אפשרות א׳ — קל ומהיר</p>
                             <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 10px' }}>
                                 לחצו על הכפתור <b>במייל שקיבלתם</b> כדי לאמת בלחיצה אחת.
+                            </p>
+                            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 10px' }}>
+                                💡 לא קיבלתם? בדקו בתיקיית ה<b>ספאם / דואר זבל</b>
                             </p>
                             <button onClick={handleResendCode} style={resendBtnStyle}>
                                 📨 שלח מחדש את מייל האימות
