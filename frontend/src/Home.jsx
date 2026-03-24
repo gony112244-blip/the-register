@@ -64,7 +64,7 @@ function Home() {
 
           <div className="hero-buttons">
             <Link to="/register" className="btn-primary">הרשמה למערכת</Link>
-            <Link to="/login" className="btn-secondary">כניסה לחברים</Link>
+            <Link to="/login" className="btn-secondary">כניסה לרשומים</Link>
           </div>
 
           <div className="user-count-badge">
@@ -283,7 +283,7 @@ function Home() {
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              אנחנו כאן לכל שאלה! ניתן לפנות אלינו במייל: <a href="mailto:hapinkas.contact@gmail.com" style={{ color: 'inherit', fontWeight: 'bold' }}>hapinkas.contact@gmail.com</a>
+              אנחנו כאן לכל שאלה! ניתן לפנות אלינו במייל: <a href="mailto:hapinkas.contact@gmail.com" title="פתיחת תוכנת דואר במחשב זה" style={{ color: 'inherit', fontWeight: 'bold' }}>hapinkas.contact@gmail.com</a>
             </p>
           </div>
 
@@ -298,7 +298,7 @@ function Home() {
             <div className="footer-contact">
               <span>📞 {sitePhoneNumber}</span>
               <span className="separator">|</span>
-              <a href="mailto:hapinkas.contact@gmail.com" className="email-link">📧 hapinkas.contact@gmail.com</a>
+              <a href="mailto:hapinkas.contact@gmail.com" className="email-link" title="פתיחת תוכנת דואר במחשב זה">📧 hapinkas.contact@gmail.com</a>
             </div>
           </div>
         </div>

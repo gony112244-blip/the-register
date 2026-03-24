@@ -3,6 +3,29 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
 
+/** תוויות סטטוס לפי מגדר */
+function getMaritalStatusOptions(gender) {
+    if (gender === 'male') {
+        return [
+            { value: 'single', label: 'רווק' },
+            { value: 'divorced', label: 'גרוש' },
+            { value: 'widower', label: 'אלמן' },
+        ];
+    }
+    if (gender === 'female') {
+        return [
+            { value: 'single', label: 'רווקה' },
+            { value: 'divorced', label: 'גרושה' },
+            { value: 'widower', label: 'אלמנה' },
+        ];
+    }
+    return [
+        { value: 'single', label: 'רווק / רווקה' },
+        { value: 'divorced', label: 'גרוש / גרושה' },
+        { value: 'widower', label: 'אלמן / אלמנה' },
+    ];
+}
+
 function Profile() {
     const navigate = useNavigate();
     const token = localStorage.getItem('token');
@@ -618,7 +641,7 @@ function Profile() {
                                 { id: 'family', label: '👨‍👩‍👧‍👦 משפחה', icon: '👨‍👩‍👧‍👦' },
                                 { id: 'appearance', label: '🪞 מראה', icon: '🪞' },
                                 { id: 'economy', label: '💰 כלכלה', icon: '💰' },
-                                { id: 'occupation', label: '💼 עיסוק', icon: '💼' },
+                                { id: 'occupation', label: '💼 עיסוק ושאיפות', icon: '💼' },
                                 { id: 'about', label: '📝 על עצמי', icon: '📝' }
                             ].map(item => (
                                 <button
@@ -700,9 +723,9 @@ function Profile() {
                                     <label>סטטוס *</label>
                                     <select name="status" value={user.status || ''} onChange={handleChange} style={{ ...styles.input, borderColor: errors.status ? 'red' : '#e2e8f0' }}>
                                         <option value="">בחר...</option>
-                                        <option value="single">רווק/ה</option>
-                                        <option value="divorced">גרוש/ה</option>
-                                        <option value="widower">אלמן/ה</option>
+                                        {getMaritalStatusOptions(user.gender).map((opt) => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div style={styles.field}>
@@ -775,12 +798,12 @@ function Profile() {
                                     <input name="sibling_position" type="number" value={user.sibling_position || ''} onChange={handleChange} style={styles.input} />
                                 </div>
                                 <div style={styles.field}>
-                                    <label>עיסוק האבא</label>
-                                    <input name="father_occupation" value={user.father_occupation || ''} onChange={handleChange} style={styles.input} />
+                                    <label>עיסוק האב</label>
+                                    <input name="father_occupation" value={user.father_occupation || ''} onChange={handleChange} style={styles.input} placeholder="לא חובה" />
                                 </div>
                                 <div style={styles.field}>
-                                    <label>עיסוק האמא</label>
-                                    <input name="mother_occupation" value={user.mother_occupation || ''} onChange={handleChange} style={styles.input} />
+                                    <label>עיסוק האם</label>
+                                    <input name="mother_occupation" value={user.mother_occupation || ''} onChange={handleChange} style={styles.input} placeholder="לא חובה" />
                                 </div>
                             </div>
                         </div>
@@ -826,7 +849,7 @@ function Profile() {
                                         <option value="good">טוב</option>
                                         <option value="handsome">נאה</option>
                                         <option value="very_handsome">נאה מאוד</option>
-                                        <option value="stunning">מיוחד/מרשים</option>
+                                        <option value="stunning">מרשים במיוחד</option>
                                     </select>
                                 </div>
                             </div>
@@ -855,7 +878,7 @@ function Profile() {
                         </div>
 
                         {/* עיסוק ושאיפות */}
-                        <div style={styles.card}>
+                        <div style={styles.card} id="occupation">
                             <h3 style={styles.cardTitle}>💼 עיסוק ושאיפות</h3>
                             <div style={styles.grid}>
                                 <div style={styles.field}>
@@ -937,7 +960,7 @@ function Profile() {
 
                         {/* על עצמי */}
                         <div style={styles.card} id="about">
-                            <h3 style={styles.cardTitle}>� קצת על עצמי</h3>
+                            <h3 style={styles.cardTitle}>📝 קצת על עצמי</h3>
                             <p style={styles.hint}>כדאי מאוד למלא שדות אלו כדי לתת תמונה מלאה ואיכותית עליך!</p>
                             <div style={styles.grid}>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
@@ -988,6 +1011,14 @@ function Profile() {
                                 <div style={styles.field}>
                                     <label>שם מלא של האמא *</label>
                                     <input name="mother_full_name" value={user.mother_full_name || ''} onChange={handleChange} style={styles.input} />
+                                </div>
+                                <div style={styles.field}>
+                                    <label>עיסוק האב</label>
+                                    <input name="father_occupation" value={user.father_occupation || ''} onChange={handleChange} style={styles.input} placeholder="לא חובה" />
+                                </div>
+                                <div style={styles.field}>
+                                    <label>עיסוק האם</label>
+                                    <input name="mother_occupation" value={user.mother_occupation || ''} onChange={handleChange} style={styles.input} placeholder="לא חובה" />
                                 </div>
                             </div>
                         </div>
@@ -1283,9 +1314,9 @@ function Profile() {
                                 <label style={{ fontWeight: 'bold' }}>סטטוס:</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
-                                        { value: 'single', label: 'רווק/ה' },
-                                        { value: 'divorced', label: 'גרוש/ה' },
-                                        { value: 'widower', label: 'אלמן/ה' }
+                                        { value: 'single', label: 'רווק / רווקה' },
+                                        { value: 'divorced', label: 'גרוש / גרושה' },
+                                        { value: 'widower', label: 'אלמן / אלמנה' }
                                     ].map(option => (
                                         <label key={option.value} style={{
                                             display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',

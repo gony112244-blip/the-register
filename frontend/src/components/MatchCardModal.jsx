@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 // ── תרגומים ──
 const T = {
     gender: { male: '👨 גבר', female: '👩 אישה' },
-    status: { single: 'רווק/ה', divorced: 'גרוש/ה', widower: 'אלמן/ה' },
+    status: { single: 'רווק / רווקה', divorced: 'גרוש / גרושה', widower: 'אלמן / אלמנה' },
     family_background: { haredi: 'חרדי', dati_leumi: 'דתי לאומי', masorti: 'מסורתי', baal_teshuva: 'חוזר בתשובה' },
     heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
     body_type: { very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה', average: 'ממוצע', athletic: 'ספורטיבי', full: 'מלא' },
     skin_tone: { fair: 'בהיר', medium: 'בינוני', olive: 'זית', dark: 'כהה' },
-    appearance: { fair: 'סביר', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד' },
+    appearance: { fair: 'נחמד', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד', stunning: 'מרשים במיוחד' },
     current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב/ת', fixed_times: 'קובע עיתים' },
     contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
     apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי' },

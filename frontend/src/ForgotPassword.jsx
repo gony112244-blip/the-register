@@ -2,6 +2,16 @@ import API_BASE from './config';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+async function parseResponseJson(res) {
+    const text = await res.text();
+    if (!text) return {};
+    try {
+        return JSON.parse(text);
+    } catch {
+        return {};
+    }
+}
+
 function ForgotPassword() {
     const [step, setStep] = useState(1); // 1=choose method, 2=enter code, 3=new password
     const [method, setMethod] = useState(''); // 'email' or 'call'
@@ -32,7 +42,7 @@ function ForgotPassword() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, method, email })
             });
-            const data = await res.json();
+            const data = await parseResponseJson(res);
 
             if (res.ok) {
                 if (method === 'email') {
@@ -64,7 +74,7 @@ function ForgotPassword() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, code })
             });
-            const data = await res.json();
+            const data = await parseResponseJson(res);
 
             if (res.ok) {
                 setMessage('');
@@ -100,7 +110,7 @@ function ForgotPassword() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone, code, newPassword })
             });
-            const data = await res.json();
+            const data = await parseResponseJson(res);
 
             if (res.ok) {
                 setMessage('✅ הסיסמה שונתה בהצלחה!');

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 const ToastContext = createContext();
 
@@ -21,30 +22,33 @@ export function ToastProvider({ children }) {
     const info = (msg) => showToast(msg, 'info');
     const warning = (msg) => showToast(msg, 'warning');
 
+    const toastLayer = (
+        <div style={styles.container}>
+            {toasts.map(toast => (
+                <div key={toast.id} style={{ ...styles.toast, ...styles[toast.type] }}>
+                    <span style={styles.icon}>
+                        {toast.type === 'success' && '✅'}
+                        {toast.type === 'error' && '❌'}
+                        {toast.type === 'warning' && '⚠️'}
+                        {toast.type === 'info' && 'ℹ️'}
+                    </span>
+                    <span style={styles.message}>{toast.message}</span>
+                    <button
+                        type="button"
+                        onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                        style={styles.closeBtn}
+                    >
+                        ✕
+                    </button>
+                </div>
+            ))}
+        </div>
+    );
+
     return (
         <ToastContext.Provider value={{ showToast, success, error, info, warning }}>
             {children}
-
-            {/* Toast Container */}
-            <div style={styles.container}>
-                {toasts.map(toast => (
-                    <div key={toast.id} style={{ ...styles.toast, ...styles[toast.type] }}>
-                        <span style={styles.icon}>
-                            {toast.type === 'success' && '✅'}
-                            {toast.type === 'error' && '❌'}
-                            {toast.type === 'warning' && '⚠️'}
-                            {toast.type === 'info' && 'ℹ️'}
-                        </span>
-                        <span style={styles.message}>{toast.message}</span>
-                        <button
-                            onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
-                            style={styles.closeBtn}
-                        >
-                            ✕
-                        </button>
-                    </div>
-                ))}
-            </div>
+            {typeof document !== 'undefined' ? createPortal(toastLayer, document.body) : null}
         </ToastContext.Provider>
     );
 }

@@ -120,9 +120,10 @@ function Login() {
                 </form>
 
                 <div style={footerStyle}>
-                    <p style={linkStyle}>
-                        עדיין אין לך כרטיס? <span onClick={() => navigate('/register')} style={linkTextStyle}>יצירת חשבון חדש</span>
-                    </p>
+                    <div style={loginFooterRowStyle}>
+                        <span style={linkStyle}>עדיין אין לך כרטיס?</span>
+                        <span onClick={() => navigate('/register')} style={linkTextStyle}>הירשם כאן</span>
+                    </div>
                     <p style={forgotPassStyle}>
                         <span onClick={() => navigate('/forgot-password')} style={forgotPassLink}>שכחתי סיסמה</span>
                     </p>
@@ -284,6 +285,16 @@ const footerStyle = {
     textAlign: 'center',
     borderTop: '1px solid #e2e8f0',
     paddingTop: '20px'
+};
+
+const loginFooterRowStyle = {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+    margin: '0 0 10px 0'
 };
 
 const linkStyle = {

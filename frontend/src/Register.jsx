@@ -169,7 +169,7 @@ function Register() {
             if (response.ok) {
                 showToast("המייל אומת בהצלחה! ברוך הבא 🎉", "success");
                 sessionStorage.setItem('email_reminder_shown', 'true');
-                setTimeout(() => navigate('/profile'), 1200);
+                setTimeout(() => navigate('/profile'), 1500);
             } else {
                 showToast(`קוד שגוי: ${data.message}`, "error");
             }
@@ -264,7 +264,7 @@ function Register() {
 
                         {/* אימייל */}
                         <div style={fieldWrapper}>
-                            <label style={labelStyle}>אימייל (חובה לאימות חשבון)</label>
+                            <label style={labelStyle}>אימייל (נדרש לאימות החשבון)</label>
                             <input
                                 type="email"
                                 placeholder="your@email.com"
@@ -369,13 +369,12 @@ function Register() {
                                 color: (isFormValid && !isSubmitting) ? '#fff' : '#64748b'
                             }}
                         >
-                            {isSubmitting ? "יוצר חשבון..." : "הירשם עכשיו"}
+                            {isSubmitting ? "יוצר חשבון..." : "להירשם עכשיו"}
                         </button>
 
-                        <div style={footerStyle}>
-                            <p style={linkStyle}>
-                                כבר רשום? <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
-                            </p>
+                        <div style={registerFooterRowStyle}>
+                            <span style={linkStyle}>כבר רשום?</span>
+                            <span onClick={() => navigate('/login')} style={linkTextStyle}>התחבר כאן</span>
                         </div>
                     </>
                 ) : (
@@ -383,9 +382,9 @@ function Register() {
                         {/* Header */}
                         <div style={headerStyle}>
                             <span style={logoStyle}>✉️</span>
-                            <h2 style={titleStyle}>אמת את האימייל שלך</h2>
+                            <h2 style={titleStyle}>אימות כתובת האימייל</h2>
                             <p style={subtitleStyle}>
-                                שלחנו קוד אימות אל <b style={{ color: '#1e3a5f' }}>{email}</b>
+                                שלחנו קוד אימות ל־ <b style={{ color: '#1e3a5f' }}>{email}</b>
                             </p>
                         </div>
 
@@ -393,7 +392,7 @@ function Register() {
                         <div style={verifyMethodBox}>
                             <p style={verifyMethodLabel}>🔗 אפשרות א׳ — קל ומהיר</p>
                             <p style={{ fontSize: '14px', color: '#64748b', margin: '0 0 10px' }}>
-                                לחץ על הכפתור <b>במייל שקיבלת</b> כדי לאמת בלחיצה אחת.
+                                לחצו על הכפתור <b>במייל שקיבלתם</b> כדי לאמת בלחיצה אחת.
                             </p>
                             <button onClick={handleResendCode} style={resendBtnStyle}>
                                 📨 שלח מחדש את מייל האימות
@@ -624,6 +623,16 @@ const footerStyle = {
     textAlign: 'center',
     borderTop: '1px solid #e2e8f0',
     paddingTop: '20px'
+};
+
+const registerFooterRowStyle = {
+    ...footerStyle,
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap'
 };
 
 const linkStyle = {
