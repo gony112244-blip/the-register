@@ -3637,6 +3637,287 @@ async function updateDbSchema() {
     }
 }
 
+
+// ==========================================
+// 🔐 שחזור סיסמה (Forgot Password Flow)
+// ==========================================
+
+// שלב 1: שליחת קוד לפי טלפון (מייל או שיחה)
+app.post('/forgot-password', async (req, res) => {
+    const { phone, method, email } = req.body;
+
+    if (!phone) {
+        return res.status(400).json({ message: 'נא להזין מספר טלפון' });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '').trim();
+
+    try {
+        const userRes = await pool.query(
+            'SELECT id, full_name, email FROM users WHERE phone = $1',
+            [cleanPhone]
+        );
+
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'מספר הטלפון לא רשום במערכת' });
+        }
+
+        const user = userRes.rows[0];
+
+        // יצירת קוד איפוס 6 ספרות
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // תוקף 15 דקות
+
+        // שמירת הקוד במסד הנתונים (עם ALTER TABLE אם עמודות לא קיימות)
+        try {
+            await pool.query(`
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reset_password_code') THEN
+                        ALTER TABLE users ADD COLUMN reset_password_code VARCHAR(10);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reset_password_expires') THEN
+                        ALTER TABLE users ADD COLUMN reset_password_expires TIMESTAMP;
+                    END IF;
+                END $$;
+            `);
+        } catch (altErr) {
+            console.warn('[forgot-password] Column creation warning:', altErr.message);
+        }
+
+        await pool.query(
+            'UPDATE users SET reset_password_code = $1, reset_password_expires = $2 WHERE id = $3',
+            [resetCode, expiresAt, user.id]
+        );
+
+        if (method === 'email') {
+            // שליחה למייל
+            const targetEmail = email || user.email;
+            if (!targetEmail) {
+                return res.status(400).json({ message: 'למשתמש זה אין מייל רשום. בחר שיחה קולית.' });
+            }
+            await sendTemplateEmail(targetEmail, 'reset_password', {
+                fullName: user.full_name || 'משתמש',
+                code: resetCode
+            });
+            res.json({ message: `קוד נשלח למייל ${targetEmail}` });
+        } else {
+            // שיחה קולית — במידה ואין IVR, נשלח SMS / מייל כגיבוי
+            const fallbackEmail = user.email;
+            if (fallbackEmail) {
+                await sendTemplateEmail(fallbackEmail, 'reset_password', {
+                    fullName: user.full_name || 'משתמש',
+                    code: resetCode
+                });
+                console.log(`[forgot-password] Voice call fallback — sent code to email: ${fallbackEmail}`);
+            }
+            res.json({ message: 'הקוד יישלח בשיחה קולית. לחלופין נשלח למייל.' });
+        }
+    } catch (err) {
+        console.error('[forgot-password] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת, נסה שוב' });
+    }
+});
+
+// שלב 2: אימות הקוד שנשלח
+app.post('/verify-reset-code', async (req, res) => {
+    const { phone, code } = req.body;
+
+    if (!phone || !code) {
+        return res.status(400).json({ message: 'נתונים חסרים' });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '').trim();
+
+    try {
+        const userRes = await pool.query(
+            'SELECT id, reset_password_code, reset_password_expires FROM users WHERE phone = $1',
+            [cleanPhone]
+        );
+
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'משתמש לא נמצא' });
+        }
+
+        const user = userRes.rows[0];
+
+        if (!user.reset_password_code) {
+            return res.status(400).json({ message: 'לא נשלח קוד לחשבון זה, אנא בקש קוד חדש' });
+        }
+
+        if (new Date() > new Date(user.reset_password_expires)) {
+            return res.status(400).json({ message: 'פג תוקף הקוד, אנא בקש קוד חדש' });
+        }
+
+        if (user.reset_password_code !== code.trim()) {
+            return res.status(400).json({ message: 'קוד שגוי, נסה שוב' });
+        }
+
+        res.json({ message: 'הקוד אומת בהצלחה' });
+    } catch (err) {
+        console.error('[verify-reset-code] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
+// שלב 3: עדכון הסיסמה החדשה
+app.post('/reset-password', async (req, res) => {
+    const { phone, code, newPassword } = req.body;
+
+    if (!phone || !code || !newPassword) {
+        return res.status(400).json({ message: 'נתונים חסרים' });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'הסיסמה חייבת להכיל לפחות 6 תווים' });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '').trim();
+
+    try {
+        const userRes = await pool.query(
+            'SELECT id, reset_password_code, reset_password_expires FROM users WHERE phone = $1',
+            [cleanPhone]
+        );
+
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'משתמש לא נמצא' });
+        }
+
+        const user = userRes.rows[0];
+
+        if (!user.reset_password_code || user.reset_password_code !== code.trim()) {
+            return res.status(400).json({ message: 'קוד שגוי — אנא התחל מחדש' });
+        }
+
+        if (new Date() > new Date(user.reset_password_expires)) {
+            return res.status(400).json({ message: 'פג תוקף הקוד — אנא בקש קוד חדש' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await pool.query(
+            'UPDATE users SET password = $1, reset_password_code = NULL, reset_password_expires = NULL WHERE id = $2',
+            [hashedPassword, user.id]
+        );
+
+        console.log(`[reset-password] Password reset successfully for phone: ${cleanPhone}`);
+        res.json({ message: 'הסיסמה שונתה בהצלחה! 🎉' });
+    } catch (err) {
+        console.error('[reset-password] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת, נסה שוב' });
+    }
+});
+
+// ==========================================
+// 📧 שליחת כרטיסיות שידוך לשדכנית
+// ==========================================
+
+app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req, res) => {
+    const { connectionId } = req.params;
+
+    if (!req.user?.is_admin) {
+        return res.status(403).json({ message: 'אין הרשאה' });
+    }
+
+    try {
+        // שלוף פרטי החיבור + שני המשתמשים + השדכנית המשויכת
+        const connRes = await pool.query(`
+            SELECT
+                c.id AS connection_id,
+                c.shadchanit_id,
+                s.name AS shadchanit_name,
+                s.email AS shadchanit_email,
+                s.phone AS shadchanit_phone,
+                sender.id AS sender_id,
+                sender.full_name AS sender_name,
+                sender.last_name AS sender_last_name,
+                sender.age AS sender_age,
+                sender.city AS sender_city,
+                sender.gender AS sender_gender,
+                sender.current_occupation AS sender_occupation,
+                sender.height AS sender_height,
+                sender.heritage_sector AS sender_sector,
+                receiver.id AS receiver_id,
+                receiver.full_name AS receiver_name,
+                receiver.last_name AS receiver_last_name,
+                receiver.age AS receiver_age,
+                receiver.city AS receiver_city,
+                receiver.gender AS receiver_gender,
+                receiver.current_occupation AS receiver_occupation,
+                receiver.height AS receiver_height,
+                receiver.heritage_sector AS receiver_sector
+            FROM connections c
+            JOIN users sender ON sender.id = c.sender_id
+            JOIN users receiver ON receiver.id = c.receiver_id
+            LEFT JOIN shadchaniot s ON s.id = c.shadchanit_id
+            WHERE c.id = $1
+        `, [connectionId]);
+
+        if (connRes.rows.length === 0) {
+            return res.status(404).json({ message: 'שידוך לא נמצא' });
+        }
+
+        const match = connRes.rows[0];
+
+        if (!match.shadchanit_email) {
+            return res.status(400).json({ message: 'לא משויכת שדכנית עם מייל לשידוך זה' });
+        }
+
+        // בניית תוכן המייל עם פרטי שני הצדדים
+        const senderFullName = `${match.sender_name} ${match.sender_last_name || ''}`.trim();
+        const receiverFullName = `${match.receiver_name} ${match.receiver_last_name || ''}`.trim();
+
+        const htmlContent = `
+            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fff;">
+                <div style="background: linear-gradient(135deg, #1e3a5f, #2d4a6f); padding: 30px; text-align: center;">
+                    <h1 style="color: #c9a227; margin: 0;">💍 כרטיסיות שידוך</h1>
+                    <p style="color: #fff; margin: 10px 0 0;">שלום ${match.shadchanit_name || 'שדכנית'}, להלן פרטי השידוך הממתין לטיפולך</p>
+                </div>
+                <div style="padding: 30px; display: flex; gap: 20px;">
+                    <div style="flex: 1; background: #f0f9ff; border: 2px solid #1e3a5f; border-radius: 12px; padding: 20px;">
+                        <h2 style="color: #1e3a5f; margin: 0 0 15px; border-bottom: 2px solid #c9a227; padding-bottom: 10px;">
+                            ${match.sender_gender === 'male' ? '👨' : '👩'} ${senderFullName}
+                        </h2>
+                        <p>📅 <strong>גיל:</strong> ${match.sender_age || '—'}</p>
+                        <p>📍 <strong>עיר:</strong> ${match.sender_city || '—'}</p>
+                        <p>📏 <strong>גובה:</strong> ${match.sender_height ? match.sender_height + ' ס"מ' : '—'}</p>
+                        <p>💼 <strong>עיסוק:</strong> ${match.sender_occupation || '—'}</p>
+                        <p>🏘️ <strong>מגזר:</strong> ${match.sender_sector || '—'}</p>
+                    </div>
+                    <div style="flex: 1; background: #fff9f0; border: 2px solid #c9a227; border-radius: 12px; padding: 20px;">
+                        <h2 style="color: #1e3a5f; margin: 0 0 15px; border-bottom: 2px solid #1e3a5f; padding-bottom: 10px;">
+                            ${match.receiver_gender === 'female' ? '👩' : '👨'} ${receiverFullName}
+                        </h2>
+                        <p>📅 <strong>גיל:</strong> ${match.receiver_age || '—'}</p>
+                        <p>📍 <strong>עיר:</strong> ${match.receiver_city || '—'}</p>
+                        <p>📏 <strong>גובה:</strong> ${match.receiver_height ? match.receiver_height + ' ס"מ' : '—'}</p>
+                        <p>💼 <strong>עיסוק:</strong> ${match.receiver_occupation || '—'}</p>
+                        <p>🏘️ <strong>מגזר:</strong> ${match.receiver_sector || '—'}</p>
+                    </div>
+                </div>
+                <div style="background: #f8fafc; padding: 20px 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                    <p style="color: #6b7280; font-size: 0.9rem;">הפנקס — מערכת שידוכים | מייל זה נשלח אוטומטית</p>
+                </div>
+            </div>
+        `;
+
+        await sendEmail(
+            match.shadchanit_email,
+            `💍 כרטיסיות שידוך: ${senderFullName} & ${receiverFullName}`,
+            htmlContent
+        );
+
+        console.log(`[send-match-cards] Cards sent to shadchanit ${match.shadchanit_email} for connection ${connectionId}`);
+        res.json({ message: `הכרטיסיות נשלחו בהצלחה לשדכנית ${match.shadchanit_name || ''}` });
+
+    } catch (err) {
+        console.error('[send-match-cards] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת בשליחת הכרטיסיות' });
+    }
+});
+
+// ==========================================
+
 updateDbSchema().then(() => {
     // הגשת frontend בפרודקשן — חייב להיות אחרי כל ה-API routes
     const distPath = path.join(__dirname, 'frontend', 'dist');
