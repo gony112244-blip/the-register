@@ -351,8 +351,10 @@ const S = {
     panel: {
         position: 'absolute',
         top: 'calc(100% + 12px)',
-        left: 0,
+        left: '50%',
+        transform: 'translateX(-50%)',
         width: 280,
+        maxWidth: '90vw',
         background: '#ffffff',
         borderRadius: 14,
         boxShadow: '0 8px 30px rgba(0,0,0,0.18)',
