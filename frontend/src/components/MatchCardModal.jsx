@@ -7,13 +7,27 @@ const T = {
     status: { single: 'רווק / רווקה', divorced: 'גרוש / גרושה', widower: 'אלמן / אלמנה' },
     family_background: { haredi: 'חרדי', dati_leumi: 'דתי לאומי', masorti: 'מסורתי', baal_teshuva: 'חוזר בתשובה' },
     heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
-    body_type: { very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה', average: 'ממוצע', athletic: 'ספורטיבי', full: 'מלא' },
-    skin_tone: { fair: 'בהיר', medium: 'בינוני', olive: 'זית', dark: 'כהה' },
+    body_type: {
+        very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה',
+        average_thin: 'רזה-ממוצע', average: 'ממוצע',
+        average_full: 'ממוצע-מלא', full: 'מלא', athletic: 'ספורטיבי'
+    },
+    skin_tone: {
+        very_light: 'בהיר מאוד', light: 'בהיר',
+        light_average: 'בהיר-ממוצע', medium: 'ממוצע-שזוף',
+        tan: 'שחום', dark: 'כהה',
+        fair: 'בהיר', olive: 'זית'
+    },
     appearance: { fair: 'נחמד', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד', stunning: 'מרשים במיוחד' },
     current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב/ת', fixed_times: 'קובע עיתים' },
     contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
-    apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי' },
-    life_aspiration: { learning: 'תלמוד תורה', career: 'קריירה', family: 'בנית בית', both: 'שילוב תורה ועבודה' },
+    apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי', discuss: 'לדון עם השדכן/ית' },
+    life_aspiration: {
+        learning: 'תלמוד תורה', career: 'קריירה', family: 'בנית בית',
+        both: 'שילוב תורה ועבודה',
+        study_only: 'ללמוד יום שלם', study_and_work: 'ללמוד ולעבוד',
+        fixed_times: 'לקבוע עיתים', work_only: 'רק לעבוד'
+    },
     home_style: { quiet: 'שקטה ורגועה', active: 'פעילה וחברותית', flexible: 'גמיש' },
 };
 const tr = (field, val) => T[field]?.[val] || val || null;
@@ -129,9 +143,17 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
 
     // parse apartment_help
     const ah = p.apartment_help || '';
-    const ahMatch = ah.match(/^(yes|no|partial)\s*(?:\((\d+)\))?/);
+    const ahMatch = ah.match(/^(yes|no|partial|discuss)\s*(?:\((\d+)\))?/);
     const ahVal = ahMatch ? ahMatch[1] : ah;
     const ahAmount = (ahMatch && ahMatch[2]) ? ahMatch[2] : p.apartment_amount;
+
+    // parse address (new format: "street | housenum", old format: free text)
+    const addressStr = (() => {
+        if (!p.full_address) return null;
+        const parts = p.full_address.split(' | ');
+        if (parts.length === 2) return `רחוב ${parts[0]} מס׳ ${parts[1]}`;
+        return p.full_address;
+    })();
 
     const tabs = [
         { id: 1, label: '📝 פרטים' },
@@ -238,6 +260,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                                 <Row label="מספר אחים" val={p.siblings_count} />
                                 <Row label="מיקום בין האחים" val={p.sibling_position} />
                                 <Row label="ארץ לידה" val={p.country_of_birth} />
+                                {isAdmin && addressStr && <Row label="כתובת" val={addressStr} fullWidth />}
                             </Section>
 
                             <Section title="🪞 מראה חיצוני" color="#f0f9ff" border="#93c5fd">

@@ -113,7 +113,6 @@ function AdminMatches() {
     };
 
     const handleDeleteShadchanit = async (id) => {
-        if (!window.confirm('למחוק שדכנית זו?')) return;
         try {
             await fetch(`${API_BASE}/admin/shadchaniot/${id}`, {
                 method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
@@ -156,7 +155,6 @@ function AdminMatches() {
 
     // --- שליחת כרטיסיות ---
     const handleSendCards = async (connectionId) => {
-        if (!window.confirm('לשלוח כרטיסיות לשדכנית המשויכת?')) return;
         try {
             const res = await fetch(`${API_BASE}/admin/send-match-cards/${connectionId}`, {
                 method: 'POST',
@@ -164,8 +162,8 @@ function AdminMatches() {
             });
             const data = await res.json();
             if (res.ok) showToast('📧 הכרטיסיות נשלחו לשדכנית');
-            else alert(data.message || 'שגיאה בשליחה');
-        } catch (err) { alert('שגיאה'); }
+            else showToast(data.message || 'שגיאה בשליחה');
+        } catch (err) { showToast('שגיאה בשליחה'); }
     };
 
     // --- סגירת שידוך ---

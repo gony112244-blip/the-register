@@ -68,7 +68,7 @@ function Profile() {
         about_me: '', home_style: '', partner_description: '', important_in_life: '',
 
         // חלק ב - פרטים נסתרים
-        email: '', full_address: '', father_full_name: '', mother_full_name: '', siblings_details: '',
+        email: '', full_address: '', street: '', house_number: '', father_full_name: '', mother_full_name: '', siblings_details: '',
         reference_1_name: '', reference_1_phone: '',
         reference_2_name: '', reference_2_phone: '',
         reference_3_name: '', reference_3_phone: '',
@@ -127,6 +127,19 @@ function Profile() {
                         const parts = data.yeshiva_name.split(' (קטנה: ');
                         data.yeshiva_name = parts[0];
                         data.yeshiva_ketana_name = parts[1].replace(')', '');
+                    }
+                    // פירוק כתובת מלאה לשדות רחוב + מספר בית
+                    if (data.full_address) {
+                        // פורמט: "רחוב X מס' Y" או "רחוב X, Y"
+                        const parts = data.full_address.split(' | ');
+                        if (parts.length === 2) {
+                            data.street = parts[0];
+                            data.house_number = parts[1];
+                        } else {
+                            // כתובת ישנה בפורמט חופשי - שמור ב-street
+                            data.street = data.full_address;
+                            data.house_number = '';
+                        }
                     }
 
                     // מיזוג חכם ותיקון פורמטים — שדות ריקים מפורשים כ־'' כדי שהטופס יציג נכון
@@ -291,7 +304,8 @@ function Profile() {
             home_style: 'תורני מודרני',
             partner_description: 'בחורה יראת שמיים, בעלת מידות טובות.',
             important_in_life: 'יושר, נאמנות וקביעת עיתים לתורה.',
-            full_address: pick(cities) + ', רחוב השומר ' + randNum(1, 100),
+            street: 'השומר',
+            house_number: String(randNum(1, 100)),
             father_full_name: pick(firstNames) + ' ' + pick(lastNames),
             mother_full_name: pick(firstNames) + ' ' + pick(lastNames),
             siblings_details: 'אח בכור נשוי, אחות לומדת בסמינר...',
@@ -366,6 +380,12 @@ function Profile() {
         }
         if (user.yeshiva_name && user.yeshiva_ketana_name) {
             dataToSend.yeshiva_name = `${user.yeshiva_name} (קטנה: ${user.yeshiva_ketana_name})`;
+        }
+        // איחוד רחוב + מספר בית לשדה full_address
+        if (user.street) {
+            dataToSend.full_address = user.house_number
+                ? `${user.street} | ${user.house_number}`
+                : user.street;
         }
 
         try {
@@ -501,7 +521,7 @@ function Profile() {
             if (user.apartment_help === 'yes') required.push('apartment_amount');
             if (user.has_children) required.push('children_count');
         } else if (step === 2) {
-            required = ['full_address', 'father_full_name', 'mother_full_name', 'reference_1_name', 'reference_1_phone', 'reference_2_name', 'reference_2_phone'];
+            required = ['street', 'house_number', 'father_full_name', 'mother_full_name', 'reference_1_name', 'reference_1_phone', 'reference_2_name', 'reference_2_phone'];
         } else if (step === 3) {
             // חלק ג' קריטי להתאמות חיפוש
             required = [
@@ -1001,8 +1021,26 @@ function Profile() {
                             <h3 style={styles.cardTitle}>🏠 פרטי הורים וכתובת</h3>
                             <div style={styles.grid}>
                                 <div style={styles.field}>
-                                    <label>כתובת מלאה *</label>
-                                    <input name="full_address" value={user.full_address || ''} onChange={handleChange} style={styles.input} placeholder="עיר, רחוב, מספר" />
+                                    <label>רחוב *</label>
+                                    <input
+                                        name="street"
+                                        value={user.street || ''}
+                                        onChange={handleChange}
+                                        style={{ ...styles.input, borderColor: errors.street ? 'red' : '#e2e8f0' }}
+                                        placeholder="שם הרחוב"
+                                    />
+                                    {errors.street && <span style={{ color: 'red', fontSize: '0.82rem' }}>שדה חובה</span>}
+                                </div>
+                                <div style={styles.field}>
+                                    <label>מספר בית *</label>
+                                    <input
+                                        name="house_number"
+                                        value={user.house_number || ''}
+                                        onChange={handleChange}
+                                        style={{ ...styles.input, borderColor: errors.house_number ? 'red' : '#e2e8f0' }}
+                                        placeholder="מספר"
+                                    />
+                                    {errors.house_number && <span style={{ color: 'red', fontSize: '0.82rem' }}>שדה חובה</span>}
                                 </div>
                                 <div style={styles.field}>
                                     <label>שם מלא של האבא *</label>

@@ -8,11 +8,19 @@ import MatchCardModal from './components/MatchCardModal';
 const T = {
     heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
     family_background: { haredi: 'חרדי', dati_leumi: 'דתי לאומי', masorti: 'מסורתי', baal_teshuva: 'חוזר בתשובה' },
-    body_type: { very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה', average: 'ממוצע', athletic: 'ספורטיבי', full: 'מלא' },
-    appearance: { fair: 'סביר', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד' },
+    body_type: { very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה', average_thin: 'רזה-ממוצע', average: 'ממוצע', average_full: 'ממוצע-מלא', full: 'מלא' },
+    appearance: { fair: 'נחמד', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד', stunning: 'מרשים במיוחד' },
     current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב/ת', fixed_times: 'קובע עיתים' },
 };
 const tr = (field, val) => T[field]?.[val] || val || '—';
+
+// ── סיבות להעברה לסל מיחזור ──
+const HIDE_REASONS = [
+    { id: 1, text: 'לא הסגנון שלי' },
+    { id: 2, text: 'נפגשנו פעם בעבר' },
+    { id: 3, text: 'ביררנו ולא מתאים' },
+    { id: 4, text: 'אחר' },
+];
 
 function Matches() {
     const navigate = useNavigate();
@@ -25,11 +33,12 @@ function Matches() {
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
-    const [photoStatuses, setPhotoStatuses] = useState({});   // { userId: 'none'|'pending'|'approved' }
-    const [connectStatuses, setConnectStatuses] = useState({}); // { userId: 'pending'|null }
+    const [photoStatuses, setPhotoStatuses] = useState({});
+    const [connectStatuses, setConnectStatuses] = useState({});
     const [requestingPhoto, setRequestingPhoto] = useState(null);
     const [connectingId, setConnectingId] = useState(null);
-    const [modalMatch, setModalMatch] = useState(null);        // פרטים מלאים לmodal
+    const [modalMatch, setModalMatch] = useState(null);
+    const [hideReasonModal, setHideReasonModal] = useState(null); // { userId, name }
     const itemsPerPage = 6;
 
     useEffect(() => {
@@ -87,9 +96,7 @@ function Matches() {
     };
 
     const handleViewCard = async (match) => {
-        // אם כבר יש לנו את הפרטים מהרשימה — נשתמש בהם ישירות
         setModalMatch(match);
-        // ואז ננסה לטעון פרטים מלאים יותר ברקע
         try {
             const res = await fetch(`${API_BASE}/match-card/${match.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -132,7 +139,6 @@ function Matches() {
             const data = await res.json();
             if (res.ok) {
                 showToast('🎉 הפנייה נשלחה בהצלחה!', 'success');
-                // הכרטיס נשאר — רק מסמנים כממתין
                 setConnectStatuses(prev => ({ ...prev, [targetId]: 'pending' }));
             } else {
                 showToast(data.message || 'שגיאה', 'warning');
@@ -144,14 +150,21 @@ function Matches() {
         }
     };
 
-    const handleHideProfile = async (hiddenUserId) => {
-        if (!window.confirm('להעביר את הפרופיל לסל המיחזור?')) return;
+    // ── סל מיחזור עם בחירת סיבה ──
+    const openHideModal = (userId, name) => {
+        setHideReasonModal({ userId, name });
+    };
+
+    const confirmHide = async (reason) => {
+        if (!hideReasonModal) return;
+        const { userId: hiddenUserId } = hideReasonModal;
+        setHideReasonModal(null);
         setMatches(prev => prev.filter(m => m.id !== hiddenUserId));
         try {
             await fetch(`${API_BASE}/api/hide-profile`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ userId: user.id, hiddenUserId })
+                body: JSON.stringify({ userId: user.id, hiddenUserId, reason })
             });
             showToast('הפרופיל הועבר לסל המיחזור 🗑️', 'info');
         } catch {
@@ -190,6 +203,32 @@ function Matches() {
         <div style={styles.page}>
             {modalMatch && <MatchCardModal person={modalMatch} onClose={() => setModalMatch(null)} token={token} />}
 
+            {/* ── מודל בחירת סיבה לסל מיחזור ── */}
+            {hideReasonModal && (
+                <div style={hideModalOverlay}>
+                    <div style={hideModalBox}>
+                        <h3 style={{ color: '#1e3a5f', margin: '0 0 6px', fontSize: '1.1rem' }}>🗑️ העברה לסל המיחזור</h3>
+                        <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: '0 0 18px', lineHeight: 1.6 }}>
+                            מה הסיבה שהצעת <strong>{hideReasonModal.name}</strong> לא מתאימה לך?
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {HIDE_REASONS.map(r => (
+                                <button
+                                    key={r.id}
+                                    onClick={() => confirmHide(r.text)}
+                                    style={hideReasonBtn}
+                                >
+                                    {r.text}
+                                </button>
+                            ))}
+                        </div>
+                        <button onClick={() => setHideReasonModal(null)} style={hideCloseBtn}>
+                            ← ביטול
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div style={{ maxWidth: '1200px', margin: '0 auto 10px', display: 'flex', justifyContent: 'flex-end', padding: '0 20px' }}>
                 <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל מחזור</button>
             </div>
@@ -216,9 +255,9 @@ function Matches() {
                                     <div key={match.id} style={{ ...styles.card, outline: connectStatus === 'pending' ? '2px solid #c9a227' : 'none' }}>
                                         {/* כפתור הסתרה */}
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); handleHideProfile(match.id); }}
+                                            onClick={(e) => { e.stopPropagation(); openHideModal(match.id, match.full_name); }}
                                             style={styles.trashBtn}
-                                            title="הסתר פרופיל"
+                                            title="העבר לסל מיחזור"
                                         >🗑️</button>
 
                                         {/* badge "בקשה נשלחה" */}
@@ -273,12 +312,10 @@ function Matches() {
 
                                         {/* פעולות */}
                                         <div style={styles.cardFooter}>
-                                            {/* כפתור צפייה בכרטיס */}
                                             <button onClick={() => handleViewCard(match)} style={styles.viewBtn}>
                                                 👁️ צפה בכרטיס המלא
                                             </button>
 
-                                            {/* בקשת תמונות */}
                                             {hasPhotos && photoStatus === 'none' && (
                                                 <button
                                                     onClick={() => handleRequestPhoto(match.id)}
@@ -295,7 +332,6 @@ function Matches() {
                                                 <div style={styles.noPhotoBadge}>📷 אין תמונות עדיין</div>
                                             )}
 
-                                            {/* שליחת פנייה */}
                                             {connectStatus !== 'pending' ? (
                                                 <button
                                                     onClick={() => handleConnect(match.id)}
@@ -428,5 +464,30 @@ const styles = {
     }
 };
 
+// ── סגנונות מודל סיבת הסתרה ──
+const hideModalOverlay = {
+    position: 'fixed', inset: 0,
+    background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 10000, direction: 'rtl'
+};
+const hideModalBox = {
+    background: '#fff', borderRadius: '20px',
+    padding: '28px 24px', maxWidth: '400px', width: '90%',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+};
+const hideReasonBtn = {
+    padding: '12px 16px', background: '#f8fafc',
+    border: '1.5px solid #e2e8f0', borderRadius: '10px',
+    cursor: 'pointer', textAlign: 'right', fontSize: '0.95rem',
+    color: '#1e3a5f', fontWeight: '600', fontFamily: 'inherit',
+    transition: 'all 0.15s'
+};
+const hideCloseBtn = {
+    marginTop: '14px', width: '100%', padding: '10px',
+    background: 'transparent', border: '1px solid #e2e8f0',
+    borderRadius: '10px', cursor: 'pointer', color: '#64748b',
+    fontWeight: '600', fontFamily: 'inherit'
+};
 
 export default Matches;

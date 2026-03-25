@@ -2,6 +2,7 @@ import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MatchCardModal from './components/MatchCardModal';
+import { useToast } from './components/ToastProvider';
 
 const CANCEL_REASONS = [
     { id: 1, text: 'לצערנו, לאחר בירורים נראה שאנחנו פחות מתאימים זה לזה' },
@@ -10,12 +11,20 @@ const CANCEL_REASONS = [
     { id: 4, text: 'הצעה זו כבר הוצעה לנו בעבר' },
 ];
 
+function formatAddress(full_address) {
+    if (!full_address) return null;
+    const parts = full_address.split(' | ');
+    if (parts.length === 2) return `רחוב ${parts[0]} מס׳ ${parts[1]}`;
+    return full_address;
+}
+
 function Connections() {
     const [connections, setConnections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalPerson, setModalPerson] = useState(null);
-    const [cancelModal, setCancelModal] = useState(null); // { connectionId, name }
+    const [cancelModal, setCancelModal] = useState(null);
     const navigate = useNavigate();
+    const { showToast } = useToast();
 
     const user = JSON.parse(localStorage.getItem('user'));
     const token = localStorage.getItem('token');
@@ -32,7 +41,6 @@ function Connections() {
             }
 
             const data = await res.json();
-
             if (Array.isArray(data)) {
                 setConnections(data);
             } else {
@@ -64,10 +72,10 @@ function Connections() {
                 setCancelModal(null);
                 fetchConnections(user.id);
             } else {
-                alert('שגיאה בביטול השידוך');
+                showToast('שגיאה בביטול השידוך', 'error');
             }
         } catch {
-            alert('שגיאה בתקשורת עם השרת');
+            showToast('שגיאה בתקשורת עם השרת', 'error');
         }
     };
 
@@ -82,10 +90,15 @@ function Connections() {
                 body: JSON.stringify({ connectionId, userId: user.id })
             });
             const result = await res.json();
-            alert(result.message);
+            // החליפת הודעות בהתאם לסטטוס
+            if (result.status === 'completed') {
+                showToast('🎉 שניכם אישרתם! הפרטים עברו לשדכנית', 'success');
+            } else {
+                showToast('✅ האישור שלך התקבל. ממתינים לצד השני לסיים בירורים ולאשר', 'info');
+            }
             fetchConnections(user.id);
         } catch (err) {
-            alert("שגיאה בשליחת האישור");
+            showToast("שגיאה בשליחת האישור", 'error');
         }
     };
 
@@ -152,6 +165,7 @@ function Connections() {
                             const isSender = conn.sender_id === user.id;
                             const alreadyApproved = isSender ? conn.sender_final_approve : conn.receiver_final_approve;
                             const otherSideReady = isSender ? conn.receiver_final_approve : conn.sender_final_approve;
+                            const addrText = formatAddress(conn.full_address);
 
                             return (
                                 <div key={conn.id} style={styles.card}>
@@ -180,6 +194,7 @@ function Connections() {
 
                                         <div style={styles.infoSection}>
                                             <h4 style={styles.infoTitle}>👥 פרטים לבירורים:</h4>
+
                                             <div style={styles.infoItem}>
                                                 <span style={styles.infoLabel}>ממליץ 1:</span>
                                                 <span>{conn.reference_1_name || '---'}</span>
@@ -187,6 +202,7 @@ function Connections() {
                                                     📞 {conn.reference_1_phone || '---'}
                                                 </a>
                                             </div>
+
                                             <div style={styles.infoItem}>
                                                 <span style={styles.infoLabel}>ממליץ 2:</span>
                                                 <span>{conn.reference_2_name || '---'}</span>
@@ -194,6 +210,7 @@ function Connections() {
                                                     📞 {conn.reference_2_phone || '---'}
                                                 </a>
                                             </div>
+
                                             <div style={styles.infoItem}>
                                                 <span style={styles.infoLabel}>{user.gender === 'male' ? 'רבנית:' : 'רב:'}</span>
                                                 <span>{conn.rabbi_name || '---'}</span>
@@ -201,6 +218,13 @@ function Connections() {
                                                     📞 {conn.rabbi_phone || '---'}
                                                 </a>
                                             </div>
+
+                                            {addrText && (
+                                                <div style={styles.addressItem}>
+                                                    <span style={styles.infoLabel}>📍 כתובת:</span>
+                                                    <span style={{ color: '#1e3a5f', fontWeight: 700 }}>{addrText}</span>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {conn.status !== 'waiting_for_shadchan' && (
@@ -288,156 +312,201 @@ const styles = {
         overflow: 'hidden'
     },
     header: {
-        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)',
-        padding: '20px',
+        background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)',
+        padding: '16px 20px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center'
     },
-    headerLeft: { display: 'flex', alignItems: 'center', gap: '15px' },
-    avatar: { width: '50px', height: '50px', borderRadius: '50%', border: '3px solid #c9a227' },
-    name: { color: '#fff', margin: 0, fontSize: '1.3rem' },
+    headerLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+    avatar: { width: '50px', height: '50px', borderRadius: '50%', border: '2px solid #c9a227' },
+    name: { color: '#fff', margin: 0, fontSize: '1.2rem' },
     badge: {
-        fontSize: '0.8rem',
-        background: 'rgba(255,255,255,0.2)',
-        color: '#fff',
-        padding: '6px 12px',
+        background: 'rgba(201,162,39,0.2)',
+        color: '#c9a227',
+        padding: '5px 12px',
         borderRadius: '20px',
-        fontWeight: 'bold'
+        fontSize: '0.8rem',
+        fontWeight: '700',
+        border: '1px solid rgba(201,162,39,0.4)'
     },
     badgeGold: {
+        background: 'rgba(201,162,39,0.3)',
+        color: '#ffd700',
+        padding: '5px 12px',
+        borderRadius: '20px',
         fontSize: '0.8rem',
-        background: '#c9a227',
-        color: '#1a1a1a',
-        padding: '6px 12px',
-        borderRadius: '20px',
-        fontWeight: 'bold'
+        fontWeight: '700',
+        border: '1px solid rgba(201,162,39,0.6)'
     },
-    body: { padding: '25px' },
-    infoSection: {
-        background: '#f8fafc',
-        padding: '20px',
-        borderRadius: '12px',
-        marginBottom: '20px'
-    },
-    infoTitle: { margin: '0 0 15px', color: '#1e3a5f' },
-    infoItem: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '8px 0',
-        borderBottom: '1px solid #e5e7eb'
-    },
-    infoLabel: { fontWeight: 'bold', color: '#374151' },
-    phoneLink: { color: '#1e3a5f', textDecoration: 'none', fontWeight: 'bold' },
-    actionArea: { textAlign: 'center' },
-    waitingNotice: {
-        color: '#c9a227',
-        fontWeight: 'bold',
-        marginBottom: '15px',
-        fontSize: '1rem',
-        background: '#fef3c7',
-        padding: '10px',
-        borderRadius: '10px'
-    },
-    approveBtn: {
-        width: '100%',
-        padding: '15px',
-        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)',
-        color: 'white',
-        border: 'none',
-        borderRadius: '12px',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        fontSize: '1rem',
-        boxShadow: '0 4px 15px rgba(30, 58, 95, 0.3)'
-    },
-    doneBtn: {
-        width: '100%',
-        padding: '15px',
-        background: '#9ca3af',
-        color: 'white',
-        border: 'none',
-        borderRadius: '12px',
-        cursor: 'default'
-    },
-    successBox: {
-        background: 'linear-gradient(135deg, #d4edda, #c3e6cb)',
-        color: '#155724',
-        padding: '20px',
-        borderRadius: '12px',
-        textAlign: 'center',
-        fontWeight: 'bold',
-        fontSize: '1rem'
-    },
-    empty: {
-        background: '#fff',
-        borderRadius: '20px',
-        padding: '50px',
-        textAlign: 'center',
-        color: '#374151'
-    },
-    linkBtn: {
-        background: 'linear-gradient(135deg, #c9a227, #d4a72c)',
-        color: '#1a1a1a',
-        border: 'none',
-        padding: '12px 30px',
-        borderRadius: '12px',
-        cursor: 'pointer',
-        fontWeight: 'bold',
-        marginTop: '20px'
-    },
+    body: { padding: '20px' },
     cardBtn: {
         width: '100%',
         padding: '10px',
-        background: 'linear-gradient(135deg, #c9a227, #a6851d)',
-        color: '#1a1a1a',
+        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)',
+        color: '#fff',
         border: 'none',
         borderRadius: '10px',
         cursor: 'pointer',
-        fontWeight: 'bold',
+        fontWeight: '600',
+        marginBottom: '16px',
+        fontSize: '0.95rem'
+    },
+    infoSection: {
+        background: '#f8fafc',
+        borderRadius: '12px',
+        padding: '14px',
+        marginBottom: '16px',
+        border: '1px solid #e2e8f0'
+    },
+    infoTitle: {
+        color: '#1e3a5f',
+        margin: '0 0 12px',
+        fontSize: '0.95rem',
+        fontWeight: '700'
+    },
+    infoItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '8px',
         fontSize: '0.9rem',
-        marginBottom: '16px'
+        flexWrap: 'wrap'
+    },
+    addressItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginTop: '10px',
+        padding: '8px 12px',
+        background: '#eff6ff',
+        border: '1px solid #bfdbfe',
+        borderRadius: '10px',
+        fontSize: '0.9rem'
+    },
+    infoLabel: {
+        color: '#64748b',
+        fontWeight: '600',
+        whiteSpace: 'nowrap',
+        fontSize: '0.85rem'
+    },
+    phoneLink: {
+        color: '#c9a227',
+        textDecoration: 'none',
+        fontWeight: '700',
+        fontSize: '0.9rem'
+    },
+    actionArea: { display: 'flex', flexDirection: 'column', gap: '10px' },
+    waitingNotice: {
+        background: '#fef3c7',
+        border: '1px solid #f59e0b',
+        borderRadius: '10px',
+        padding: '12px',
+        color: '#92400e',
+        fontSize: '0.9rem',
+        fontWeight: '700'
     },
     pendingOtherSide: {
         background: '#f0f9ff',
-        border: '1px solid #bae6fd',
-        color: '#0369a1',
-        padding: '10px',
+        border: '1px solid #0ea5e9',
         borderRadius: '10px',
-        marginBottom: '12px',
-        fontWeight: 'bold',
+        padding: '12px',
+        color: '#0369a1',
         fontSize: '0.9rem',
+        fontWeight: '600',
         textAlign: 'center'
     },
+    approveBtn: {
+        padding: '12px',
+        background: 'linear-gradient(135deg, #16a34a, #15803d)',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        fontWeight: '700',
+        fontSize: '0.95rem'
+    },
+    doneBtn: {
+        padding: '12px',
+        background: '#e2e8f0',
+        color: '#64748b',
+        border: 'none',
+        borderRadius: '10px',
+        cursor: 'default',
+        fontWeight: '700',
+        fontSize: '0.95rem'
+    },
     cancelConnBtn: {
-        width: '100%', marginTop: '10px', padding: '11px',
-        background: 'transparent', color: '#9ca3af',
-        border: '1px solid #e5e7eb', borderRadius: '12px',
-        cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
-        fontFamily: 'inherit'
+        padding: '10px',
+        background: 'transparent',
+        color: '#ef4444',
+        border: '1.5px solid #ef4444',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        fontWeight: '700',
+        fontSize: '0.9rem'
+    },
+    successBox: {
+        background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
+        border: '1px solid #34d399',
+        borderRadius: '10px',
+        padding: '14px',
+        color: '#065f46',
+        fontWeight: '700',
+        textAlign: 'center',
+        fontSize: '0.95rem'
+    },
+    empty: {
+        textAlign: 'center',
+        color: '#fff',
+        padding: '60px 20px'
+    },
+    linkBtn: {
+        padding: '12px 24px',
+        background: 'linear-gradient(135deg, #c9a227, #b08d1f)',
+        color: '#fff',
+        border: 'none',
+        borderRadius: '12px',
+        cursor: 'pointer',
+        fontWeight: '700',
+        fontSize: '1rem'
     },
     overlay: {
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+        position: 'fixed', inset: 0,
+        background: 'rgba(0,0,0,0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 2000, padding: '20px'
+        zIndex: 10000, direction: 'rtl'
     },
     cancelModalBox: {
-        background: '#fff', borderRadius: '16px', padding: '28px 30px',
-        maxWidth: '460px', width: '100%', direction: 'rtl',
+        background: '#fff',
+        borderRadius: '20px',
+        padding: '30px',
+        maxWidth: '440px',
+        width: '90%',
         boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
     },
     reasonBtn: {
-        width: '100%', padding: '13px 16px', background: '#f8fafc',
-        border: '1px solid #e2e8f0', borderRadius: '10px', cursor: 'pointer',
-        fontFamily: 'inherit', fontSize: '0.93rem', color: '#1e3a5f',
-        textAlign: 'right', fontWeight: 500
+        padding: '12px 16px',
+        background: '#f8fafc',
+        border: '1.5px solid #e2e8f0',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        textAlign: 'right',
+        fontSize: '0.9rem',
+        color: '#1e3a5f',
+        fontWeight: '500',
+        transition: 'all 0.15s'
     },
     cancelModalCloseBtn: {
-        marginTop: '16px', width: '100%', padding: '11px',
-        background: '#f1f5f9', border: '1px solid #e2e8f0',
-        borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit',
-        fontSize: '0.9rem', color: '#64748b'
+        marginTop: '16px',
+        width: '100%',
+        padding: '10px',
+        background: 'transparent',
+        border: '1px solid #e2e8f0',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        color: '#64748b',
+        fontWeight: '600'
     }
 };
 

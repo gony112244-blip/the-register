@@ -2553,7 +2553,8 @@ app.get('/my-connections', authenticateToken, async (req, res) => {
         const result = await pool.query(
             `SELECT c.id, c.status, c.sender_id, c.receiver_id, c.sender_final_approve, c.receiver_final_approve,
                 u.full_name, u.phone, u.reference_1_name, u.reference_1_phone,
-                u.reference_2_name, u.reference_2_phone, u.rabbi_name, u.rabbi_phone
+                u.reference_2_name, u.reference_2_phone, u.rabbi_name, u.rabbi_phone,
+                u.full_address
              FROM connections c
              JOIN users u ON (CASE WHEN c.sender_id = $1 THEN c.receiver_id ELSE c.sender_id END) = u.id
              WHERE (c.sender_id = $1 OR c.receiver_id = $1) 
@@ -3010,14 +3011,21 @@ app.get('/unread-count', authenticateToken, async (req, res) => {
 
 // הסתרת פרופיל
 app.post('/api/hide-profile', authenticateToken, async (req, res) => {
-    const { userId, hiddenUserId } = req.body;
+    const { userId, hiddenUserId, reason } = req.body;
     try {
+        // Auto-add reason column if missing (idempotent)
+        await pool.query(`
+            ALTER TABLE hidden_profiles ADD COLUMN IF NOT EXISTS reason TEXT;
+        `).catch(() => {});
         await pool.query(
-            'INSERT INTO hidden_profiles (user_id, hidden_user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-            [userId, hiddenUserId]
+            `INSERT INTO hidden_profiles (user_id, hidden_user_id, reason)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (user_id, hidden_user_id) DO UPDATE SET reason = EXCLUDED.reason`,
+            [userId, hiddenUserId, reason || null]
         );
         res.json({ message: "הפרופיל הועבר לסל המיחזור" });
     } catch (err) {
+        console.error('[hide-profile]', err.message);
         res.status(500).json({ message: "שגיאה בהסתרה" });
     }
 });
@@ -3037,11 +3045,13 @@ app.post('/api/unhide-profile', authenticateToken, async (req, res) => {
 });
 
 // קבלת רשימת המוסתרים שלי
+// קבלת רשימת המוסתרים שלי
 app.get('/api/my-hidden-profiles', authenticateToken, async (req, res) => {
     const { userId } = req.query;
     try {
         const result = await pool.query(
-            `SELECT u.id, u.full_name, u.age, u.height, u.status, u.heritage_sector, u.profile_images
+            `SELECT u.id, u.full_name, u.age, u.height, u.status, u.heritage_sector, u.profile_images,
+                    h.reason, h.created_at AS hidden_at
              FROM hidden_profiles h
              JOIN users u ON h.hidden_user_id = u.id
              WHERE h.user_id = $1

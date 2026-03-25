@@ -39,9 +39,7 @@ function HiddenProfiles() {
     };
 
     const handleUnhide = async (hiddenUserId) => {
-        // הסרה אופטימית מהרשימה
         setHiddenProfiles(prev => prev.filter(p => p.id !== hiddenUserId));
-
         try {
             await fetch(`${API_BASE}/api/unhide-profile`, {
                 method: 'POST',
@@ -54,7 +52,7 @@ function HiddenProfiles() {
             showToast('הפרופיל שוחזר בהצלחה! 🎉', 'success');
         } catch (err) {
             showToast('שגיאה בשחזור', 'error');
-            fetchHiddenProfiles(); // רענון למקרה כשל
+            fetchHiddenProfiles();
         }
     };
 
@@ -93,6 +91,11 @@ function HiddenProfiles() {
                                 <div style={styles.info}>
                                     <h3 style={styles.name}>{profile.full_name}, {profile.age}</h3>
                                     <p style={styles.details}>{profile.heritage_sector} • {profile.status}</p>
+                                    {profile.reason && (
+                                        <div style={styles.reasonBadge}>
+                                            💬 {profile.reason}
+                                        </div>
+                                    )}
                                 </div>
                                 <button onClick={() => handleUnhide(profile.id)} style={styles.restoreButton}>
                                     ♻️ שחזר לרשימה
@@ -165,10 +168,20 @@ const styles = {
         gap: '15px',
         boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
     },
-    avatar: { width: '60px', height: '60px', borderRadius: '50%' },
+    avatar: { width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0 },
     info: { flex: 1 },
-    name: { margin: '0 0 5px', fontSize: '1.2rem', color: '#1e3a5f' },
-    details: { margin: 0, color: '#64748b', fontSize: '0.9rem' },
+    name: { margin: '0 0 4px', fontSize: '1.2rem', color: '#1e3a5f' },
+    details: { margin: '0 0 6px', color: '#64748b', fontSize: '0.9rem' },
+    reasonBadge: {
+        display: 'inline-block',
+        background: '#fef3c7',
+        border: '1px solid #f59e0b',
+        color: '#92400e',
+        borderRadius: '8px',
+        padding: '3px 10px',
+        fontSize: '0.82rem',
+        fontWeight: '600'
+    },
     restoreButton: {
         background: '#22c55e',
         color: 'white',
@@ -177,7 +190,9 @@ const styles = {
         borderRadius: '10px',
         cursor: 'pointer',
         fontWeight: 'bold',
-        fontSize: '0.9rem'
+        fontSize: '0.9rem',
+        flexShrink: 0,
+        fontFamily: 'inherit'
     }
 };
 
