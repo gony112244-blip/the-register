@@ -246,6 +246,21 @@ function Home() {
             </p>
           </div>
 
+          <div className={`faq-item ${openFaq === 5 ? 'open' : ''}`}>
+            <div className="faq-question" onClick={() => toggleFaq(5)}>
+              <span className="question-text">
+                <span className="question-icon">?</span>
+                איך מוחקים את הכרטיס שלי מהמערכת?
+              </span>
+              <span className="arrow">▼</span>
+            </div>
+            <p className="faq-answer">
+              ניתן למחוק את החשבון בקלות ישירות מהפרופיל שלך: היכנס לעריכת הפרופיל, גלול לתחתית הדף, ושם תמצא את כפתור "מחיקת החשבון שלי לצמיתות". לחיצה על הכפתור תבקש ממך אישור כפול לפני המחיקה.
+              <br /><br />
+              <strong>שים לב:</strong> המחיקה היא סופית ובלתי הפיכה — כל המידע שלך, ההצעות, ההודעות והתמונות יימחקו לצמיתות ולא ניתן יהיה לשחזר אותם.
+            </p>
+          </div>
+
         </div>
       </section>
 

@@ -1765,9 +1765,8 @@ function Profile() {
                     </div>
                 )}
 
-                {/* --- אזור סכנה (מחיקת חשבון) - גלוי תמיד בתחתית --- */}
+                {/* --- מחיקת חשבון - גלוי תמיד בתחתית --- */}
                 <div style={{ marginTop: '50px', borderTop: '1px solid #fee2e2', paddingTop: '30px', paddingBottom: '30px', textAlign: 'center' }}>
-                    <p style={{ color: '#ef4444', fontSize: '0.9rem', marginBottom: '15px' }}>⚠️ אזור מסוכן</p>
                     <button
                         onClick={handleDeleteAccount}
                         style={{
