@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 function AdminDashboard() {
     const navigate = useNavigate();
     const [stats, setStats] = useState({ total: 0, pending: 0, matches: 0, sectors: [], monthly: [] });
+    const [openTickets, setOpenTickets] = useState(0);
     const [loading, setLoading] = useState(true);
     const [showStats, setShowStats] = useState(false);
 
@@ -25,6 +26,16 @@ function AdminDashboard() {
         } catch (err) {
             console.error("שגיאה בטעינת דשבורד", err);
         }
+        // שליפת מספר פניות פתוחות
+        try {
+            const ticketsRes = await fetch(`${API_BASE}/admin/support/tickets`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const ticketsData = await ticketsRes.json();
+            if (Array.isArray(ticketsData)) {
+                setOpenTickets(ticketsData.filter(t => t.status === 'open').length);
+            }
+        } catch {}
         setLoading(false);
     };
 
@@ -72,6 +83,19 @@ function AdminDashboard() {
                     </div>
                 )}
 
+                {/* התראת פניות פתוחות */}
+                {openTickets > 0 && (
+                    <div style={{ ...s.alertBanner, background: 'rgba(59,130,246,0.15)', marginBottom: '16px' }}>
+                        <span style={{ fontSize: '1.4rem' }}>📬</span>
+                        <div style={{ flex: 1 }}>
+                            <strong>{openTickets}</strong> פניות תמיכה חדשות ממתינות לטיפול
+                        </div>
+                        <button onClick={() => navigate('/admin/support')} style={{ ...s.alertBtn, background: '#1e3a5f', color: '#fff' }}>
+                            לפניות ←
+                        </button>
+                    </div>
+                )}
+
                 {/* כרטיסי KPI */}
                 <div style={s.kpiGrid}>
                     <div style={{ ...s.kpiCard, cursor: 'pointer' }} onClick={() => navigate('/admin/users')}>
@@ -113,6 +137,13 @@ function AdminDashboard() {
                             <div style={{ fontWeight: 'bold', marginTop: '8px' }}>אישורי פרופיל</div>
                             <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '4px' }}>
                                 {stats.pending > 0 ? `${stats.pending} ממתינים` : 'הכל מטופל ✓'}
+                            </div>
+                        </button>
+                        <button style={s.navBtn} onClick={() => navigate('/admin/support')}>
+                            <div style={{ fontSize: '2rem' }}>📬</div>
+                            <div style={{ fontWeight: 'bold', marginTop: '8px' }}>פניות תמיכה</div>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '4px' }}>
+                                {openTickets > 0 ? `${openTickets} חדשות` : 'הכל מטופל ✓'}
                             </div>
                         </button>
                     </div>

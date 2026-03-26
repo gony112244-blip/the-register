@@ -597,6 +597,17 @@ app.post('/verify-email', authenticateToken, async (req, res) => {
                 'UPDATE users SET is_email_verified = TRUE, email_verification_code = NULL WHERE id = $1',
                 [userId]
             );
+            // שליחת מייל ברוכים הבאים לאחר אימות מוצלח
+            setImmediate(async () => {
+                try {
+                    const userInfo = await pool.query('SELECT email, full_name FROM users WHERE id = $1', [userId]);
+                    if (userInfo.rows.length > 0 && userInfo.rows[0].email) {
+                        await sendTemplateEmail(userInfo.rows[0].email, 'welcome', {
+                            fullName: userInfo.rows[0].full_name || ''
+                        }, userId);
+                    }
+                } catch (e) { console.error('[verify-email] welcome email error:', e.message); }
+            });
             return res.json({ message: "המייל אומת בהצלחה! 🎉", isVerified: true });
         } else {
             return res.status(400).json({ message: "קוד אימות שגוי, נא לנסות שוב" });
@@ -651,9 +662,9 @@ app.post('/update-email-and-send-code', authenticateToken, async (req, res) => {
 
         const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
         
-        // עדכון המייל ואיפוס סטטוס אימות + קוד חדש
+        // עדכון המייל ואיפוס סטטוס אימות + קוד חדש (+ איפוס תזכורת כדי לאפשר שליחה מחדש)
         await pool.query(
-            'UPDATE users SET email = $1, is_email_verified = FALSE, email_verification_code = $2 WHERE id = $3',
+            'UPDATE users SET email = $1, is_email_verified = FALSE, email_verification_code = $2, verify_reminder_sent = FALSE WHERE id = $3',
             [email, verificationCode, userId]
         );
 
@@ -742,18 +753,18 @@ app.post('/update-phone', authenticateToken, async (req, res) => {
     }
 });
 
-// בקשת אימות מחדש (למי שדילג בהרשמה — שולח מייל חדש)
+// בקשת אימות מחדש (למי שדילג בהרשמה — שולח מייל חדש, פעם אחת בלבד)
 app.post('/request-reverify', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     try {
         const result = await pool.query(
-            'SELECT email, full_name, is_email_verified FROM users WHERE id = $1',
+            'SELECT email, full_name, is_email_verified, verify_reminder_sent FROM users WHERE id = $1',
             [userId]
         );
 
         if (!result.rows.length) return res.status(404).json({ message: 'משתמש לא נמצא' });
 
-        const { email, full_name, is_email_verified } = result.rows[0];
+        const { email, full_name, is_email_verified, verify_reminder_sent } = result.rows[0];
 
         if (is_email_verified) {
             return res.json({ message: '✅ האימייל שלך כבר מאומת!', alreadyVerified: true });
@@ -763,9 +774,17 @@ app.post('/request-reverify', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: 'לא הוזנה כתובת מייל. עדכן את המייל שלך בפרופיל.' });
         }
 
+        // הגבלה: תזכורת נשלחת פעם אחת בלבד
+        if (verify_reminder_sent) {
+            return res.json({ message: `מייל תזכורת כבר נשלח אל ${email}. אם לא קיבלת — בדוק ספאם, או עדכן את כתובת המייל שלך.`, alreadySent: true });
+        }
+
         // יצירת קוד חדש ושליחה
         const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-        await pool.query('UPDATE users SET email_verification_code = $1 WHERE id = $2', [newCode, userId]);
+        await pool.query(
+            'UPDATE users SET email_verification_code = $1, verify_reminder_sent = TRUE WHERE id = $2',
+            [newCode, userId]
+        );
 
         // שולחים דרך הקיים — sendEmail ישלח אפילו לפני אימות כי subject כולל "אימות"
         await sendTemplateEmail(email, 'verify_reminder', {
@@ -805,6 +824,17 @@ app.get('/verify-email-link', async (req, res) => {
                 'UPDATE users SET is_email_verified = TRUE, email_verification_code = NULL WHERE id = $1',
                 [userId]
             );
+            // שליחת מייל ברוכים הבאים לאחר אימות דרך לינק
+            setImmediate(async () => {
+                try {
+                    const userInfo = await pool.query('SELECT email, full_name FROM users WHERE id = $1', [userId]);
+                    if (userInfo.rows.length > 0 && userInfo.rows[0].email) {
+                        await sendTemplateEmail(userInfo.rows[0].email, 'welcome', {
+                            fullName: userInfo.rows[0].full_name || ''
+                        }, parseInt(userId));
+                    }
+                } catch (e) { console.error('[verify-email-link] welcome email error:', e.message); }
+            });
             res.send(`<!DOCTYPE html>
 <html dir="rtl" lang="he">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1267,6 +1297,10 @@ app.post('/respond-photo-request', authenticateToken, async (req, res) => {
                 [targetId, requesterId, msgContent]
             );
 
+            // מייל למבקש — הבקשה נדחתה
+            const rejectorInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [targetId]);
+            setImmediate(() => sendNewMessageEmail(requesterId, rejectorInfo.rows[0]?.full_name || 'המשתמש', msgContent));
+
             return res.json({ message: "הבקשה נדחתה" });
         }
 
@@ -1300,11 +1334,15 @@ app.post('/respond-photo-request', authenticateToken, async (req, res) => {
 
         // הודעה למבקש
         const targetInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [targetId]);
+        const approveMsg = `✅ ${targetInfo.rows[0].full_name} אישר/ה צפייה בתמונות!`;
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) 
              VALUES ($1, $2, $3, 'photo_response')`,
-            [targetId, requesterId, `✅ ${targetInfo.rows[0].full_name} אישר/ה צפייה בתמונות!`]
+            [targetId, requesterId, approveMsg]
         );
+
+        // מייל למבקש — הבקשה אושרה
+        setImmediate(() => sendNewMessageEmail(requesterId, targetInfo.rows[0]?.full_name || 'המשתמש', approveMsg));
 
         res.json({
             message: autoApprove
@@ -2292,11 +2330,6 @@ app.post('/connect', authenticateToken, async (req, res) => {
             [myId, targetId]
         );
 
-        // שליחת הודעת מייל למי שקיבל את הבקשה
-        const senderInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [myId]);
-        const senderName = senderInfo.rows[0]?.full_name || 'מישהו';
-        setImmediate(() => sendTemplateEmailForUser(targetId, 'new_connection', { senderName }));
-
         res.json({ message: "🎉 הפנייה נשלחה בהצלחה!" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה ביצירת הקשר" });
@@ -2415,6 +2448,7 @@ app.post('/cancel-request', authenticateToken, async (req, res) => {
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES ($1, $2, $3, 'system')`,
             [userId, receiver_id, `ℹ️ ${sender_name} ביטל/ה את פנייתו/ה.`]
         );
+        setImmediate(() => sendNewMessageEmail(receiver_id, sender_name, `ℹ️ ${sender_name} ביטל/ה את פנייתו/ה.`));
 
         await pool.query('DELETE FROM connections WHERE id = $1', [connectionId]);
         res.json({ message: "הבקשה בוטלה" });
@@ -2487,7 +2521,11 @@ app.post('/reject-request', authenticateToken, async (req, res) => {
     const { connectionId } = req.body;
     try {
         const connRow = await pool.query(
-            'SELECT receiver_id, status FROM connections WHERE id = $1',
+            `SELECT c.receiver_id, c.sender_id, c.status,
+                    u_recv.full_name AS receiver_name
+             FROM connections c
+             JOIN users u_recv ON u_recv.id = c.receiver_id
+             WHERE c.id = $1`,
             [connectionId]
         );
         if (connRow.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
@@ -2497,7 +2535,11 @@ app.post('/reject-request', authenticateToken, async (req, res) => {
         if (connRow.rows[0].status !== 'pending') {
             return res.status(400).json({ message: "הבקשה כבר לא ממתינה" });
         }
+        const senderId = connRow.rows[0].sender_id;
+        const receiverName = connRow.rows[0].receiver_name;
         await pool.query(`UPDATE connections SET status = 'rejected' WHERE id = $1`, [connectionId]);
+        // מייל לשולח הבקשה — הבקשה שלו נדחתה
+        setImmediate(() => sendNewMessageEmail(senderId, receiverName, `הפנייה שלך נדחתה בשלב זה.`));
         res.json({ message: "הבקשה נדחתה." });
     } catch (err) {
         res.status(500).json({ message: "שגיאה בדחייה" });
@@ -2538,6 +2580,7 @@ app.post('/cancel-active-connection', authenticateToken, async (req, res) => {
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES ($1, $2, $3, 'system')`,
             [userId, otherUserId, msgContent]
         );
+        setImmediate(() => sendNewMessageEmail(otherUserId, myName, msgContent));
 
         res.json({ message: "השידוך בוטל" });
     } catch (err) {
@@ -3361,10 +3404,200 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
+// 📬 מערכת פניות תמיכה / יצירת קשר
+// ==========================================
+
+// שליחת פנייה (גם אורח, גם משתמש מחובר)
+app.post('/support/submit', async (req, res) => {
+    const { name, email, phone, subject, message } = req.body;
+    if (!name || !email || !message) {
+        return res.status(400).json({ message: 'נא למלא שם, מייל והודעה' });
+    }
+
+    // ניסיון לזהות משתמש מחובר לפי טוקן (לא חובה)
+    let userId = null;
+    const authHeader = req.headers['authorization'];
+    if (authHeader) {
+        const token = authHeader.split(' ')[1];
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                userId = decoded.id;
+            } catch (_) {}
+        }
+    }
+
+    try {
+        const result = await pool.query(
+            `INSERT INTO support_tickets (user_id, name, email, phone, subject, message)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [userId, name.trim(), email.trim(), phone?.trim() || null, subject?.trim() || null, message.trim()]
+        );
+        const ticketId = result.rows[0].id;
+
+        // מייל ודאות למשתמש
+        setImmediate(() => sendEmail(
+            email.trim(),
+            '✅ פנייתך התקבלה — הפנקס',
+            `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px">
+                <h2 style="color:#1e3a5f">קיבלנו את פנייתך!</h2>
+                <p>שלום ${name}, פנייתך (מס' ${ticketId}) התקבלה ותטופל בהקדם.</p>
+                <p><strong>הודעתך:</strong><br>${message.replace(/\n/g,'<br>')}</p>
+                <p style="color:#64748b;font-size:13px">נחזור אליך למייל זה בהקדם האפשרי.</p>
+            </div>`
+        ));
+
+        res.json({ message: 'הפנייה נשלחה בהצלחה! נחזור אליך בהקדם.', ticketId });
+    } catch (err) {
+        console.error('[support/submit]', err);
+        res.status(500).json({ message: 'שגיאת שרת, נסה שוב' });
+    }
+});
+
+// שליפת כל הפניות (אדמין)
+app.get('/admin/support/tickets', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
+    try {
+        const result = await pool.query(
+            `SELECT t.*, 
+                    (SELECT COUNT(*) FROM support_replies r WHERE r.ticket_id = t.id) AS reply_count
+             FROM support_tickets t
+             ORDER BY t.updated_at DESC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[admin/support/tickets]', err);
+        res.status(500).json({ message: 'שגיאה בטעינת פניות' });
+    }
+});
+
+// שליפת פנייה + שרשור תגובות (אדמין)
+app.get('/admin/support/tickets/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
+    const { id } = req.params;
+    try {
+        const ticket = await pool.query('SELECT * FROM support_tickets WHERE id = $1', [id]);
+        if (!ticket.rows.length) return res.status(404).json({ message: 'פנייה לא נמצאה' });
+
+        const replies = await pool.query(
+            'SELECT * FROM support_replies WHERE ticket_id = $1 ORDER BY created_at ASC',
+            [id]
+        );
+
+        // סימון כנקרא
+        await pool.query(`UPDATE support_tickets SET status = CASE WHEN status = 'open' THEN 'read' ELSE status END WHERE id = $1`, [id]);
+
+        res.json({ ticket: ticket.rows[0], replies: replies.rows });
+    } catch (err) {
+        console.error('[admin/support/tickets/:id]', err);
+        res.status(500).json({ message: 'שגיאה' });
+    }
+});
+
+// תשובת מנהל לפנייה
+app.post('/admin/support/reply/:ticketId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
+    const { ticketId } = req.params;
+    const { message } = req.body;
+    if (!message?.trim()) return res.status(400).json({ message: 'נא לכתוב תשובה' });
+
+    try {
+        const ticket = await pool.query('SELECT * FROM support_tickets WHERE id = $1', [ticketId]);
+        if (!ticket.rows.length) return res.status(404).json({ message: 'פנייה לא נמצאה' });
+
+        const t = ticket.rows[0];
+
+        // שמירת תגובה
+        await pool.query(
+            'INSERT INTO support_replies (ticket_id, sender_type, message) VALUES ($1, $2, $3)',
+            [ticketId, 'admin', message.trim()]
+        );
+
+        // עדכון סטטוס + זמן
+        await pool.query(
+            `UPDATE support_tickets SET status = 'replied', updated_at = NOW() WHERE id = $1`,
+            [ticketId]
+        );
+
+        // מייל למשתמש + הודעה פנימית אם מחובר
+        setImmediate(async () => {
+            // מייל
+            await sendEmail(
+                t.email,
+                '💬 תשובה לפנייתך — הפנקס',
+                `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px">
+                    <h2 style="color:#1e3a5f">קיבלת תשובה לפנייתך</h2>
+                    <p>שלום ${t.name},</p>
+                    <div style="background:#f0f9ff;border-right:4px solid #1e3a5f;padding:14px;border-radius:8px;margin:16px 0">
+                        <p style="margin:0">${message.trim().replace(/\n/g,'<br>')}</p>
+                    </div>
+                    <p>אם יש לך שאלות נוספות, תוכל לפנות אלינו שוב דרך האתר.</p>
+                    <a href="${process.env.APP_URL || 'http://localhost:5173'}/contact"
+                       style="display:inline-block;margin-top:16px;padding:12px 28px;background:linear-gradient(135deg,#c9a227,#b08d1f);color:#fff;text-decoration:none;border-radius:10px;font-weight:700">
+                       לפנייה הבאה →
+                    </a>
+                </div>`
+            );
+
+            // הודעה פנימית אם המשתמש רשום
+            if (t.user_id) {
+                await pool.query(
+                    `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+                    [t.user_id, `📬 תשובה לפנייתך:\n${message.trim()}`]
+                ).catch(() => {});
+            }
+        });
+
+        res.json({ message: 'התשובה נשלחה!' });
+    } catch (err) {
+        console.error('[admin/support/reply]', err);
+        res.status(500).json({ message: 'שגיאה בשליחת תשובה' });
+    }
+});
+
+// עדכון סטטוס פנייה (אדמין)
+app.put('/admin/support/tickets/:id/status', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
+    const { id } = req.params;
+    const { status } = req.body; // open | read | replied | closed
+    try {
+        await pool.query('UPDATE support_tickets SET status = $1, updated_at = NOW() WHERE id = $2', [status, id]);
+        res.json({ message: 'סטטוס עודכן' });
+    } catch (err) {
+        res.status(500).json({ message: 'שגיאה' });
+    }
+});
+
+// ==========================================
 //  הפעלת השרת
 // ==========================================
 async function updateDbSchema() {
     try {
+        // טבלת פניות תמיכה
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS support_tickets (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                name VARCHAR(100) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                phone VARCHAR(50),
+                subject VARCHAR(255),
+                message TEXT NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS support_replies (
+                id SERIAL PRIMARY KEY,
+                ticket_id INTEGER REFERENCES support_tickets(id) ON DELETE CASCADE,
+                sender_type VARCHAR(10) NOT NULL,
+                message TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
         // טבלת תמונות משתמשים
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_images (
@@ -3382,6 +3615,7 @@ async function updateDbSchema() {
         // עמודות שחסרות
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS email_skip_verification BOOLEAN DEFAULT FALSE`);
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS never_ask_email BOOLEAN DEFAULT FALSE`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_reminder_sent BOOLEAN DEFAULT FALSE`);
 
         // עמודות חיפוש שחסרות
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_heritage_sectors TEXT`);
@@ -3906,6 +4140,17 @@ app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req,
             `💍 כרטיסיות שידוך: ${senderFullName} & ${receiverFullName}`,
             htmlContent
         );
+
+        // מייל לשני הצדדים — השדכנית נכנסת לטפל
+        const shadchanitName = match.shadchanit_name || 'השדכנית';
+        setImmediate(() => {
+            sendTemplateEmailForUser(match.sender_id, 'new_match', {
+                matchDetails: `השדכנית ${shadchanitName} נכנסה לטפל בשידוך שלך. היא תיצור איתך קשר בקרוב.`
+            });
+            sendTemplateEmailForUser(match.receiver_id, 'new_match', {
+                matchDetails: `השדכנית ${shadchanitName} נכנסה לטפל בשידוך שלך. היא תיצור איתך קשר בקרוב.`
+            });
+        });
 
         console.log(`[send-match-cards] Cards sent to shadchanit ${match.shadchanit_email} for connection ${connectionId}`);
         res.json({ message: `הכרטיסיות נשלחו בהצלחה לשדכנית ${match.shadchanit_name || ''}` });

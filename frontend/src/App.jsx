@@ -24,6 +24,8 @@ import ReportWrongEmail from './ReportWrongEmail';
 import AdminMatches from './AdminMatches';
 import AdminPendingProfiles from './AdminPendingProfiles';
 import AdminUsers from './AdminUsers';
+import AdminSupport from './AdminSupport';
+import ContactForm from './ContactForm';
 
 import './App.css';
 
@@ -141,11 +143,15 @@ function AppContent() {
         <Route path="/photo-requests" element={<PhotoRequests />} />
         <Route path="/hidden-profiles" element={<HiddenProfiles />} />
 
+        {/* יצירת קשר */}
+        <Route path="/contact" element={<ContactForm />} />
+
         {/* דפים של המנהל */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/matches" element={<AdminMatches />} />
         <Route path="/admin/pending-profiles" element={<AdminPendingProfiles />} />
         <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/support" element={<AdminSupport />} />
       </Routes>
     </div>
   );
