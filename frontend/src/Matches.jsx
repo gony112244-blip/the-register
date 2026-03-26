@@ -102,7 +102,14 @@ function Matches() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            if (res.ok) setModalMatch(data);
+            if (res.ok) {
+                if (data.is_blocked_by_target) {
+                    setModalMatch(null);
+                    showToast('🚫 משתמש זה חסם אותך — לא ניתן לצפות בכרטיס', 'info');
+                    return;
+                }
+                setModalMatch(data);
+            }
         } catch { }
     };
 

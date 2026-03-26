@@ -158,9 +158,7 @@ function Navbar() {
         {user ? (
           <>
             <span className="navbar-welcome">שלום, {user.full_name}</span>
-            {!user.is_admin && (
-              <NotificationsPanel user={user} onUserUpdate={handleUserUpdate} />
-            )}
+            <NotificationsPanel user={user} onUserUpdate={handleUserUpdate} />
             {!user.is_admin && (
               <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיסייה שלי</Link>
             )}

@@ -174,7 +174,23 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
         finally { setPhoneLoading(false); }
     };
 
-    if (!user || user.is_admin) return null;
+    if (!user) return null;
+
+    // מנהל: רק אייקון יצירת קשר קטן (בלי מייל/טלפון — אין להם משמעות כאן)
+    if (user.is_admin) {
+        return (
+            <div ref={panelRef} style={S.wrap}>
+                <button
+                    type="button"
+                    onClick={() => navigate('/contact')}
+                    title="יצירת קשר עם הצוות"
+                    style={{ ...S.iconBtn, background: 'transparent' }}
+                >
+                    <span style={S.iconChar}>✉️</span>
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div ref={panelRef} style={S.wrap}>

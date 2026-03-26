@@ -235,14 +235,14 @@ function Home() {
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              אנחנו כאן לכל שאלה! ניתן לפנות אלינו במייל:{' '}
+              הדרך המועדפת:{' '}
+              <Link to="/contact" style={{ color: 'inherit', fontWeight: 'bold' }}>טופס יצירת קשר</Link>
+              {' '}באתר — הפרטים נשמרים במערכת (למשתמש מחובר חלק מהשדות מתמלאים אוטומטית).
+              <br /><br />
+              לחלופין: מייל ל־{' '}
               <a href="mailto:hapinkas.contact@gmail.com" style={{ color: 'inherit', fontWeight: 'bold' }}>
                 hapinkas.contact@gmail.com
               </a>
-              <br />
-              <small style={{ color: '#94a3b8', fontSize: '12px' }}>
-                (אם לא קיבלת מייל מהמערכת, כדאי לבדוק בתיקיית הספאם/דואר זבל)
-              </small>
             </p>
           </div>
 

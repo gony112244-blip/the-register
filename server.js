@@ -1236,6 +1236,15 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
     const { targetId } = req.body;
 
     try {
+        // בדיקה אם אני חסום אצל היעד
+        const isBlocked = await pool.query(
+            'SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
+            [targetId, requesterId]
+        );
+        if (isBlocked.rows.length > 0) {
+            return res.status(403).json({ message: "לא ניתן לשלוח בקשה למשתמש זה" });
+        }
+
         // בדיקה אם כבר יש בקשה/אישור
         const existing = await pool.query(
             'SELECT * FROM photo_approvals WHERE requester_id = $1 AND target_id = $2',
@@ -1869,7 +1878,11 @@ app.get('/matches', authenticateToken, async (req, res) => {
             `id NOT IN (SELECT receiver_id FROM connections WHERE sender_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
             `id NOT IN (SELECT sender_id FROM connections WHERE receiver_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
             // סינון מוסתרים (סל מחזור)
-            `id NOT IN (SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $1)`
+            `id NOT IN (SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $1)`,
+            // סינון משתמשים שחסמו אותי
+            `id NOT IN (SELECT blocker_id FROM user_blocks WHERE blocked_id = $1)`,
+            // סינון משתמשים שחסמתי
+            `id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = $1)`
         ];
 
         // סינון לפי גיל
@@ -2314,6 +2327,15 @@ app.post('/connect', authenticateToken, async (req, res) => {
         return res.status(400).json({ message: "בקשה לא תקינה" });
     }
     try {
+        // בדיקה אם אני חסום אצל היעד
+        const isBlocked = await pool.query(
+            'SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
+            [targetId, myId]
+        );
+        if (isBlocked.rows.length > 0) {
+            return res.status(403).json({ message: "לא ניתן לשלוח פנייה למשתמש זה" });
+        }
+
         // בדיקה אם כבר יש בקשה פעילה/ממתינה בין השניים (ביטול ודחייה מאפשרים פנייה מחדש)
         const existing = await pool.query(
             `SELECT id FROM connections
@@ -2405,6 +2427,7 @@ app.get('/my-sent-photo-requests', authenticateToken, async (req, res) => {
 // כרטיס פרופיל ציבורי — לצפייה בפרטים המותרים בשלב זה
 app.get('/match-card/:userId', authenticateToken, async (req, res) => {
     const targetId = req.params.userId;
+    const myId = req.user.id;
     try {
         const result = await pool.query(
             `SELECT id, full_name, last_name, age, height, gender, city, status,
@@ -2422,7 +2445,22 @@ app.get('/match-card/:userId', authenticateToken, async (req, res) => {
             [targetId]
         );
         if (result.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
-        res.json(result.rows[0]);
+
+        // בדיקה אם המשתמש חסם אותי (אני מנסה לראות כרטיס שלו)
+        const blockedByTarget = await pool.query(
+            'SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
+            [targetId, myId]
+        );
+        // בדיקה אם אני חסמתי אותו
+        const blockedByMe = await pool.query(
+            'SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
+            [myId, targetId]
+        );
+
+        const card = result.rows[0];
+        card.is_blocked_by_target = blockedByTarget.rows.length > 0;
+        card.i_blocked_them = blockedByMe.rows.length > 0;
+        res.json(card);
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
     }
@@ -3404,6 +3442,68 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
+// 🚫 חסימת משתמשים
+// ==========================================
+
+// חסימת משתמש
+app.post('/block-user/:userId', authenticateToken, async (req, res) => {
+    const blockerId = req.user.id;
+    const blockedId = parseInt(req.params.userId);
+    if (!blockedId || blockerId === blockedId) return res.status(400).json({ message: 'בקשה לא תקינה' });
+
+    try {
+        await pool.query(
+            'INSERT INTO user_blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [blockerId, blockedId]
+        );
+        // מחיקת כל החיבורים הפעילים/ממתינים בין השניים
+        await pool.query(
+            `DELETE FROM connections
+             WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1)`,
+            [blockerId, blockedId]
+        );
+        // מחיקת בקשות תמונות בין השניים
+        await pool.query(
+            `DELETE FROM photo_approvals
+             WHERE (requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1)`,
+            [blockerId, blockedId]
+        );
+        res.json({ message: 'המשתמש נחסם. הוא לא יוכל יותר לפנות אליך.' });
+    } catch (err) {
+        console.error('[block-user]', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
+// ביטול חסימה
+app.delete('/block-user/:userId', authenticateToken, async (req, res) => {
+    const blockerId = req.user.id;
+    const blockedId = parseInt(req.params.userId);
+    try {
+        await pool.query('DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2', [blockerId, blockedId]);
+        res.json({ message: 'החסימה בוטלה' });
+    } catch (err) {
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
+// שליפת רשימת חסומים שלי
+app.get('/my-blocked-users', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await pool.query(
+            `SELECT b.blocked_id, u.full_name, b.created_at
+             FROM user_blocks b JOIN users u ON u.id = b.blocked_id
+             WHERE b.blocker_id = $1 ORDER BY b.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
+// ==========================================
 // 📬 מערכת פניות תמיכה / יצירת קשר
 // ==========================================
 
@@ -3441,13 +3541,12 @@ app.post('/support/submit', async (req, res) => {
             '✅ פנייתך התקבלה — הפנקס',
             `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px">
                 <h2 style="color:#1e3a5f">קיבלנו את פנייתך!</h2>
-                <p>שלום ${name}, פנייתך (מס' ${ticketId}) התקבלה ותטופל בהקדם.</p>
+                <p>שלום ${name}, פנייתך (מס' ${ticketId}) התקבלה ונשמרה במערכת.</p>
                 <p><strong>הודעתך:</strong><br>${message.replace(/\n/g,'<br>')}</p>
-                <p style="color:#64748b;font-size:13px">נחזור אליך למייל זה בהקדם האפשרי.</p>
             </div>`
         ));
 
-        res.json({ message: 'הפנייה נשלחה בהצלחה! נחזור אליך בהקדם.', ticketId });
+        res.json({ message: 'הפנייה נשלחה בהצלחה.', ticketId });
     } catch (err) {
         console.error('[support/submit]', err);
         res.status(500).json({ message: 'שגיאת שרת, נסה שוב' });
@@ -3573,6 +3672,17 @@ app.put('/admin/support/tickets/:id/status', authenticateToken, async (req, res)
 // ==========================================
 async function updateDbSchema() {
     try {
+        // טבלת חסימות בין משתמשים
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_blocks (
+                id SERIAL PRIMARY KEY,
+                blocker_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                blocked_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(blocker_id, blocked_id)
+            )
+        `);
+
         // טבלת פניות תמיכה
         await pool.query(`
             CREATE TABLE IF NOT EXISTS support_tickets (

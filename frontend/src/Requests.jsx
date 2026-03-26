@@ -106,7 +106,14 @@ export default function Requests() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            if (res.ok) setModalPerson({ ...data, full_name: data.full_name || item.full_name });
+            if (res.ok) {
+                if (data.is_blocked_by_target) {
+                    setModalPerson(null);
+                    showToast('🚫 משתמש זה חסם אותך — לא ניתן לצפות בכרטיס', 'info');
+                    return;
+                }
+                setModalPerson({ ...data, full_name: data.full_name || item.full_name });
+            }
         } catch { }
     };
 
@@ -198,6 +205,24 @@ export default function Requests() {
         } catch { showToast('שגיאה', 'error'); }
     };
 
+    const handleBlockUser = async (userId, name) => {
+        if (!window.confirm(`לחסום את ${name}?\nהם לא יוכלו יותר לשלוח לך פניות או בקשות תמונות, ולא יראו את הכרטיס שלך.`)) return;
+        try {
+            const res = await fetch(`${API_BASE}/block-user/${userId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast('🚫 המשתמש נחסם', 'info');
+                fetchAll();
+                window.dispatchEvent(new CustomEvent('requestsUpdated'));
+            } else {
+                showToast(data.message || 'שגיאה', 'error');
+            }
+        } catch { showToast('שגיאה', 'error'); }
+    };
+
     const totalReceived = receivedConn.length + receivedPhoto.length;
     const totalSent = sentConn.length + sentPhoto.length;
 
@@ -283,6 +308,7 @@ export default function Requests() {
                                                         <div style={{ display: 'flex', gap: 6 }}>
                                                             <button onClick={() => handleRejectConn(item.connection_id)} style={S.rejectBtn}>❌</button>
                                                             <button onClick={() => handleApproveConn(item.connection_id)} style={S.approveBtn}>✅ אשר</button>
+                                                            <button onClick={() => handleBlockUser(item.user_id, item.full_name)} style={S.blockBtn} title="חסום משתמש">🚫</button>
                                                         </div>
                                                     )}
                                                 />
@@ -306,6 +332,7 @@ export default function Requests() {
                                                                 style={S.rejectBtn}
                                                             >❌ דחה</button>
                                                             <button onClick={() => handleApprovePhoto(item.requester_id)} style={S.approveBtn}>✅ אשר</button>
+                                                            <button onClick={() => handleBlockUser(item.requester_id, item.full_name)} style={S.blockBtn} title="חסום משתמש">🚫</button>
                                                         </div>
                                                     )}
                                                 />
@@ -446,6 +473,11 @@ const S = {
         padding: '7px 12px', background: '#f1f5f9', color: '#64748b',
         border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer',
         fontSize: '0.82rem', fontFamily: 'inherit', whiteSpace: 'nowrap'
+    },
+    blockBtn: {
+        padding: '7px 10px', background: '#fff7ed', color: '#9a3412',
+        border: '1px solid #fed7aa', borderRadius: 8, cursor: 'pointer',
+        fontSize: '0.85rem', fontFamily: 'inherit', whiteSpace: 'nowrap'
     },
     waitingTag: {
         background: '#fef9ec', border: '1px solid #f59e0b',

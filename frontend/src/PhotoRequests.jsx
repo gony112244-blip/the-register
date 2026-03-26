@@ -60,6 +60,22 @@ function PhotoRequests() {
         handleResponse(requesterId, 'reject', opt?.msg);
     };
 
+    const handleBlock = async (requesterId, name) => {
+        if (!window.confirm(`לחסום את ${name}?\nהם לא יוכלו יותר לשלוח לך פניות, ולא יראו את הכרטיס שלך.`)) return;
+        try {
+            const res = await fetch(`${API_BASE}/block-user/${requesterId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                setRequests(prev => prev.filter(r => r.requester_id !== requesterId));
+                alert('המשתמש נחסם.');
+            }
+        } catch {
+            alert('שגיאה');
+        }
+    };
+
     if (loading) return (
         <div style={styles.page}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: '20px' }}>
@@ -171,6 +187,13 @@ function PhotoRequests() {
                                             style={styles.rejectBtn}
                                         >
                                             ❌ דחה
+                                        </button>
+                                        <button
+                                            onClick={() => handleBlock(req.requester_id, req.full_name)}
+                                            style={styles.blockBtn}
+                                            title="חסום — ימנע פניות עתידיות"
+                                        >
+                                            🚫 חסום
                                         </button>
                                     </div>
                                 )}
@@ -313,6 +336,13 @@ const styles = {
     autoExplain: {
         fontSize: '0.8rem', color: '#9ca3af',
         textAlign: 'center', margin: 0, lineHeight: '1.5'
+    },
+    blockBtn: {
+        flex: 1, padding: '12px 8px',
+        background: '#fff7ed', color: '#9a3412',
+        border: '1px solid #fed7aa', borderRadius: '12px',
+        fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem',
+        fontFamily: 'inherit'
     }
 };
 

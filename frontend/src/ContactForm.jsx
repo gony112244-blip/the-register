@@ -54,7 +54,7 @@ export default function ContactForm() {
                 <div style={s.card}>
                     <div style={s.successIcon}>✅</div>
                     <h2 style={s.successTitle}>הפנייה נשלחה בהצלחה!</h2>
-                    <p style={s.successText}>תודה שפנית אלינו. נחזור אליך בהקדם האפשרי למייל שהזנת.</p>
+                    <p style={s.successText}>תודה שפנית אלינו. פנייתך נשמרה במערכת.</p>
                     <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
                         <button onClick={() => setSent(false)} style={s.btnSecondary}>שלח פנייה נוספת</button>
                         {token && <button onClick={() => navigate(-1)} style={s.btnPrimary}>חזרה</button>}
@@ -70,7 +70,7 @@ export default function ContactForm() {
             <div style={s.card}>
                 <button onClick={() => navigate(-1)} style={s.back}>← חזרה</button>
                 <h1 style={s.title}>📬 יצירת קשר</h1>
-                <p style={s.subtitle}>מלא את הפרטים ונחזור אליך בהקדם</p>
+                <p style={s.subtitle}>מלא את הפרטים ושלח — הפנייה תישמר במערכת</p>
 
                 <form onSubmit={handleSubmit} style={s.form}>
                     <div style={s.row}>
