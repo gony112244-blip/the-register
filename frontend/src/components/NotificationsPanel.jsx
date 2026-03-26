@@ -1,5 +1,6 @@
 import API_BASE from '../config';
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from './ToastProvider';
 
 // פונקציה שמחשבת את מצב המייל
@@ -37,6 +38,7 @@ const DOT_TITLES = {
 
 export default function NotificationsPanel({ user, onUserUpdate }) {
     const { showToast } = useToast();
+    const navigate = useNavigate();
     const [open, setOpen] = useState(null); // 'email' | 'phone' | null
     const panelRef = useRef(null);
 
@@ -194,6 +196,14 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
             >
                 <span style={S.iconChar}>📱</span>
                 <span style={{ ...S.dot, background: DOT_COLORS[phoneStatus] }} />
+            </button>
+
+            <button
+                onClick={() => navigate('/contact')}
+                title="יצירת קשר עם הצוות"
+                style={{ ...S.iconBtn, background: 'transparent' }}
+            >
+                <span style={S.iconChar}>✉️</span>
             </button>
 
             {/* --- פאנל מייל --- */}
