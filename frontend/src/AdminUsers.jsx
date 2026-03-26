@@ -2,6 +2,7 @@ import API_BASE from './config';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileView from './ProfileView';
+import AdminUserHistory from './AdminUserHistory';
 
 const STATUS_MAP = {
     active: 'פעיל',
@@ -440,50 +441,13 @@ function AdminUsers() {
                                             {/* --- טאב היסטוריה --- */}
                                             {activeTab === 'history' && (
                                                 <div>
-                                                    {historyLoading && (
-                                                        <div style={{ textAlign: 'center', padding: '30px', color: '#6b7280' }}>⏳ טוען היסטוריה...</div>
-                                                    )}
-                                                    {showHistory && historyData && (
-                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                                                            {/* הצעות שידוך */}
-                                                            <div>
-                                                                <h4 style={st.sectionH}>💍 הצעות שידוך ({historyData.connections?.length || 0})</h4>
-                                                                {historyData.connections?.length === 0 && (
-                                                                    <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>אין היסטוריית שידוכים</p>
-                                                                )}
-                                                                {historyData.connections?.map(c => (
-                                                                    <div key={c.id} style={st.historyItem}>
-                                                                        <div style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
-                                                                            {c.sender_id === user.id
-                                                                                ? `➜ שלחת הצעה ל-${c.receiver_name}`
-                                                                                : `← קיבלת הצעה מ-${c.sender_name}`}
-                                                                        </div>
-                                                                        <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '4px' }}>
-                                                                            סטטוס: <strong>{STATUS_MAP[c.status] || c.status}</strong> · {fmtDate(c.created_at)}
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                            {/* הודעות */}
-                                                            <div>
-                                                                <h4 style={st.sectionH}>✉️ הודעות פנימיות ({historyData.messages?.length || 0})</h4>
-                                                                {historyData.messages?.length === 0 && (
-                                                                    <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>אין היסטוריית הודעות</p>
-                                                                )}
-                                                                {historyData.messages?.map(m => (
-                                                                    <div key={m.id} style={{ ...st.historyItem, borderRight: `3px solid ${m.to_user_id === user.id ? '#3b82f6' : '#10b981'}` }}>
-                                                                        <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '4px' }}>
-                                                                            {m.to_user_id === user.id
-                                                                                ? `📥 נשלח אליו מ-${m.from_name || 'מנהל'}`
-                                                                                : `📤 שלח לאחר`}
-                                                                            · {fmtDate(m.created_at)}
-                                                                        </div>
-                                                                        <div style={{ fontSize: '0.95rem', color: '#374151' }}>{m.content}</div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                    {/* לוג פעילות */}
+                                                    <AdminUserHistory
+                                                        userId={user.id}
+                                                        userName={user.full_name}
+                                                        onClose={() => setActiveTab('profile')}
+                                                        inline={true}
+                                                    />
                                                 </div>
                                             )}
 

@@ -366,6 +366,19 @@ app.post('/check-user-exists', async (req, res) => {
     }
 });
 
+// ── פונקציית עזר: תיעוד פעילות ──
+async function logActivity(userId, action, { targetUserId = null, actorId = null, note = null } = {}) {
+    try {
+        await pool.query(
+            `INSERT INTO activity_log (user_id, action, target_user_id, actor_id, note)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [userId, action, targetUserId || null, actorId || null, note || null]
+        );
+    } catch (e) {
+        console.error('[logActivity]', e.message);
+    }
+}
+
 // הרשמה למערכת
 app.post('/register', async (req, res) => {
     const {
@@ -461,6 +474,8 @@ app.post('/register', async (req, res) => {
                 }
             }
         });
+
+        setImmediate(() => logActivity(newUserId, 'registered'));
 
         res.status(201).json({
             message: "ההרשמה בוצע בהצלחה!",
@@ -597,6 +612,7 @@ app.post('/verify-email', authenticateToken, async (req, res) => {
                 'UPDATE users SET is_email_verified = TRUE, email_verification_code = NULL WHERE id = $1',
                 [userId]
             );
+            setImmediate(() => logActivity(userId, 'email_verified'));
             // שליחת מייל ברוכים הבאים לאחר אימות מוצלח
             setImmediate(async () => {
                 try {
@@ -1276,6 +1292,7 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
             requesterName: requesterInfo.rows[0].full_name
         });
 
+        setImmediate(() => logActivity(requesterId, 'photo_requested', { targetUserId: parseInt(targetId) }));
         res.json({ message: "הבקשה נשלחה! תקבל הודעה כשיאשרו" });
 
     } catch (err) {
@@ -1309,6 +1326,7 @@ app.post('/respond-photo-request', authenticateToken, async (req, res) => {
             // מייל למבקש — הבקשה נדחתה
             const rejectorInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [targetId]);
             setImmediate(() => sendNewMessageEmail(requesterId, rejectorInfo.rows[0]?.full_name || 'המשתמש', msgContent));
+            setImmediate(() => logActivity(targetId, 'photo_rejected', { targetUserId: parseInt(requesterId) }));
 
             return res.json({ message: "הבקשה נדחתה" });
         }
@@ -1352,6 +1370,7 @@ app.post('/respond-photo-request', authenticateToken, async (req, res) => {
 
         // מייל למבקש — הבקשה אושרה
         setImmediate(() => sendNewMessageEmail(requesterId, targetInfo.rows[0]?.full_name || 'המשתמש', approveMsg));
+        setImmediate(() => logActivity(targetId, 'photo_approved', { targetUserId: parseInt(requesterId) }));
 
         res.json({
             message: autoApprove
@@ -2218,6 +2237,7 @@ app.post('/admin/block-user', authenticateToken, async (req, res) => {
             );
         }
 
+        setImmediate(() => logActivity(parseInt(userId), block ? 'admin_blocked_user' : 'admin_unblocked_user', { actorId: req.user.id, note: reason || null }));
         res.json({ message: block ? "המשתמש נחסם" : "המשתמש שוחרר" });
     } catch (err) {
         console.error("Block user error:", err);
@@ -2352,6 +2372,7 @@ app.post('/connect', authenticateToken, async (req, res) => {
             [myId, targetId]
         );
 
+        setImmediate(() => logActivity(myId, 'connection_sent', { targetUserId: parseInt(targetId) }));
         res.json({ message: "🎉 הפנייה נשלחה בהצלחה!" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה ביצירת הקשר" });
@@ -2489,6 +2510,7 @@ app.post('/cancel-request', authenticateToken, async (req, res) => {
         setImmediate(() => sendNewMessageEmail(receiver_id, sender_name, `ℹ️ ${sender_name} ביטל/ה את פנייתו/ה.`));
 
         await pool.query('DELETE FROM connections WHERE id = $1', [connectionId]);
+        setImmediate(() => logActivity(userId, 'connection_cancelled', { targetUserId: receiver_id }));
         res.json({ message: "הבקשה בוטלה" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה בביטול" });
@@ -2547,6 +2569,10 @@ app.post('/approve-request', authenticateToken, async (req, res) => {
             }));
         }
 
+        setImmediate(() => {
+            logActivity(userId, 'connection_approved', { targetUserId: originalSenderId });
+            logActivity(originalSenderId, 'connection_got_approved', { targetUserId: userId });
+        });
         res.json({ message: "הבקשה אושרה! עכשיו בשיחות פעילות." });
     } catch (err) {
         res.status(500).json({ message: "שגיאה באישור" });
@@ -2576,8 +2602,8 @@ app.post('/reject-request', authenticateToken, async (req, res) => {
         const senderId = connRow.rows[0].sender_id;
         const receiverName = connRow.rows[0].receiver_name;
         await pool.query(`UPDATE connections SET status = 'rejected' WHERE id = $1`, [connectionId]);
-        // מייל לשולח הבקשה — הבקשה שלו נדחתה
         setImmediate(() => sendNewMessageEmail(senderId, receiverName, `הפנייה שלך נדחתה בשלב זה.`));
+        setImmediate(() => logActivity(userId, 'connection_rejected', { targetUserId: senderId }));
         res.json({ message: "הבקשה נדחתה." });
     } catch (err) {
         res.status(500).json({ message: "שגיאה בדחייה" });
@@ -2619,6 +2645,7 @@ app.post('/cancel-active-connection', authenticateToken, async (req, res) => {
             [userId, otherUserId, msgContent]
         );
         setImmediate(() => sendNewMessageEmail(otherUserId, myName, msgContent));
+        setImmediate(() => logActivity(userId, 'connection_cancelled', { targetUserId: otherUserId, note: reason || null }));
 
         res.json({ message: "השידוך בוטל" });
     } catch (err) {
@@ -2966,6 +2993,10 @@ app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req,
             html: emailBody
         });
 
+        setImmediate(() => {
+            logActivity(m.sender_id, 'match_sent_to_shadchan', { targetUserId: m.receiver_id, actorId: req.user.id });
+            logActivity(m.receiver_id, 'match_sent_to_shadchan', { targetUserId: m.sender_id, actorId: req.user.id });
+        });
         res.json({ message: "הכרטיסיות נשלחו בהצלחה" });
     } catch (err) {
         console.error("Error sending match cards:", err);
@@ -2979,11 +3010,20 @@ app.post('/admin/close-match/:connectionId', authenticateToken, async (req, res)
     const { connectionId } = req.params;
     const { succeeded, failReason, summary } = req.body;
     try {
+        const connInfo = await pool.query('SELECT sender_id, receiver_id FROM connections WHERE id = $1', [connectionId]);
+        const conn = connInfo.rows[0];
+
         if (succeeded) {
             await pool.query(
                 `UPDATE connections SET status = 'successful', match_succeeded = true, close_summary = $1, closed_at = NOW() WHERE id = $2`,
                 [summary || null, connectionId]
             );
+            if (conn) {
+                setImmediate(() => {
+                    logActivity(conn.sender_id, 'inquiry_ended', { targetUserId: conn.receiver_id, actorId: req.user.id, note: 'הצלחה' });
+                    logActivity(conn.receiver_id, 'inquiry_ended', { targetUserId: conn.sender_id, actorId: req.user.id, note: 'הצלחה' });
+                });
+            }
         } else {
             // כישלון: מחזירים למצב רגיל ומוחקים מהמסך
             await pool.query(
@@ -2992,6 +3032,12 @@ app.post('/admin/close-match/:connectionId', authenticateToken, async (req, res)
             );
             // מחיקת כל האישורים כדי שיוכלו להתחיל מחדש
             await pool.query(`DELETE FROM photo_approvals WHERE connection_id = $1`, [connectionId]);
+            if (conn) {
+                setImmediate(() => {
+                    logActivity(conn.sender_id, 'inquiry_ended', { targetUserId: conn.receiver_id, actorId: req.user.id, note: failReason || 'לא הצליח' });
+                    logActivity(conn.receiver_id, 'inquiry_ended', { targetUserId: conn.sender_id, actorId: req.user.id, note: failReason || 'לא הצליח' });
+                });
+            }
         }
         res.json({ message: "השידוך נסגר" });
     } catch (err) {
@@ -3104,6 +3150,7 @@ app.post('/api/hide-profile', authenticateToken, async (req, res) => {
              ON CONFLICT (user_id, hidden_user_id) DO UPDATE SET reason = EXCLUDED.reason`,
             [userId, hiddenUserId, reason || null]
         );
+        setImmediate(() => logActivity(parseInt(userId), 'match_hidden', { targetUserId: parseInt(hiddenUserId), note: reason || null }));
         res.json({ message: "הפרופיל הועבר לסל המיחזור" });
     } catch (err) {
         console.error('[hide-profile]', err.message);
@@ -3119,6 +3166,7 @@ app.post('/api/unhide-profile', authenticateToken, async (req, res) => {
             'DELETE FROM hidden_profiles WHERE user_id = $1 AND hidden_user_id = $2',
             [userId, hiddenUserId]
         );
+        setImmediate(() => logActivity(parseInt(userId), 'match_restored', { targetUserId: parseInt(hiddenUserId) }));
         res.json({ message: "הפרופיל הוחזר לרשימה" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה בשחזור" });
@@ -3200,6 +3248,7 @@ app.put('/admin/approve/:userId', authenticateToken, async (req, res) => {
         setImmediate(() => sendTemplateEmailForUser(parseInt(userId), 'profile_approved', {
             fullName: userInfo.rows[0]?.full_name || 'משתמש'
         }));
+        setImmediate(() => logActivity(parseInt(userId), 'profile_approved', { actorId: req.user.id }));
 
         res.json({ message: "המשתמש אושר בהצלחה" });
     } catch (err) {
@@ -3213,6 +3262,10 @@ app.delete('/admin/delete-user/:userId', authenticateToken, async (req, res) => 
     if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
     const { userId } = req.params;
     try {
+        // תיעוד לפני מחיקה (ON DELETE CASCADE ימחק שורות הלוג של המשתמש)
+        // לכן לא נוכל לתעד אחרי — תועדו הפעולות ההיסטוריות שלו בלוג של המנהל
+        await logActivity(req.user.id, 'admin_deleted_user', { note: `userId=${userId}` });
+
         // מחיקת נתונים קשורים לפני מחיקת המשתמש
         await pool.query('DELETE FROM messages WHERE from_user_id = $1 OR to_user_id = $1', [userId]);
         await pool.query('DELETE FROM connections WHERE sender_id = $1 OR receiver_id = $1', [userId]);
@@ -3468,6 +3521,7 @@ app.post('/block-user/:userId', authenticateToken, async (req, res) => {
              WHERE (requester_id = $1 AND target_id = $2) OR (requester_id = $2 AND target_id = $1)`,
             [blockerId, blockedId]
         );
+        setImmediate(() => logActivity(blockerId, 'user_blocked', { targetUserId: blockedId }));
         res.json({ message: 'המשתמש נחסם. הוא לא יוכל יותר לפנות אליך.' });
     } catch (err) {
         console.error('[block-user]', err);
@@ -3481,6 +3535,7 @@ app.delete('/block-user/:userId', authenticateToken, async (req, res) => {
     const blockedId = parseInt(req.params.userId);
     try {
         await pool.query('DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2', [blockerId, blockedId]);
+        setImmediate(() => logActivity(blockerId, 'user_unblocked', { targetUserId: blockedId }));
         res.json({ message: 'החסימה בוטלה' });
     } catch (err) {
         res.status(500).json({ message: 'שגיאת שרת' });
@@ -3554,6 +3609,30 @@ app.post('/support/submit', async (req, res) => {
 });
 
 // שליפת כל הפניות (אדמין)
+// ── היסטוריית פעילות משתמש (מנהל) ──
+app.get('/admin/user-activity/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
+    const { userId } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT a.id, a.action, a.note, a.created_at,
+                    t.full_name AS target_name,
+                    act.full_name AS actor_name
+             FROM activity_log a
+             LEFT JOIN users t ON t.id = a.target_user_id
+             LEFT JOIN users act ON act.id = a.actor_id
+             WHERE a.user_id = $1
+             ORDER BY a.created_at DESC
+             LIMIT 200`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error('[user-activity]', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
 app.get('/admin/support/tickets', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
     try {
@@ -3672,6 +3751,20 @@ app.put('/admin/support/tickets/:id/status', authenticateToken, async (req, res)
 // ==========================================
 async function updateDbSchema() {
     try {
+        // טבלת לוג פעילות משתמשים
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS activity_log (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                action VARCHAR(60) NOT NULL,
+                target_user_id INTEGER,
+                actor_id INTEGER,
+                note TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_id, created_at DESC)`);
+
         // טבלת חסימות בין משתמשים
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_blocks (
