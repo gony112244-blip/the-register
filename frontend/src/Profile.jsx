@@ -99,6 +99,32 @@ function Profile() {
     const [errors, setErrors] = useState({}); // שגיאות ולידציה
     const [message, setMessage] = useState('');
 
+    const handleDeleteAccount = async () => {
+        const confirm1 = window.confirm('❗ האם אתה בטוח שברצונך למחוק את חשבונך לצמיתות?');
+        if (!confirm1) return;
+
+        const confirm2 = window.confirm('⚠️ שים לב: כל המידע שלך, ההצעות, ההודעות והתמונות יימחקו ללא אפשרות שחזור. האם להמשיך?');
+        if (!confirm2) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/user/delete-account`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                showToast('✅ החשבון נמחק בהצלחה', 'success');
+                localStorage.clear();
+                setTimeout(() => navigate('/login'), 2000);
+            } else {
+                const data = await res.json();
+                showToast(data.message || 'שגיאה במחיקת החשבון', 'error');
+            }
+        } catch (err) {
+            showToast('❌ שגיאת תקשורת עם השרת', 'error');
+        }
+    };
+
     // טעינת פרטי משתמש
     useEffect(() => {
         const fetchProfile = async () => {
@@ -1738,6 +1764,29 @@ function Profile() {
                         </div>
                     </div>
                 )}
+
+                {/* --- אזור סכנה (מחיקת חשבון) - גלוי תמיד בתחתית --- */}
+                <div style={{ marginTop: '50px', borderTop: '1px solid #fee2e2', paddingTop: '30px', paddingBottom: '30px', textAlign: 'center' }}>
+                    <p style={{ color: '#ef4444', fontSize: '0.9rem', marginBottom: '15px' }}>⚠️ אזור מסוכן</p>
+                    <button
+                        onClick={handleDeleteAccount}
+                        style={{
+                            padding: '12px 25px',
+                            background: 'transparent',
+                            color: '#ef4444',
+                            border: '2px solid #ef4444',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            fontWeight: '700',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => { e.currentTarget.style.background = '#fef2f2'; }}
+                        onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                        🗑️ מחיקת החשבון שלי לצמיתות
+                    </button>
+                </div>
+
             </div>
         </div>
     );

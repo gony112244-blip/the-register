@@ -3918,6 +3918,49 @@ app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req,
 
 // ==========================================
 
+
+// ==========================================
+// 🗑️ מחיקת חשבון על ידי המשתמש (Self-Delete)
+// ==========================================
+app.delete('/user/delete-account', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+
+    try {
+        // התחלת Transaction כדי לוודא שכל המידע נמחק או כלום לא נמחק
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // 1. מחיקת חיבורים (Connections)
+            await client.query('DELETE FROM connections WHERE sender_id = $1 OR receiver_id = $1', [userId]);
+
+            // 2. מחיקת הודעות
+            await client.query('DELETE FROM messages WHERE sender_id = $1 OR receiver_id = $1', [userId]);
+
+            // 3. מחיקת בקשות תמונה
+            await client.query('DELETE FROM photo_view_requests WHERE requester_id = $1 OR target_id = $1', [userId]);
+
+            // 4. מחיקת התראות
+            await client.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+
+            // 5. מחיקת המשתמש עצמו
+            await client.query('DELETE FROM users WHERE id = $1', [userId]);
+
+            await client.query('COMMIT');
+            console.log(`[delete-account] User ${userId} deleted their account successfully.`);
+            res.json({ message: 'החשבון נמחק בהצלחה. להתראות!' });
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    } catch (err) {
+        console.error('[delete-account] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת במחיקת החשבון' });
+    }
+});
+
 updateDbSchema().then(() => {
     // הגשת frontend בפרודקשן — חייב להיות אחרי כל ה-API routes
     const distPath = path.join(__dirname, 'frontend', 'dist');
