@@ -105,7 +105,7 @@ export default function AdminUserHistory({ userId, userName, onClose, inline = f
                                         </div>
                                         <div style={s.meta}>
                                             {fmtDate(ev.created_at)}
-                                            {hasActor && <span style={s.actor}> · ע"י {ev.actor_name}</span>}
+                                            {hasActor && <span style={s.actor}> · על ידי {ev.actor_name}</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -113,7 +113,6 @@ export default function AdminUserHistory({ userId, userName, onClose, inline = f
                         })}
                     </div>
                 )}
-            </div>
         </div>
     );
 
