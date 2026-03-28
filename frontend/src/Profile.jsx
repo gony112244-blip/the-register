@@ -899,8 +899,8 @@ function Profile() {
                                     </select>
                                 </div>
                                 {user.gender === 'female' && (
-                                    <div style={styles.field}>
-                                        <label>כיסוי ראש</label>
+                                    <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
+                                        <label>מה תרצי ללבוש (בנישואין)</label>
                                         <select name="head_covering" value={user.head_covering || ''} onChange={handleChange} style={styles.input}>
                                             <option value="">בחר...</option>
                                             <option value="paah">פאה</option>

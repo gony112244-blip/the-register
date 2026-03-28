@@ -1,7 +1,7 @@
 import API_BASE from './config';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { ToastProvider } from './components/ToastProvider';
-import { useEffect, useState } from 'react';
+import { ToastProvider, useToast } from './components/ToastProvider';
+import { useEffect, useState, useRef } from 'react';
 import Home from './Home';
 import Login from './Login';
 import Profile from './Profile';
@@ -29,9 +29,14 @@ import ContactForm from './ContactForm';
 
 import './App.css';
 
+/** דקות ללא פעילות לפני ניתוק אוטומטי (מחשב משותף / עזיבת המחשב) */
+const IDLE_LOGOUT_MINUTES = 30;
+
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { showToast } = useToast();
+  const idleLogoutDone = useRef(false);
 
   // ניהול מצב משתמש גלובלי (חלקי) עבור תזכורות
   const [currentUser, setCurrentUser] = useState(() => {
@@ -120,6 +125,34 @@ function AppContent() {
     }
   }, [location.pathname, navigate, currentUser]);
 
+  // ניתוק אחרי חוסר פעילות
+  useEffect(() => {
+    idleLogoutDone.current = false;
+    let lastActivity = Date.now();
+    const bump = () => { lastActivity = Date.now(); };
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+
+    const tick = () => {
+      if (!localStorage.getItem('token') || idleLogoutDone.current) return;
+      const ms = IDLE_LOGOUT_MINUTES * 60 * 1000;
+      if (Date.now() - lastActivity < ms) return;
+      idleLogoutDone.current = true;
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      sessionStorage.removeItem('email_reminder_shown');
+      setCurrentUser(null);
+      window.dispatchEvent(new CustomEvent('userUpdated', { detail: null }));
+      navigate('/login');
+      showToast('נותקת מהחשבון עקב חוסר פעילות', 'info', 7000);
+    };
+
+    const intervalId = setInterval(tick, 60 * 1000);
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, bump));
+      clearInterval(intervalId);
+    };
+  }, [navigate, showToast]);
 
   return (
     <div className="App">

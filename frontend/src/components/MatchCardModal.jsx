@@ -205,7 +205,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                                 {p.has_children && <span style={S.tag}>👶 ילדים: {p.children_count || 'כן'}</span>}
                                 {show(p.head_covering) && p.gender === 'female' && (
                                     <span style={{ ...S.tag, background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }}>
-                                        🧣 {tr('head_covering', p.head_covering)}
+                                        🧣 תרצה ללבוש: {tr('head_covering', p.head_covering)}
                                     </span>
                                 )}
                             </div>

@@ -42,6 +42,7 @@ function Navbar() {
 
   const [adminStats, setAdminStats] = useState({ pending: 0, matches: 0 });
   const [activeConnCount, setActiveConnCount] = useState(0);
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
 
   const readUser = useCallback(() => {
     try {
@@ -107,6 +108,29 @@ function Navbar() {
     if (location.pathname === '/connections') setActiveConnCount(0);
   }, [location.pathname]);
 
+  // בדיקת הודעות שלא נקראו — כל 10 דקות
+  useEffect(() => {
+    if (!user || user.is_admin) return;
+    const checkUnread = () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      fetch(`${API_BASE}/my-messages`, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : [])
+        .then(data => {
+          if (Array.isArray(data)) setUnreadMsgCount(data.filter(m => !m.is_read).length);
+        })
+        .catch(() => {});
+    };
+    checkUnread();
+    const id = setInterval(checkUnread, 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user]);
+
+  // מנקה badge הודעות כשנכנסים לדף הודעות
+  useEffect(() => {
+    if (location.pathname === '/inbox') setUnreadMsgCount(0);
+  }, [location.pathname]);
+
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
@@ -127,7 +151,12 @@ function Navbar() {
           <>
             <Link to="/matches">💍 שידוכים</Link>
             <RequestsLink token={localStorage.getItem('token')} userId={user?.id} />
-            <Link to="/inbox">📬 הודעות</Link>
+            <Link to="/inbox" style={{ position: 'relative' }}>
+              📬 הודעות
+              {unreadMsgCount > 0 && location.pathname !== '/inbox' && (
+                <span className="admin-badge" style={{ top: -6, right: -10, background: '#ef4444' }}>{unreadMsgCount}</span>
+              )}
+            </Link>
             <Link to="/connections" style={{ position: 'relative' }}>
               💎 שידוכים פעילים
               {activeConnCount > 0 && location.pathname !== '/connections' && (
