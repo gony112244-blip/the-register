@@ -11,6 +11,12 @@ const CANCEL_REASONS = [
     { id: 4, text: 'הצעה זו כבר הוצעה לנו בעבר' },
 ];
 
+const REF_REASONS = [
+    { id: 'not_enough', label: '⏳ לא הספיק לנו לברר באמצעות הממליצים שסיפקת' },
+    { id: 'no_answer',  label: '📵 הממליצים שסיפקת לא ענו לנו' },
+    { id: 'family_ref', label: '👨‍👩‍👧 נבקש מכר שמכיר את המשפחה' },
+];
+
 function formatAddress(full_address) {
     if (!full_address) return null;
     const parts = full_address.split(' | ');
@@ -23,6 +29,10 @@ function Connections() {
     const [loading, setLoading] = useState(true);
     const [modalPerson, setModalPerson] = useState(null);
     const [cancelModal, setCancelModal] = useState(null);
+    const [refModal, setRefModal] = useState(null); // { connectionId, otherName }
+    const [refReason, setRefReason] = useState('');
+    const [refCount, setRefCount] = useState(1);
+    const [refSending, setRefSending] = useState(false);
     const navigate = useNavigate();
     const { showToast } = useToast();
 
@@ -79,6 +89,30 @@ function Connections() {
         }
     };
 
+    const handleSendRefRequest = async () => {
+        if (!refReason) { showToast('יש לבחור סיבה', 'error'); return; }
+        setRefSending(true);
+        try {
+            const res = await fetch(`${API_BASE}/request-additional-reference`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ connectionId: refModal.connectionId, reason: refReason, count: refCount })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast('✅ הבקשה נשלחה לצד השני', 'success');
+                setRefModal(null);
+                setRefReason('');
+                setRefCount(1);
+            } else {
+                showToast(data.message || 'שגיאה', 'error');
+            }
+        } catch {
+            showToast('שגיאה בשליחה', 'error');
+        }
+        setRefSending(false);
+    };
+
     const handleFinalApprove = async (connectionId) => {
         try {
             const res = await fetch(`${API_BASE}/finalize-connection`, {
@@ -117,6 +151,75 @@ function Connections() {
                     onClose={() => setModalPerson(null)}
                     token={token}
                 />
+            )}
+
+            {/* מודל בקשת ממליץ נוסף */}
+            {refModal && (
+                <div style={styles.overlay}>
+                    <div style={styles.cancelModalBox}>
+                        <h3 style={{ color: '#1e3a5f', margin: '0 0 6px' }}>📋 בקשת ממליץ נוסף</h3>
+                        <p style={{ color: '#6b7280', margin: '0 0 16px', fontSize: '0.9rem' }}>
+                            מ: <strong>{refModal.otherName}</strong>
+                        </p>
+
+                        <p style={{ color: '#1e3a5f', fontWeight: 700, margin: '0 0 10px', fontSize: '0.9rem' }}>סיבת הבקשה:</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                            {REF_REASONS.map(r => (
+                                <button
+                                    key={r.id}
+                                    onClick={() => setRefReason(r.id)}
+                                    style={{
+                                        ...styles.reasonBtn,
+                                        background: refReason === r.id ? '#eff6ff' : '#f8fafc',
+                                        borderColor: refReason === r.id ? '#3b82f6' : '#e2e8f0',
+                                        color: refReason === r.id ? '#1e3a5f' : '#475569',
+                                        fontWeight: refReason === r.id ? 700 : 500,
+                                    }}
+                                >
+                                    {r.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <p style={{ color: '#1e3a5f', fontWeight: 700, margin: '0 0 8px', fontSize: '0.9rem' }}>כמה מספרים לבקש?</p>
+                        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+                            {[1, 2].map(n => (
+                                <button
+                                    key={n}
+                                    onClick={() => setRefCount(n)}
+                                    style={{
+                                        flex: 1, padding: '10px',
+                                        background: refCount === n ? '#1e3a5f' : '#f1f5f9',
+                                        color: refCount === n ? '#fff' : '#475569',
+                                        border: 'none', borderRadius: 10,
+                                        fontWeight: 700, cursor: 'pointer',
+                                        fontSize: '0.95rem', fontFamily: 'inherit'
+                                    }}
+                                >
+                                    {n === 1 ? 'מספר אחד' : 'שני מספרים'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={handleSendRefRequest}
+                            disabled={!refReason || refSending}
+                            style={{
+                                ...styles.approveBtn,
+                                opacity: (!refReason || refSending) ? 0.5 : 1,
+                                marginBottom: 10, width: '100%', fontFamily: 'inherit'
+                            }}
+                        >
+                            {refSending ? '⏳ שולח...' : '📤 שלח בקשה'}
+                        </button>
+                        <button
+                            onClick={() => { setRefModal(null); setRefReason(''); setRefCount(1); }}
+                            style={styles.cancelModalCloseBtn}
+                        >
+                            ← ביטול
+                        </button>
+                    </div>
+                </div>
             )}
 
             {/* מודל ביטול שידוך */}
@@ -250,6 +353,17 @@ function Connections() {
                                                     style={alreadyApproved ? styles.doneBtn : styles.approveBtn}
                                                 >
                                                     {alreadyApproved ? 'הודעתך הועברה לשדכנית ✅' : 'סיימתי בירורים - אני מעוניין/ת 👍'}
+                                                </button>
+
+                                                <button
+                                                    onClick={() => {
+                                                        setRefModal({ connectionId: conn.id, otherName: conn.full_name });
+                                                        setRefReason('');
+                                                        setRefCount(1);
+                                                    }}
+                                                    style={styles.refBtn}
+                                                >
+                                                    📋 בקש ממליץ נוסף
                                                 </button>
 
                                                 <button
@@ -435,6 +549,17 @@ const styles = {
         cursor: 'default',
         fontWeight: '700',
         fontSize: '0.95rem'
+    },
+    refBtn: {
+        padding: '10px',
+        background: 'transparent',
+        color: '#1e3a5f',
+        border: '1.5px solid #1e3a5f',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        fontWeight: '700',
+        fontSize: '0.9rem',
+        fontFamily: 'inherit'
     },
     cancelConnBtn: {
         padding: '10px',

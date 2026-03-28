@@ -3096,9 +3096,11 @@ app.get('/my-messages', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     try {
         const result = await pool.query(
-            `SELECT * FROM messages 
-             WHERE to_user_id = $1 
-             ORDER BY created_at DESC`,
+            `SELECT m.*, u.full_name AS from_name
+             FROM messages m
+             LEFT JOIN users u ON u.id = m.from_user_id
+             WHERE m.to_user_id = $1
+             ORDER BY m.created_at DESC`,
             [userId]
         );
         res.json(result.rows);
@@ -3495,6 +3497,120 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
 });
 
 // ==========================================
+// 📋 בקשות ממליצים נוספים
+// ==========================================
+
+const REFERENCE_REASONS = {
+    not_enough:  'לא הספיק לנו לברר באמצעות הממליצים שסיפקת',
+    no_answer:   'הממליצים שסיפקת לא ענו לנו',
+    family_ref:  'נבקש מכר שמכיר את המשפחה',
+};
+
+// שליחת בקשה לממליץ נוסף
+app.post('/request-additional-reference', authenticateToken, async (req, res) => {
+    const requesterId = req.user.id;
+    const { connectionId, reason, count } = req.body;
+    if (!connectionId || !REFERENCE_REASONS[reason]) {
+        return res.status(400).json({ message: 'נתונים חסרים' });
+    }
+    try {
+        // וידוא שהמשתמש שייך לשידוך
+        const connCheck = await pool.query(
+            `SELECT c.id, c.sender_id, c.receiver_id,
+                    u_req.full_name AS requester_name,
+                    u_other.full_name AS other_name
+             FROM connections c
+             JOIN users u_req ON u_req.id = $2
+             JOIN users u_other ON u_other.id = CASE WHEN c.sender_id = $2 THEN c.receiver_id ELSE c.sender_id END
+             WHERE c.id = $1 AND (c.sender_id = $2 OR c.receiver_id = $2)
+               AND c.status IN ('active','waiting_for_shadchan')`,
+            [connectionId, requesterId]
+        );
+        if (connCheck.rows.length === 0) return res.status(403).json({ message: 'לא ניתן לשלוח בקשה' });
+
+        const { sender_id, receiver_id, requester_name, other_name } = connCheck.rows[0];
+        const otherUserId = sender_id === requesterId ? receiver_id : sender_id;
+        const countNum = count === 2 ? 2 : 1;
+        const reasonText = REFERENCE_REASONS[reason];
+
+        // שמירת הבקשה
+        const inserted = await pool.query(
+            `INSERT INTO reference_requests (connection_id, requester_id, reason, count)
+             VALUES ($1, $2, $3, $4) RETURNING id`,
+            [connectionId, requesterId, reason, countNum]
+        );
+        const requestId = inserted.rows[0].id;
+
+        // ניסוח הודעה לצד השני
+        const countText = countNum === 2 ? 'שניים' : 'אחד';
+        const msg = `📋 בקשה לממליץ נוסף\n\n${requester_name} מבקש/ת ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nסיבה: ${reasonText}.\n\nתוכל/י להגיב להודעה זו ישירות.`;
+
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type, meta)
+             VALUES ($1, $2, $3, 'reference_request', $4)`,
+            [requesterId, otherUserId, msg, JSON.stringify({ requestId, connectionId, count: countNum })]
+        );
+
+        // מייל לצד המקבל
+        setImmediate(() => sendNewMessageEmail(otherUserId, requester_name, msg));
+
+        res.json({ message: 'הבקשה נשלחה בהצלחה' });
+    } catch (err) {
+        console.error('[request-additional-reference]', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
+// תגובה לבקשת ממליץ נוסף
+app.post('/respond-reference-request', authenticateToken, async (req, res) => {
+    const responderId = req.user.id;
+    const { requestId, response, refName, refPhone } = req.body;
+    // response: 'provide' | 'cannot'
+
+    try {
+        const reqRow = await pool.query(
+            `SELECT rr.*, c.sender_id, c.receiver_id,
+                    u_resp.full_name AS responder_name,
+                    u_req.full_name AS requester_name
+             FROM reference_requests rr
+             JOIN connections c ON c.id = rr.connection_id
+             JOIN users u_resp ON u_resp.id = $2
+             JOIN users u_req ON u_req.id = rr.requester_id
+             WHERE rr.id = $1
+               AND (c.sender_id = $2 OR c.receiver_id = $2)`,
+            [requestId, responderId]
+        );
+        if (reqRow.rows.length === 0) return res.status(404).json({ message: 'בקשה לא נמצאה' });
+
+        const { requester_id, responder_name, requester_name } = reqRow.rows[0];
+
+        await pool.query(`UPDATE reference_requests SET status = $1 WHERE id = $2`, [response, requestId]);
+
+        let msg;
+        if (response === 'provide' && refName && refPhone) {
+            msg = `✅ ${responder_name} שלח/ה ממליץ נוסף:\n\nשם: ${refName}\nטלפון: 📞 ${refPhone}`;
+        } else if (response === 'provide') {
+            msg = `✅ ${responder_name} אישר/ה שישלח/ת ממליץ נוסף — יצרו קשר ישירות.`;
+        } else {
+            msg = `ℹ️ ${responder_name} ציין/נה שלצערם/ן בשלב זה אינם יכולים לספק ממליץ נוסף.`;
+        }
+
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type)
+             VALUES ($1, $2, $3, 'reference_response')`,
+            [responderId, requester_id, msg]
+        );
+
+        setImmediate(() => sendNewMessageEmail(requester_id, responder_name, msg));
+
+        res.json({ message: 'תגובתך נשלחה' });
+    } catch (err) {
+        console.error('[respond-reference-request]', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
+// ==========================================
 // 🚫 חסימת משתמשים
 // ==========================================
 
@@ -3764,6 +3880,22 @@ async function updateDbSchema() {
             )
         `);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_id, created_at DESC)`);
+
+        // עמודת meta בהודעות (לשמירת requestId וכו')
+        await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS meta JSONB`).catch(() => {});
+
+        // טבלת בקשות ממליצים נוספים
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS reference_requests (
+                id SERIAL PRIMARY KEY,
+                connection_id INTEGER REFERENCES connections(id) ON DELETE CASCADE,
+                requester_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                reason VARCHAR(100) NOT NULL,
+                count INTEGER DEFAULT 1,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
 
         // טבלת חסימות בין משתמשים
         await pool.query(`

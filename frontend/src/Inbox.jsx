@@ -9,7 +9,11 @@ function Inbox() {
     const [connectionRequests, setConnectionRequests] = useState([]);
     const [photoRequests, setPhotoRequests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('messages'); // messages, connections
+    const [activeTab, setActiveTab] = useState('messages');
+    const [refResponseModal, setRefResponseModal] = useState(null); // { requestId, fromName }
+    const [refName, setRefName] = useState('');
+    const [refPhone, setRefPhone] = useState('');
+    const [refSending, setRefSending] = useState(false);
 
     useEffect(() => {
         if (!token) {
@@ -97,6 +101,30 @@ function Inbox() {
         }
     };
 
+    const handleRespondRef = async (response) => {
+        if (!refResponseModal) return;
+        setRefSending(true);
+        try {
+            const res = await fetch(`${API_BASE}/respond-reference-request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    requestId: refResponseModal.requestId,
+                    response,
+                    refName: refName.trim() || null,
+                    refPhone: refPhone.trim() || null,
+                })
+            });
+            if (res.ok) {
+                alert(response === 'provide' ? '✅ תגובתך נשלחה!' : '✅ הודעתך נשלחה');
+                setRefResponseModal(null);
+                setRefName(''); setRefPhone('');
+                fetchAll();
+            }
+        } catch { alert('שגיאה'); }
+        setRefSending(false);
+    };
+
     const getMessageIcon = (type) => {
         switch (type) {
             case 'system': return '📢';
@@ -104,6 +132,8 @@ function Inbox() {
             case 'photo_request': return '📷';
             case 'photo_response': return '👁️';
             case 'admin_notification': return '🔔';
+            case 'reference_request': return '📋';
+            case 'reference_response': return '📋';
             default: return '📬';
         }
     };
@@ -119,6 +149,61 @@ function Inbox() {
 
     return (
         <div style={styles.page}>
+            {/* מודל תגובה לבקשת ממליץ נוסף */}
+            {refResponseModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, direction: 'rtl', padding: 16 }}>
+                    <div style={{ background: '#fff', borderRadius: 20, padding: 28, maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+                        <h3 style={{ color: '#1e3a5f', margin: '0 0 6px' }}>📋 תגובה לבקשת ממליץ</h3>
+                        <p style={{ color: '#6b7280', margin: '0 0 18px', fontSize: '0.9rem' }}>
+                            <strong>{refResponseModal.fromName}</strong> ביקש/ה ממליץ נוסף.
+                        </p>
+
+                        <p style={{ color: '#1e3a5f', fontWeight: 700, margin: '0 0 10px', fontSize: '0.9rem' }}>
+                            האם תוכל/י לספק פרטי ממליץ נוסף?
+                        </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+                            <input
+                                placeholder="שם הממליץ"
+                                value={refName}
+                                onChange={e => setRefName(e.target.value)}
+                                style={{ padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.95rem', fontFamily: 'inherit', direction: 'rtl' }}
+                            />
+                            <input
+                                placeholder="מספר טלפון"
+                                value={refPhone}
+                                onChange={e => setRefPhone(e.target.value)}
+                                type="tel"
+                                style={{ padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: '0.95rem', fontFamily: 'inherit', direction: 'rtl' }}
+                            />
+                        </div>
+
+                        <button
+                            onClick={() => handleRespondRef('provide')}
+                            disabled={refSending}
+                            style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #16a34a, #15803d)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer', fontSize: '0.95rem', fontFamily: 'inherit', marginBottom: 10 }}
+                        >
+                            {refSending ? '⏳ שולח...' : '✅ שלח פרטי ממליץ'}
+                        </button>
+
+                        <button
+                            onClick={() => handleRespondRef('cannot')}
+                            disabled={refSending}
+                            style={{ width: '100%', padding: '11px', background: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit', marginBottom: 10 }}
+                        >
+                            לצערי, בשלב זה אינני יכול/ה להביא ממליץ נוסף
+                        </button>
+
+                        <button
+                            onClick={() => { setRefResponseModal(null); setRefName(''); setRefPhone(''); }}
+                            style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', color: '#64748b', fontFamily: 'inherit' }}
+                        >
+                            ← ביטול
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div style={styles.container}>
                 <h1 style={styles.title}>📬 תיבת הדואר שלי</h1>
 
@@ -156,7 +241,10 @@ function Inbox() {
                             {messages.length === 0 ? (
                                 <div style={styles.emptyState}>אין הודעות חדשות</div>
                             ) : (
-                                messages.map(msg => (
+                                messages.map(msg => {
+                                    const meta = msg.meta || (typeof msg.meta === 'string' ? JSON.parse(msg.meta) : null);
+                                    const isRefRequest = msg.type === 'reference_request' && meta?.requestId;
+                                    return (
                                     <div
                                         key={msg.id}
                                         style={{
@@ -172,10 +260,24 @@ function Inbox() {
                                             <small style={styles.msgDate}>
                                                 {new Date(msg.created_at).toLocaleString()}
                                             </small>
+                                            {isRefRequest && (
+                                                <button
+                                                    onClick={e => {
+                                                        e.stopPropagation();
+                                                        handleMarkAsRead(msg.id);
+                                                        setRefName(''); setRefPhone('');
+                                                        setRefResponseModal({ requestId: meta.requestId, fromName: msg.from_name || 'הצד השני' });
+                                                    }}
+                                                    style={{ marginTop: 10, padding: '8px 16px', background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem', fontFamily: 'inherit' }}
+                                                >
+                                                    📋 הגב לבקשה
+                                                </button>
+                                            )}
                                         </div>
                                         {!msg.is_read && <div style={styles.unreadDot}></div>}
                                     </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     )}
