@@ -2008,6 +2008,18 @@ app.get('/matches', authenticateToken, async (req, res) => {
             }
         }
 
+        // סינון לפי כיסוי ראש:
+        // 'paah' → מוצגים head_covering IN ('paah','flexible') OR head_covering IS NULL
+        // 'kisui' → מוצגים head_covering IN ('kisui','flexible') OR head_covering IS NULL
+        // 'not_relevant' / NULL → כולם
+        if (currentUser.search_head_covering && currentUser.search_head_covering !== 'not_relevant') {
+            conditions.push(
+                `(head_covering IS NULL OR head_covering = 'flexible' OR head_covering = $${paramIndex})`
+            );
+            params.push(currentUser.search_head_covering);
+            paramIndex++;
+        }
+
         // הסבר: בדיקה שגם הצד השני מחפש אותי!
         // המועמד צריך לרצות את הגיל שלי
         if (currentUser.age) {
@@ -2461,7 +2473,7 @@ app.get('/match-card/:userId', authenticateToken, async (req, res) => {
                     apartment_help, apartment_amount,
                     current_occupation, life_aspiration, work_field, occupation_details,
                     yeshiva_name, yeshiva_ketana_name, study_place, study_field, favorite_study,
-                    profile_images_count, created_at
+                    profile_images_count, created_at, head_covering
              FROM users WHERE id = $1 AND is_approved = TRUE AND is_blocked = FALSE`,
             [targetId]
         );
@@ -3880,6 +3892,10 @@ async function updateDbSchema() {
             )
         `);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_id, created_at DESC)`);
+
+        // כיסוי ראש
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS head_covering VARCHAR(20)`).catch(() => {});
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_head_covering VARCHAR(20)`).catch(() => {});
 
         // עמודת meta בהודעות (לשמירת requestId וכו')
         await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS meta JSONB`).catch(() => {});

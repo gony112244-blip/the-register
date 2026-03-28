@@ -373,7 +373,7 @@ function Profile() {
         'birth_date', 'country_of_birth', 'city',
         'heritage_sector', 'family_background', 'father_occupation', 'mother_occupation',
         'father_heritage', 'mother_heritage', 'siblings_count', 'sibling_position',
-        'height', 'body_type', 'skin_tone', 'appearance',
+        'height', 'body_type', 'skin_tone', 'appearance', 'head_covering',
         'apartment_help',
         'current_occupation', 'life_aspiration', 'work_field', 'occupation_details',
         'yeshiva_name', 'study_place', 'study_field', 'favorite_study',
@@ -383,7 +383,7 @@ function Profile() {
         'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
         'search_body_types', 'search_appearances', 'search_statuses', 'search_backgrounds',
         'search_heritage_sectors', 'mixed_heritage_ok', 'search_financial_min', 'search_financial_discuss',
-        'search_occupations', 'search_life_aspirations',
+        'search_occupations', 'search_life_aspirations', 'search_head_covering',
     ]);
 
     // שמירה לשרת
@@ -898,6 +898,17 @@ function Profile() {
                                         <option value="stunning">מרשים במיוחד</option>
                                     </select>
                                 </div>
+                                {user.gender === 'female' && (
+                                    <div style={styles.field}>
+                                        <label>כיסוי ראש</label>
+                                        <select name="head_covering" value={user.head_covering || ''} onChange={handleChange} style={styles.input}>
+                                            <option value="">בחר...</option>
+                                            <option value="paah">פאה</option>
+                                            <option value="kisui">כיסוי</option>
+                                            <option value="flexible">לא עקרוני</option>
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1366,6 +1377,38 @@ function Profile() {
                                                     else { const idx = current.indexOf(option.value); if (idx > -1) current.splice(idx, 1); }
                                                     setUser(prev => ({ ...prev, search_heritage_sectors: current.join(',') }));
                                                 }}
+                                                style={{ display: 'none' }}
+                                            />
+                                            {option.label}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: '20px' }}>
+                                <label style={{ fontWeight: 'bold' }}>כיסוי ראש:</label>
+                                <p style={{ margin: '2px 0 6px', fontSize: '0.8rem', color: '#64748b' }}>
+                                    "לא עקרוני" מופיעה בשני החיפושים
+                                </p>
+                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
+                                    {[
+                                        { value: 'paah', label: 'דווקא פאה' },
+                                        { value: 'kisui', label: 'דווקא כיסוי' },
+                                        { value: 'not_relevant', label: 'לא משנה' }
+                                    ].map(option => (
+                                        <label key={option.value} style={{
+                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+                                            padding: '10px 15px',
+                                            background: (user.search_head_covering || '') === option.value ? '#c9a227' : '#f0f0f0',
+                                            borderRadius: '8px',
+                                            fontWeight: (user.search_head_covering || '') === option.value ? 'bold' : 'normal'
+                                        }}>
+                                            <input
+                                                type="radio"
+                                                name="search_head_covering"
+                                                value={option.value}
+                                                checked={(user.search_head_covering || '') === option.value}
+                                                onChange={() => setUser(prev => ({ ...prev, search_head_covering: option.value }))}
                                                 style={{ display: 'none' }}
                                             />
                                             {option.label}

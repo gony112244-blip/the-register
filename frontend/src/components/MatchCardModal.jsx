@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 // ── תרגומים ──
 const T = {
     gender: { male: '👨 גבר', female: '👩 אישה' },
+    head_covering: { paah: 'פאה', kisui: 'כיסוי', flexible: 'לא עקרוני' },
     status: { single: 'רווק / רווקה', divorced: 'גרוש / גרושה', widower: 'אלמן / אלמנה' },
     family_background: { haredi: 'חרדי', dati_leumi: 'דתי לאומי', masorti: 'מסורתי', baal_teshuva: 'חוזר בתשובה' },
     heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
@@ -202,6 +203,11 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                                 {show(p.heritage_sector) && <span style={S.tag}>{tr('heritage_sector', p.heritage_sector)}</span>}
                                 {show(p.family_background) && <span style={S.tag}>{tr('family_background', p.family_background)}</span>}
                                 {p.has_children && <span style={S.tag}>👶 ילדים: {p.children_count || 'כן'}</span>}
+                                {show(p.head_covering) && p.gender === 'female' && (
+                                    <span style={{ ...S.tag, background: '#fef3c7', color: '#92400e', border: '1px solid #f59e0b' }}>
+                                        🧣 {tr('head_covering', p.head_covering)}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
