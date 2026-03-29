@@ -2,6 +2,8 @@ import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+const isMobile = () => window.innerWidth < 700;
+
 const STATUS_LABELS = {
     open: { label: 'חדש', color: '#dc2626', bg: '#fef2f2' },
     read: { label: 'נקרא', color: '#d97706', bg: '#fffbeb' },
@@ -20,6 +22,7 @@ export default function AdminSupport() {
     const [replyText, setReplyText] = useState('');
     const [replying, setReplying] = useState(false);
     const [filterStatus, setFilterStatus] = useState('all');
+    const [mobileView, setMobileView] = useState('list'); // 'list' | 'thread'
 
     useEffect(() => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -42,6 +45,7 @@ export default function AdminSupport() {
     const openTicket = async (ticket) => {
         setSelected(ticket);
         setReplyText('');
+        if (isMobile()) setMobileView('thread');
         try {
             const res = await fetch(`${API_BASE}/admin/support/tickets/${ticket.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -90,11 +94,13 @@ export default function AdminSupport() {
     const filtered = filterStatus === 'all' ? tickets : tickets.filter(t => t.status === filterStatus);
     const openCount = tickets.filter(t => t.status === 'open').length;
 
+    const mobile = isMobile();
+
     return (
         <div style={s.page}>
-            <div style={s.layout}>
+            <div style={{ ...s.layout, flexDirection: mobile ? 'column' : 'row' }}>
                 {/* רשימת פניות */}
-                <div style={s.sidebar}>
+                <div style={{ ...s.sidebar, display: mobile && mobileView === 'thread' ? 'none' : 'flex', width: mobile ? '100%' : '320px', minWidth: mobile ? '100%' : '280px', height: mobile ? 'auto' : undefined, flex: mobile ? undefined : undefined }}>
                     <div style={s.sidebarHeader}>
                         <button onClick={() => navigate('/admin')} style={s.backBtn}>← חזרה</button>
                         <h2 style={s.sidebarTitle}>📬 פניות תמיכה</h2>
@@ -149,7 +155,7 @@ export default function AdminSupport() {
                 </div>
 
                 {/* תוכן פנייה */}
-                <div style={s.main}>
+                <div style={{ ...s.main, display: mobile && mobileView === 'list' ? 'none' : undefined }}>
                     {!selected ? (
                         <div style={s.emptyMain}>
                             <div style={{ fontSize: '3rem', marginBottom: '12px' }}>📭</div>
@@ -157,6 +163,15 @@ export default function AdminSupport() {
                         </div>
                     ) : (
                         <div style={s.thread}>
+                            {/* חזרה לרשימה — מובייל בלבד */}
+                            {mobile && (
+                                <button
+                                    onClick={() => setMobileView('list')}
+                                    style={{ background: 'none', border: 'none', color: '#1e3a5f', fontWeight: 'bold', fontSize: '0.95rem', cursor: 'pointer', marginBottom: '12px', padding: 0 }}
+                                >
+                                    ← חזרה לרשימה
+                                </button>
+                            )}
                             {/* כותרת */}
                             <div style={s.threadHeader}>
                                 <div>
@@ -249,12 +264,12 @@ const s = {
         fontFamily: "'Heebo', sans-serif",
         direction: 'rtl'
     },
-    layout: { display: 'flex', height: '100vh', overflow: 'hidden' },
+    layout: { display: 'flex', minHeight: '100vh' },
 
     sidebar: {
         width: '320px', minWidth: '280px',
         background: '#f8fafc', borderLeft: '1px solid #e2e8f0',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden'
+        display: 'flex', flexDirection: 'column', overflowY: 'auto'
     },
     sidebarHeader: {
         padding: '18px 16px 10px',
@@ -300,7 +315,7 @@ const s = {
         alignItems: 'center', justifyContent: 'center', color: '#94a3b8'
     },
 
-    thread: { padding: '24px', maxWidth: '700px' },
+    thread: { padding: '16px', maxWidth: '700px', width: '100%', boxSizing: 'border-box' },
     threadHeader: {
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
         marginBottom: '20px', gap: '10px', flexWrap: 'wrap'
