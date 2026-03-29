@@ -3476,6 +3476,7 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
         const totalUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = false');
         const pendingUsers = await pool.query('SELECT COUNT(*) FROM users WHERE (is_approved = false OR is_profile_pending = true) AND is_admin = false');
         const activeMatches = await pool.query("SELECT COUNT(*) FROM connections WHERE status = 'active' OR status = 'waiting_for_shadchan'");
+        const openTickets = await pool.query("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'");
 
         // 2. פילוח לפי מגזר (לגרף עוגה)
         const sectors = await pool.query(`
@@ -3498,6 +3499,7 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
             total: parseInt(totalUsers.rows[0].count),
             pending: parseInt(pendingUsers.rows[0].count),
             matches: parseInt(activeMatches.rows[0].count),
+            open_tickets: parseInt(openTickets.rows[0].count),
             sectors: sectors.rows,
             monthly: monthly.rows
         });

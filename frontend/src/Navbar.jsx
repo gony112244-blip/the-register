@@ -40,7 +40,7 @@ function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [adminStats, setAdminStats] = useState({ pending: 0, matches: 0 });
+  const [adminStats, setAdminStats] = useState({ pending: 0, matches: 0, open_tickets: 0 });
   const [activeConnCount, setActiveConnCount] = useState(0);
   const [unreadMsgCount, setUnreadMsgCount] = useState(0);
 
@@ -79,7 +79,7 @@ function Navbar() {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(res => res.json())
-      .then(data => { if (data) setAdminStats({ pending: data.pending || 0, matches: data.matches || 0 }); })
+      .then(data => { if (data) setAdminStats({ pending: data.pending || 0, matches: data.matches || 0, open_tickets: data.open_tickets || 0 }); })
       .catch(() => {});
   }, [user]);
 
@@ -178,6 +178,10 @@ function Navbar() {
             <Link to="/admin/pending-profiles" className="navbar-admin-link" style={{position: 'relative'}}>
               📝 אישורים
               {adminStats.pending > 0 && <span className="admin-badge">{adminStats.pending}</span>}
+            </Link>
+            <Link to="/admin/support" className="navbar-admin-link" style={{position: 'relative'}}>
+              📩 פניות
+              {adminStats.open_tickets > 0 && <span className="admin-badge" style={{ background: '#f59e0b' }}>{adminStats.open_tickets}</span>}
             </Link>
           </>
         )}
