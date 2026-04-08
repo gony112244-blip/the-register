@@ -6,6 +6,7 @@ dist
 build
 CV/
 backups/
+logs/
 node
 FETCH_HEAD
 the-register@*

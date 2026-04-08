@@ -4217,6 +4217,23 @@ async function updateDbSchema() {
         END $$;
     `);
 
+        // אינדקסים לביצועי שאילתות (התאמות, חיבורים, חסימות, תמונות) — IF NOT EXISTS בטוח
+        const perfIndexes = [
+            `CREATE INDEX IF NOT EXISTS idx_connections_sender_id ON connections(sender_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_connections_receiver_id ON connections(receiver_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_connections_status ON connections(status)`,
+            `CREATE INDEX IF NOT EXISTS idx_hidden_profiles_user_id ON hidden_profiles(user_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_hidden_profiles_hidden_user_id ON hidden_profiles(hidden_user_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker_id ON user_blocks(blocker_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked_id ON user_blocks(blocked_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_photo_approvals_requester ON photo_approvals(requester_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_photo_approvals_target ON photo_approvals(target_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_users_gender_approved_blocked ON users(gender, is_approved, is_blocked)`,
+        ];
+        for (const q of perfIndexes) {
+            await pool.query(q).catch((e) => console.warn('[schema index]', e.message));
+        }
+
         console.log("✅ DB Schema updated: Wizard columns ensured.");
 
     } catch (err) {
