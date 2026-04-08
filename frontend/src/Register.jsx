@@ -66,7 +66,7 @@ function Register() {
             setErrors(prev => ({ ...prev, password: null }));
         }
         if (confirmPassword && value !== confirmPassword) {
-            setErrors(prev => ({ ...prev, confirmPassword: "הסיסמות אינן תואמות" }));
+            setErrors(prev => ({ ...prev, confirmPassword: "הסיסמאות אינן תואמות" }));
         } else {
             setErrors(prev => ({ ...prev, confirmPassword: null }));
         }
@@ -76,7 +76,7 @@ function Register() {
         const value = e.target.value;
         setConfirmPassword(value);
         if (value && value !== password) {
-            setErrors(prev => ({ ...prev, confirmPassword: "הסיסמות אינן תואמות" }));
+            setErrors(prev => ({ ...prev, confirmPassword: "הסיסמאות אינן תואמות" }));
         } else {
             setErrors(prev => ({ ...prev, confirmPassword: null }));
         }
@@ -140,7 +140,7 @@ function Register() {
                 showToast(`שגיאה: ${data.message}`, "error");
             }
         } catch (err) {
-            showToast("לא ניתן ליצור קשר עם השרת", "error");
+            showToast("לא ניתן להתחבר לשרת", "error");
         } finally {
             setIsSubmitting(false);
         }
@@ -167,7 +167,7 @@ function Register() {
             const data = await response.json();
 
             if (response.ok) {
-                showToast("כתובת המייל אומתה בהצלחה! ברוך הבא 🎉", "success");
+                showToast("המייל אומת בהצלחה! ברוך הבא 🎉", "success");
                 sessionStorage.setItem('email_reminder_shown', 'true');
                 setTimeout(() => navigate('/profile'), 1500);
             } else {
@@ -191,7 +191,7 @@ function Register() {
         } catch (_) { /* לא קריטי */ }
         // סמן שכבר הוצגה ההודעה בסשן הנוכחי — לא לחזור שוב עם חלון בדף הבא
         sessionStorage.setItem('email_reminder_shown', 'true');
-        showToast("דילגת על האימות — ניתן לאמת בכל עת דרך ההגדרות", "info");
+        showToast("דילגת על האימות — תוכל לאמת בכל עת מהגדרות", "info");
         setTimeout(() => navigate('/profile'), 1000);
         setIsSkipping(false);
     };
@@ -264,7 +264,7 @@ function Register() {
 
                         {/* אימייל */}
                         <div style={fieldWrapper}>
-                            <label style={labelStyle}>כתובת מייל (נדרשת לאימות החשבון)</label>
+                            <label style={labelStyle}>אימייל (נדרש לאימות החשבון)</label>
                             <input
                                 type="email"
                                 placeholder="your@email.com"
@@ -304,11 +304,11 @@ function Register() {
 
                         {/* אימות סיסמה */}
                         <div style={fieldWrapper}>
-                            <label style={labelStyle}>אימות סיסמה</label>
+                            <label style={labelStyle}>אמת סיסמה</label>
                             <div style={passwordWrapper}>
                                 <input
                                     type={showConfirmPassword ? "text" : "password"}
-                                    placeholder="הזן שוב את הסיסמה"
+                                    placeholder="הכנס שוב את הסיסמה"
                                     value={confirmPassword}
                                     onChange={handleConfirmPasswordChange}
                                     style={{ ...getInputStyle('confirmPassword'), paddingLeft: '50px', borderColor: errors.confirmPassword ? '#ef4444' : (confirmPassword && confirmPassword === password ? '#22c55e' : undefined) }}
@@ -327,7 +327,7 @@ function Register() {
                             </div>
                             {errors.confirmPassword && <span style={errorStyle}>{errors.confirmPassword}</span>}
                             {confirmPassword && !errors.confirmPassword && confirmPassword === password && (
-                                <span style={{ color: '#22c55e', fontSize: '13px', marginTop: '4px', display: 'block' }}>✓ הסיסמות תואמות</span>
+                                <span style={{ color: '#22c55e', fontSize: '13px', marginTop: '4px', display: 'block' }}>✓ הסיסמאות תואמות</span>
                             )}
                         </div>
 
@@ -382,7 +382,7 @@ function Register() {
                         {/* Header */}
                         <div style={headerStyle}>
                             <span style={logoStyle}>✉️</span>
-                            <h2 style={titleStyle}>אימות כתובת המייל</h2>
+                            <h2 style={titleStyle}>אימות כתובת האימייל</h2>
                             <p style={subtitleStyle}>
                                 שלחנו קוד אימות ל־ <b style={{ color: '#1e3a5f' }}>{email}</b>
                             </p>
@@ -407,7 +407,7 @@ function Register() {
 
                         {/* אפשרות ב׳ — הזנת קוד */}
                         <div style={verifyMethodBox}>
-                            <p style={verifyMethodLabel}>🔢 אפשרות ב׳ — הזנת קוד ידנית</p>
+                            <p style={verifyMethodLabel}>🔢 אפשרות ב׳ — הזן קוד ידנית</p>
                             <input
                                 type="text"
                                 placeholder="_ _ _ _ _ _"
@@ -451,10 +451,10 @@ function Register() {
                                 disabled={isSkipping}
                                 style={skipBtnStyle}
                             >
-                                {isSkipping ? '⏳ מעביר אותך...' : '⏩ דלג על האימות בינתיים'}
+                                {isSkipping ? '⏳ מעביר אותך...' : '⏩ דלג על האימות לעת עתה'}
                             </button>
                             <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '8px' }}>
-                                תישלח אליך תזכורת לאימות מאוחר יותר דרך הפרופיל
+                                תקבל תזכורת לאמת מאוחר יותר דרך הפרופיל שלך
                             </p>
                         </div>
 

@@ -235,7 +235,7 @@ function AdminUsers() {
         <div style={st.page}>
             <div style={st.container}>
                 <h1 style={st.title}>👥 ניהול משתמשים</h1>
-                <p style={st.subtitle}>סה״כ {users.length} משתמשים · מוצגים {filteredUsers.length}</p>
+                <p style={st.subtitle}>סה"כ {users.length} משתמשים · מוצגים {filteredUsers.length}</p>
 
                 {/* --- אזור סינון --- */}
                 <div style={st.filterBox}>

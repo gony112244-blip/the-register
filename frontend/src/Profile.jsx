@@ -44,7 +44,7 @@ function Profile() {
         full_name: '', last_name: '', age: '', gender: '', country_of_birth: '', city: '',
         status: '', has_children: '', children_count: 0,
 
-        // 📞 איש קשר לשידוך (מי ליצור איתו קשר?)
+        // 📞 איש קשר לשידוך (מי ליצור עימו קשר?)
         contact_person_type: '', // חובה לבחור
 
         contact_person_name: '',
@@ -267,7 +267,7 @@ function Profile() {
     // שמירה אוטומטית ל-localStorage בכל שינוי כדי למנוע איבוד מידע ברענון
     useEffect(() => {
         if (user) {
-            // שומרים את המצב הנוכחי, אך נזהרים לא לדרוס מידע קיים אם המשתמש הנוכחי ריק חלקית
+            // שומרים את המצב הנוכחי, אך נזהרים לא לדרוס מידע קיים אם ال-user הנוכחי ריק חלקית
             const currentStored = JSON.parse(localStorage.getItem('user') || '{}');
             const merged = { ...currentStored, ...user };
             localStorage.setItem('user', JSON.stringify(merged));
@@ -365,7 +365,7 @@ function Profile() {
         };
 
         setUser(prev => ({ ...prev, ...randomData }));
-        showToast("הושלם מילוי הפרופיל בנתוני קסם! 🪄✨", "success");
+        showToast("הפרופיל מולא בנתוני קסם! 🪄✨", "success");
     };
 
     // שדות שנשמרים מיידית גם אצל משתמש מאושר (לא רגישים)
@@ -478,7 +478,7 @@ function Profile() {
                     const updatedUser = (await res.json()).user;
                     setUser(prev => ({ ...prev, ...updatedUser }));
                     localStorage.setItem('user', JSON.stringify(updatedUser));
-                    showToast("הפרופיל עודכן בהצלחה! יש להמתין לאישור המנהל.", "success");
+                    showToast("הפרופיל עודכן בהצלחה! כעת המתן לאישור המנהל.", "success");
                     navigate('/matches');
                 } else {
                     showToast("שגיאה בעדכון הפרופיל", "error");
@@ -670,7 +670,7 @@ function Profile() {
                     <div style={styles.section}>
                         <div style={styles.sectionHeader}>
                             <h2>📝 חלק א' - פרטים לרשימה</h2>
-                            <p style={styles.sectionDesc}>פרטים אלה יופיעו ברשימה למציעים.</p>
+                            <p style={styles.sectionDesc}>פרטים אלו יופיעו ברשימה למציעים.</p>
                         </div>
 
                         {/* תפריט ניווט מהיר - זהב (sticky) */}
@@ -1018,7 +1018,7 @@ function Profile() {
                         {/* על עצמי */}
                         <div style={styles.card} id="about">
                             <h3 style={styles.cardTitle}>📝 קצת על עצמי</h3>
-                            <p style={styles.hint}>כדאי מאוד למלא שדות אלה כדי לתת תמונה מלאה ואיכותית עליך!</p>
+                            <p style={styles.hint}>כדאי מאוד למלא שדות אלו כדי לתת תמונה מלאה ואיכותית עליך!</p>
                             <div style={styles.grid}>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>מעט על עצמי (מי שמתבייש יבקש מאחר שיכתוב)</label>
@@ -1050,7 +1050,7 @@ function Profile() {
                     <div style={styles.section}>
                         <div style={styles.sectionHeader}>
                             <h2>🔒 חלק ב' - פרטי ממליצים</h2>
-                            <p style={styles.sectionDesc}>פרטים אלה ייחשפו רק למורשים לאחר הסכמה הדדית.</p>
+                            <p style={styles.sectionDesc}>פרטים אלו ייחשפו רק למורשים לאחר הסכמה הדדית.</p>
                         </div>
 
                         {/* פרטי הורים */}

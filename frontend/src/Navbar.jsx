@@ -193,7 +193,7 @@ function Navbar() {
             <span className="navbar-welcome">שלום, {user.full_name}</span>
             <NotificationsPanel user={user} onUserUpdate={handleUserUpdate} />
             {!user.is_admin && (
-              <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיס שלי</Link>
+              <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיסייה שלי</Link>
             )}
             <button onClick={handleLogout} className="navbar-logout-btn">יציאה</button>
           </>

@@ -241,7 +241,7 @@ const baseTemplate = (content, previewText = '') => `
             &nbsp;·&nbsp;
             <a href="mailto:${CONTACT_EMAIL}">צור קשר</a>
             <br>
-            <p>קיבלת את המייל הזה כי נרשמת למערכת "הפנקס".</p>
+            <p>קיבלת מייל זה כי נרשמת למערכת "הפנקס".</p>
             <div class="footer-copy">© ${new Date().getFullYear()} הפנקס · כל הזכויות שמורות</div>
         </div>
 
@@ -256,7 +256,7 @@ const baseTemplate = (content, previewText = '') => `
 // ============================================================
 const verificationEmail = (fullName, code, userId) => baseTemplate(`
     <p class="greeting">שלום ${fullName || 'אורח'} 👋</p>
-    <p>תודה שנרשמת ל<strong>הפנקס</strong>. אנא אמת את כתובת המייל שלך כדי להפעיל את החשבון ולקבל התראות.</p>
+    <p>תודה שנרשמת ל<strong>פנקס השידוכים</strong>. אנא אמת את כתובת המייל שלך כדי להפעיל את החשבון ולקבל התראות.</p>
 
     <p style="font-size:14px; color:#1e3a5f; font-weight:600; margin-bottom:6px;">אפשרות א׳ — לחיצת כפתור (קלה ומהירה):</p>
     <div class="btn-wrapper">
@@ -470,7 +470,7 @@ const resetPasswordEmail = (code) => baseTemplate(`
     </div>
 
     <div class="highlight-box">
-        <p>⚠️ לא ביקשת לאפס סיסמה? <strong>התעלם מהמייל הזה</strong> — אין צורך לעשות דבר.</p>
+        <p>⚠️ לא ביקשת לאפס סיסמה? <strong>התעלם ממייל זה</strong> — אין צורך לעשות דבר.</p>
     </div>
 `, 'קוד לאיפוס סיסמה 🔑');
 
@@ -507,7 +507,7 @@ const systemUpdatesEmail = (updates) => {
 // ============================================================
 const verifyReminderEmail = (fullName, code, userId) => baseTemplate(`
     <p class="greeting">⏰ תזכורת: אימות המייל שלך</p>
-    <p>שלום ${fullName}, שמנו לב שטרם אימתת את כתובת המייל שלך ב"הפנקס".</p>
+    <p>שלום ${fullName}, שמנו לב שטרם אימתת את כתובת המייל שלך ב"פנקס".</p>
     <p>אימות המייל מאפשר לך לקבל:</p>
 
     <ul class="step-list">

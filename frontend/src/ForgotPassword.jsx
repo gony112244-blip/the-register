@@ -58,7 +58,7 @@ function ForgotPassword() {
                 if (method === 'email') {
                     setMessage('📧 קוד אימות נשלח למייל שלך!');
                 } else {
-                    setMessage('📞 עוד רגע תגיע שיחה עם הקוד...');
+                    setMessage('📞 תקבל שיחה עם הקוד בעוד רגע...');
                 }
                 setTimeout(() => safeSetStep(2), 100); // השהייה קטנה למנוע race condition
             } else {
@@ -105,7 +105,7 @@ function ForgotPassword() {
             return;
         }
         if (newPassword !== confirmPassword) {
-            setMessage('הסיסמות אינן תואמות');
+            setMessage('הסיסמאות אינן תואמות');
             return;
         }
         if (newPassword.length < 6) {

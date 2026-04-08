@@ -101,7 +101,7 @@ function AdminDashboard() {
                     <div style={{ ...s.kpiCard, cursor: 'pointer' }} onClick={() => navigate('/admin/users')}>
                         <div style={s.kpiIcon}>👥</div>
                         <div style={s.kpiNum}>{stats.total}</div>
-                        <div style={s.kpiLabel}>סה״כ משתמשים</div>
+                        <div style={s.kpiLabel}>סה"כ משתמשים</div>
                         <div style={s.kpiLink}>צפה ברשימה ←</div>
                     </div>
                     <div style={{ ...s.kpiCard, borderTop: '4px solid #f59e0b', cursor: 'pointer' }} onClick={() => navigate('/admin/pending-profiles')}>
@@ -173,7 +173,7 @@ function AdminDashboard() {
 
                             {stats.monthly.length > 0 && (
                                 <div style={s.statsBlock}>
-                                    <h3 style={s.statsBlockTitle}>ההרשמות — 6 חודשים אחרונים</h3>
+                                    <h3 style={s.statsBlockTitle}>הרשמות — 6 חודשים אחרונים</h3>
                                     <div style={s.statsGrid}>
                                         {stats.monthly.map((m, i) => (
                                             <div key={i} style={s.statRow}>

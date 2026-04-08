@@ -10,4 +10,3 @@ logs/
 node
 FETCH_HEAD
 the-register@*
-rclone-v*-windows-amd64/

@@ -65,7 +65,7 @@ export default function EmailReminderModal({ user, onUpdateUser }) {
                 showToast(data.message || "שגיאה בשליחת הקוד", "error");
             }
         } catch (err) {
-            showToast("בעיית תקשורת", "error");
+            showToast("בעדת תקשורת", "error");
         } finally {
             setLoading(false);
         }

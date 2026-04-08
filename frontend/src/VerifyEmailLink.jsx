@@ -58,7 +58,7 @@ function VerifyEmailLink() {
                     <>
                         <span style={iconStyle}>❌</span>
                         <h2 style={titleStyle}>הקוד אינו תקין</h2>
-                        <p style={textStyle}>הקישור פג תוקף או שכבר נעשה בו שימוש. ניתן לבקש קוד חדש מדף הפרופיל.</p>
+                        <p style={textStyle}>הלינק פג תוקף או כבר שומש. ניתן לבקש קוד חדש מדף הפרופיל.</p>
                         <button onClick={() => navigate('/')} style={btnStyle}>
                             חזרה לאתר →
                         </button>

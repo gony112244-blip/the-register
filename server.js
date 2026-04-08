@@ -478,7 +478,7 @@ app.post('/register', async (req, res) => {
         setImmediate(() => logActivity(newUserId, 'registered'));
 
         res.status(201).json({
-            message: "ההרשמה בוצעה בהצלחה!",
+            message: "ההרשמה בוצע בהצלחה!",
             token,
             user: {
                 id: newUser.rows[0].id,
@@ -510,7 +510,7 @@ app.post('/login', async (req, res) => {
     console.log(`[Login Attempt] Identifier: ${identifier}, Password Provided: ${password ? 'Yes' : 'No'}`);
 
     if (!identifier) {
-        return res.status(400).json({ message: "יש להזין כתובת מייל או מספר טלפון" });
+        return res.status(400).json({ message: "יש להזין אימייל או טלפון" });
     }
 
     try {
@@ -704,11 +704,11 @@ app.post('/skip-email-verification', authenticateToken, async (req, res) => {
             'UPDATE users SET email_skip_verification = TRUE WHERE id = $1',
             [userId]
         );
-        res.json({ message: "בסדר! ניתן לאמת מאוחר יותר דרך הפרופיל." });
+        res.json({ message: "בסדר! תוכל לאמת מאוחר יותר דרך הפרופיל שלך." });
     } catch (err) {
         // אם העמודה לא קיימת — לא נפיל שגיאה, פשוט מדלגים
         console.warn('[skip-email-verification] Column may not exist yet:', err.message);
-        res.json({ message: "בסדר! ניתן לאמת מאוחר יותר." });
+        res.json({ message: "בסדר! תוכל לאמת מאוחר יותר." });
     }
 });
 
@@ -783,11 +783,11 @@ app.post('/request-reverify', authenticateToken, async (req, res) => {
         const { email, full_name, is_email_verified, verify_reminder_sent } = result.rows[0];
 
         if (is_email_verified) {
-            return res.json({ message: '✅ כתובת המייל שלך כבר מאומתת!', alreadyVerified: true });
+            return res.json({ message: '✅ האימייל שלך כבר מאומת!', alreadyVerified: true });
         }
 
         if (!email) {
-            return res.status(400).json({ message: 'לא הוזנה כתובת מייל. יש לעדכן אותה בפרופיל.' });
+            return res.status(400).json({ message: 'לא הוזנה כתובת מייל. עדכן את המייל שלך בפרופיל.' });
         }
 
         // הגבלה: תזכורת נשלחת פעם אחת בלבד
@@ -865,8 +865,8 @@ app.get('/verify-email-link', async (req, res) => {
 </style></head>
 <body><div class="card">
   <span class="icon">✅</span>
-  <h1>כתובת המייל אומתה בהצלחה!</h1>
-  <p>תודה שאימתת את חשבונך. מעכשיו ניתן לקבל הצעות שידוך והתראות מהמערכת.</p>
+  <h1>המייל אומת בהצלחה!</h1>
+  <p>תודה שאימתת את חשבונך. כעת תוכל לקבל הצעות שידוך והתראות מהמערכת.</p>
   <a href="${process.env.APP_URL || 'http://localhost:5173'}">חזרה לפנקס →</a>
 </div></body></html>`);
         } else {
@@ -875,7 +875,7 @@ app.get('/verify-email-link', async (req, res) => {
 <style>body{margin:0;font-family:sans-serif;background:#1e3a5f;min-height:100vh;display:flex;align-items:center;justify-content:center;}
 .card{background:#fff;border-radius:20px;padding:40px;max-width:400px;text-align:center;}
 h1{color:#dc2626;} p{color:#64748b;}</style></head>
-<body><div class="card"><h1>❌ קוד לא תקין</h1><p>הקוד שגוי או שפג תוקף. נא לחזור לאתר ולבקש קוד חדש.</p></div></body></html>`);
+<body><div class="card"><h1>❌ קוד לא תקין</h1><p>הקוד שגוי או שפג תוקפו. חזור לאפליקציה ובקש קוד חדש.</p></div></body></html>`);
         }
     } catch (err) {
         res.status(500).send("שגיאת שרת בעיבוד הבקשה");
@@ -895,8 +895,8 @@ app.get('/report-wrong-email', async (req, res) => {
 
         res.send(`
             <div style="direction: rtl; text-align: center; font-family: sans-serif; padding: 50px;">
-                <h1>כתובת המייל הוסרה מהמערכת ✉️</h1>
-                <p>מצטערים על אי־הנוחות. כתובת המייל הוסרה ולא תקבל מאיתנו הודעות נוספות.</p>
+                <h1>האימייל הוסר מהמערכת ✉️</h1>
+                <p>מצטערים על אי הנוחות. האימייל שלך הוסר ולא תקבל מאיתנו הודעות נוספות.</p>
             </div>
         `);
     } catch (err) {
@@ -1001,18 +1001,18 @@ app.post('/verify-reset-code', async (req, res) => {
     const stored = resetCodes.get(phone);
 
     if (!stored) {
-        return res.status(400).json({ message: "לא נמצא קוד איפוס. נא לבקש קוד חדש." });
+        return res.status(400).json({ message: "לא נמצא קוד איפוס. בקש קוד חדש." });
     }
 
     if (Date.now() > stored.expires) {
         resetCodes.delete(phone);
-        return res.status(400).json({ message: "הקוד פג תוקף. נא לבקש קוד חדש." });
+        return res.status(400).json({ message: "הקוד פג תוקף. בקש קוד חדש." });
     }
 
     stored.attempts++;
     if (stored.attempts > 5) {
         resetCodes.delete(phone);
-        return res.status(429).json({ message: "יותר מדי ניסיונות. נא לבקש קוד חדש." });
+        return res.status(429).json({ message: "יותר מדי ניסיונות. בקש קוד חדש." });
     }
 
     if (stored.code !== code) {
@@ -1293,7 +1293,7 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
         });
 
         setImmediate(() => logActivity(requesterId, 'photo_requested', { targetUserId: parseInt(targetId) }));
-        res.json({ message: "הבקשה נשלחה! תקבל הודעה כשיאשרו את הבקשה" });
+        res.json({ message: "הבקשה נשלחה! תקבל הודעה כשיאשרו" });
 
     } catch (err) {
         console.error("Photo request error:", err);
@@ -1374,7 +1374,7 @@ app.post('/respond-photo-request', authenticateToken, async (req, res) => {
 
         res.json({
             message: autoApprove
-                ? "אישרת! מעכשיו כל תמונה שתעלה תהיה גלויה לו"
+                ? "אישרת! מעכשיו כל תמונה שתעלה - תהיה גלויה לו"
                 : "אישרת צפייה בתמונות!"
         });
 
@@ -2585,7 +2585,7 @@ app.post('/approve-request', authenticateToken, async (req, res) => {
             logActivity(userId, 'connection_approved', { targetUserId: originalSenderId });
             logActivity(originalSenderId, 'connection_got_approved', { targetUserId: userId });
         });
-        res.json({ message: "הבקשה אושרה! ההתאמה מופיעה כעת תחת שיחות פעילות." });
+        res.json({ message: "הבקשה אושרה! עכשיו בשיחות פעילות." });
     } catch (err) {
         res.status(500).json({ message: "שגיאה באישור" });
     }
@@ -4345,11 +4345,11 @@ app.post('/verify-reset-code', async (req, res) => {
         const user = userRes.rows[0];
 
         if (!user.reset_password_code) {
-            return res.status(400).json({ message: 'לא נשלח קוד לחשבון זה. נא לבקש קוד חדש.' });
+            return res.status(400).json({ message: 'לא נשלח קוד לחשבון זה, אנא בקש קוד חדש' });
         }
 
         if (new Date() > new Date(user.reset_password_expires)) {
-            return res.status(400).json({ message: 'פג תוקפו של הקוד. נא לבקש קוד חדש.' });
+            return res.status(400).json({ message: 'פג תוקף הקוד, אנא בקש קוד חדש' });
         }
 
         if (user.reset_password_code !== code.trim()) {
@@ -4390,11 +4390,11 @@ app.post('/reset-password', async (req, res) => {
         const user = userRes.rows[0];
 
         if (!user.reset_password_code || user.reset_password_code !== code.trim()) {
-            return res.status(400).json({ message: 'קוד שגוי — נא להתחיל מחדש' });
+            return res.status(400).json({ message: 'קוד שגוי — אנא התחל מחדש' });
         }
 
         if (new Date() > new Date(user.reset_password_expires)) {
-            return res.status(400).json({ message: 'פג תוקפו של הקוד — נא לבקש קוד חדש' });
+            return res.status(400).json({ message: 'פג תוקף הקוד — אנא בקש קוד חדש' });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);

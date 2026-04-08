@@ -59,7 +59,7 @@ function HiddenProfiles() {
     if (loading) return (
         <div style={styles.loadingContainer}>
             <div style={styles.spinner}></div>
-            <h2>טוען את סל המיחזור...</h2>
+            <h2>טוען סל מחזור...</h2>
         </div>
     );
 
@@ -70,7 +70,7 @@ function HiddenProfiles() {
                     <button onClick={() => navigate('/matches')} style={styles.backButton}>
                         חזרה לשידוכים ➜
                     </button>
-                    <h1 style={styles.title}>🗑️ סל המיחזור</h1>
+                    <h1 style={styles.title}>🗑️ סל מחזור</h1>
                 </div>
 
                 {hiddenProfiles.length === 0 ? (

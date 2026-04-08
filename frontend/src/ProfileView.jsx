@@ -28,7 +28,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
         <div style={S.page}>
             <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
                 <div style={S.spinner} />
-                <h2 style={{ color: '#fff', margin: 0 }}>טוען את הכרטיס...</h2>
+                <h2 style={{ color: '#fff', margin: 0 }}>טוען את הכרטיסייה...</h2>
             </div>
         </div>
     );
@@ -47,7 +47,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
         current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב', fixed_times: 'קובע עיתים' },
         contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
         apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי' },
-        life_aspiration: { learning: 'תלמוד תורה', career: 'קריירה', family: 'בניית בית', both: 'שילוב תורה ועבודה' },
+        life_aspiration: { learning: 'תלמוד תורה', career: 'קריירה', family: 'בנית בית', both: 'שילוב תורה ועבודה' },
         home_style: { quiet: 'שקטה ורגועה', active: 'פעילה וחברותית', flexible: 'גמיש' },
     };
     const tr = (field, val) => T[field]?.[val] || val || '—';
@@ -96,7 +96,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
         <div style={readOnly ? {...S.page, minHeight: 'auto', padding: 0, background: 'none'} : S.page}>
             {!readOnly && (
                 <div style={S.pageHeader}>
-                    <h1 style={S.pageTitle}>📋 הכרטיס שלי</h1>
+                    <h1 style={S.pageTitle}>📋 הכרטיסייה שלי</h1>
                     <p style={S.pageSubtitle}>כך נראה הפרופיל שלך למציעים</p>
                 </div>
             )}
@@ -315,7 +315,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                             <div style={isAdminView ? { ...S.lockedNote, background: '#ecfdf5', color: '#166534', border: '1px solid #86efac' } : S.lockedNote}>
                                 {isAdminView
                                     ? '👁️ צפייה מנהלית — כל הפרטים גלויים לצורך אישור ובדיקה'
-                                    : '🔒 פרטים אלה נחשפים רק לאחר הסכמה הדדית'}
+                                    : '🔒 פרטים אלו נחשפים רק לאחר הסכמה הדדית'}
                             </div>
                             <div style={S.tabGrid}>
 

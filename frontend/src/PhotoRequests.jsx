@@ -61,7 +61,7 @@ function PhotoRequests() {
     };
 
     const handleBlock = async (requesterId, name) => {
-        if (!window.confirm(`לחסום את ${name}?\nהמשתמש לא יוכל עוד לפנות אליך או לצפות בכרטיס שלך.`)) return;
+        if (!window.confirm(`לחסום את ${name}?\nהם לא יוכלו יותר לשלוח לך פניות, ולא יראו את הכרטיס שלך.`)) return;
         try {
             const res = await fetch(`${API_BASE}/block-user/${requesterId}`, {
                 method: 'POST',

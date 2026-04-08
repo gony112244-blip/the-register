@@ -123,7 +123,7 @@ function Matches() {
             });
             const data = await res.json();
             if (res.ok) {
-                showToast('📷 הבקשה נשלחה! תקבל הודעה כשיאשרו את הבקשה', 'success');
+                showToast('📷 הבקשה נשלחה! תקבל הודעה כשיאשרו', 'success');
                 setPhotoStatuses(prev => ({ ...prev, [targetId]: 'pending' }));
             } else {
                 showToast(data.message || 'שגיאה', 'warning');
@@ -188,7 +188,7 @@ function Matches() {
         <div style={styles.page}>
             <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
                 <div style={styles.spinner} />
-                <h2 style={{ color: '#fff' }}>טוען שידוכים מתאימים...</h2>
+                <h2 style={{ color: '#fff' }}>מחפש שידוכים מתאימים...</h2>
             </div>
         </div>
     );
@@ -237,7 +237,7 @@ function Matches() {
             )}
 
             <div style={{ maxWidth: '1200px', margin: '0 auto 10px', display: 'flex', justifyContent: 'flex-end', padding: '0 20px' }}>
-                <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
+                <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל מחזור</button>
             </div>
 
             <div style={styles.container}>

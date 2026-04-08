@@ -35,7 +35,7 @@ function Inbox() {
             setMessages(Array.isArray(msgData) ? msgData : []);
 
             // 2. בקשות שידוך
-            if (user && user.id) { // וודא שיש מזהה משתמש
+            if (user && user.id) { // וודוא שיש ID
                 const reqRes = await fetch(`${API_BASE}/my-requests?userId=${user.id}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });

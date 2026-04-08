@@ -36,7 +36,7 @@ function Home() {
           <p className="tagline">
             לא לוח מודעות. <span className="tagline-highlight">פנקס אישי.</span>
             <br />
-            רק מי שמתאים — יראה אתכם.
+            רק מי שמתאים - יראה אתכם.
           </p>
 
           <div className="hero-buttons">
@@ -103,7 +103,7 @@ function Home() {
             <div className="feature-icon">🔒</div>
             <h3 className="feature-title">פרטיות מוחלטת</h3>
             <p className="feature-desc">
-              הפרופיל שלך לא מוצג לכולם. רק מועמדים שמתאימים לקריטריונים שלך — רואים אותך.
+              הפרופיל שלך לא מוצג לכולם. רק מועמדים שמתאימים לקריטריונים שלך - רואים אותך.
               אינך "מוצר על מדף".
             </p>
           </div>
@@ -112,7 +112,7 @@ function Home() {
             <div className="feature-icon">🎯</div>
             <h3 className="feature-title">התאמות מדויקות</h3>
             <p className="feature-desc">
-              המערכת מציגה לך רק מועמדים שמתאימים להעדפות שהגדרת — גיל, מגזר ועוד.
+              המערכת מציגה לך רק מועמדים שעונים להעדפות שהגדרת - גיל, מגזר, ועוד.
               ללא בזבוז זמן.
             </p>
           </div>
@@ -122,7 +122,7 @@ function Home() {
             <h3 className="feature-title">שירות טלפוני מלא</h3>
             <p className="feature-desc">
               הרישום מתבצע באתר בצורה מאובטחת.
-              לאחר מכן — עדכון פרטים, בירורים וקבלת הצעות זמינות גם בשיחה טלפונית.
+              לאחר מכן - עדכון פרטים, בירורים וקבלת הצעות זמינים גם בשיחה טלפונית.
             </p>
           </div>
 
@@ -145,7 +145,7 @@ function Home() {
           <div className="step-item">
             <div className="step-number">2</div>
             <div className="step-content">
-              <h3>מגדירים את ההעדפות</h3>
+              <h3>מגדירים העדפות</h3>
               <p>איזה גיל מחפשים? מאיזה מגזר? הגדרות פשוטות שעוזרות למערכת למצוא התאמות מדויקות.</p>
             </div>
           </div>
@@ -154,7 +154,7 @@ function Home() {
             <div className="step-number">3</div>
             <div className="step-content">
               <h3>מקבלים הצעות מותאמות</h3>
-              <p>המערכת מציגה לך רק מועמדים שמתאימים להגדרות החיפוש שלך, ושגם הגדרות החיפוש שלהם מתאימות לך.</p>
+              <p>המערכת מציגה לך רק מועמדים שמתאימים להעדפות שלך - ושאתה מתאים להעדפות שלהם.</p>
             </div>
           </div>
 
@@ -191,12 +191,12 @@ function Home() {
             <div className="faq-question" onClick={() => toggleFaq(1)}>
               <span className="question-text">
                 <span className="question-icon">?</span>
-                מה ההבדל בינכם לבין אתרי שידוכים אחרים?
+                מה ההבדל בינכם לאתרי שידוכים אחרים?
               </span>
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              בניגוד ל"לוח מודעות" שבו כולם רואים את כולם — אצלנו הפרופיל שלך מוצג רק למועמדים מתאימים. אינך "מוצר על מדף". זו גישה שמכבדת את האדם ושומרת על הצניעות.
+              בניגוד ל"לוח מודעות" שבו כולם רואים את כולם - אצלנו הפרופיל שלך מוצג רק למועמדים מתאימים. אינך "מוצר על מדף". זו גישה שמכבדת את האדם ושומרת על הצניעות.
             </p>
           </div>
 
@@ -222,7 +222,7 @@ function Home() {
               <span className="arrow">▼</span>
             </div>
             <p className="faq-answer">
-              רק מועמדים שמתאימים לקריטריונים שהגדרת, ושגם קריטריוני החיפוש שלהם מתאימים לפרופיל שלך. בנוסף, צוות המערכת (לצורך אישור ותמיכה). אנחנו שומרים על פרטיותך.
+              רק מועמדים שמתאימים לקריטריונים שהגדרת, ושאתה מתאים לקריטריונים שלהם. בנוסף, צוות המערכת (לצורך אישור ותמיכה). אנחנו שומרים על פרטיותך.
             </p>
           </div>
 
@@ -267,7 +267,7 @@ function Home() {
       {/* Footer */}
       <footer className="home-footer">
         <div className="footer-content">
-          <p>© הפנקס — מערכת שידוכים לבני תורה | נבנה באהבה ובסייעתא דשמיא</p>
+          <p>© הפנקס - מערכת שידוכים לבני תורה | נבנה באהבה ובסייעתא דשמיא</p>
           <div className="footer-links">
             <div className="footer-contact">
               <span>📞 {sitePhoneNumber}</span>
