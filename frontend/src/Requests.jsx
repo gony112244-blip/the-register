@@ -33,7 +33,7 @@ function RequestRow({ item, type, onViewCard, onAction }) {
                         {item.current_occupation && ` · ${tr('current_occupation', item.current_occupation)}`}
                     </div>
                     <div style={S.rowDate}>
-                        {isConn ? '📩 בקשה לפרטיי התקשרות' : '📷 בקשה לצפייה בתמונות'} · {fmtDate(item.created_at)}
+                        {isConn ? '📩 בקשה לקבלת פרטי התקשרות' : '📷 בקשה לצפייה בתמונות'} · {fmtDate(item.created_at)}
                     </div>
                 </div>
             </div>
@@ -297,7 +297,7 @@ export default function Requests() {
                                 <>
                                     {receivedConn.length > 0 && (
                                         <div style={S.section}>
-                                            <div style={S.sectionTitle}>📩 פניות לפרטיי התקשרות ({receivedConn.length})</div>
+                                            <div style={S.sectionTitle}>📩 פניות לפרטי התקשרות ({receivedConn.length})</div>
                                             {receivedConn.map(item => (
                                                 <RequestRow
                                                     key={item.connection_id}
@@ -358,7 +358,7 @@ export default function Requests() {
                                 <>
                                     {sentConn.length > 0 && (
                                         <div style={S.section}>
-                                            <div style={S.sectionTitle}>📩 פניות לפרטיי התקשרות שנשלחו ({sentConn.length})</div>
+                                            <div style={S.sectionTitle}>📩 פניות לפרטי התקשרות שנשלחו ({sentConn.length})</div>
                                             {sentConn.map(item => (
                                                 <RequestRow
                                                     key={item.connection_id}
