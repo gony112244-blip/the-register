@@ -21,6 +21,12 @@ const DYNAMIC_DIR = path.join(__dirname, '..', 'ivr-audio', 'dynamic');
 // URL בסיס להגשת הקבצים (ימות משיח מושכים מכאן)
 const BASE_URL = process.env.APP_URL || 'https://pinkas.cloud';
 
+// קול TTS — גברי (חשוב לקהל החרדי — קול אישה אסור לשמיעה לחלק מהמשתמשים)
+const TTS_VOICE_NAME   = 'he-IL-Wavenet-B';
+const TTS_VOICE_GENDER = 'MALE';
+// שינוי קול → חובה למחוק את תיקיית ivr-audio/static ו-dynamic בשרת
+// (הקבצים הישנים הוקלטו בקול אחר ולא יוחלפו אוטומטית)
+
 // יצירת תיקיות אם לא קיימות
 [STATIC_DIR, DYNAMIC_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -30,7 +36,9 @@ const BASE_URL = process.env.APP_URL || 'https://pinkas.cloud';
 // יצירת שם קובץ לפי hash של הטקסט
 // ==========================================
 function getCacheFileName(text) {
-    const hash = crypto.createHash('md5').update(text).digest('hex').slice(0, 12);
+    // כולל את שם הקול ב-hash — שינוי קול מבטל cache אוטומטית
+    const input = `${TTS_VOICE_NAME}:${text}`;
+    const hash = crypto.createHash('md5').update(input).digest('hex').slice(0, 12);
     return `tts_${hash}.mp3`;
 }
 
@@ -63,12 +71,12 @@ async function textToUrl(text, type = 'dynamic') {
             input: { text: mappedText },
             voice: {
                 languageCode: 'he-IL',
-                name: 'he-IL-Wavenet-A', // קול נקבה WaveNet — הטוב ביותר הזמין לעברית
-                ssmlGender: 'FEMALE'
+                name: TTS_VOICE_NAME,
+                ssmlGender: TTS_VOICE_GENDER
             },
             audioConfig: {
                 audioEncoding: 'MP3',
-                speakingRate: 0.9, // קצת יותר איטי — נוח לשמיעה בטלפון
+                speakingRate: 0.85, // מעט איטי יותר — נוח לשמיעה בטלפון
                 pitch: 0.0
             }
         });
