@@ -67,6 +67,13 @@ app.use(express.json());
 
 // הגדרת תיקיות סטטיות
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/ivr-audio', express.static(path.join(__dirname, 'ivr-audio')));
+
+// ==========================================
+// 📞 IVR — מערכת טלפונית (ימות משיח)
+// ==========================================
+const ivrRouter = require('./ivr/router');
+app.use('/ivr', ivrRouter);
 
 const port = process.env.PORT || 3000;
 const saltRounds = 10;
