@@ -59,16 +59,16 @@ function buildStatusText({ matches, requests, photos }) {
     return `יש לך ${parts[0]}, ${parts[1]}, ו${parts[2]}.`;
 }
 
+// phonetic-map נטען פעם אחת
+const pm = require('./phonetic-map.json');
+
 // ==========================================
 // הצעה — שכבה 1 (חובה): גיל, עיר, מוסד
 // ==========================================
 function buildMatchText(match) {
-    const pm = require('./phonetic-map.json');
     const parts = [];
 
-    if (match.age) {
-        parts.push(`גיל ${numberToHebrew(match.age)}`);
-    }
+    if (match.age) parts.push(`גיל ${numberToHebrew(match.age)}`);
     if (match.city) {
         const city = pm.cities_phonetic?.[match.city] || match.city;
         parts.push(`מ${city}`);
@@ -85,10 +85,9 @@ function buildMatchText(match) {
 }
 
 // ==========================================
-// הצעה — שכבה 2 (רשות, מקש 4): מוצא, רקע, עיסוק
+// הצעה — שכבה 2 (מקש 4): מוצא, רקע, עיסוק, גובה
 // ==========================================
 function buildMatchDetailText(match) {
-    const pm = require('./phonetic-map.json');
     const parts = [];
 
     if (match.heritage_sector) {
@@ -103,8 +102,37 @@ function buildMatchDetailText(match) {
         const occ = pm.current_occupation?.[match.current_occupation] || match.current_occupation;
         parts.push(occ);
     }
+    if (match.height) parts.push(`גובה ${numberToHebrew(match.height)} סנטימטר`);
 
     return parts.length > 0 ? parts.join(', ') + '.' : 'אין פרטים נוספים.';
+}
+
+// ==========================================
+// הצעה — שכבה 3 (מקש 5): מראה, מבנה גוף, שאיפה, תיאור — כמו באתר
+// ==========================================
+function buildMatchFullText(match) {
+    const parts = [];
+
+    if (match.body_type) {
+        const bt = pm.body_type?.[match.body_type] || match.body_type;
+        parts.push(`מבנה גוף ${bt}`);
+    }
+    if (match.appearance) {
+        const ap = pm.appearance?.[match.appearance] || match.appearance;
+        parts.push(`מראה ${ap}`);
+    }
+    if (match.skin_tone) {
+        const st = pm.skin_tone?.[match.skin_tone] || match.skin_tone;
+        parts.push(`גוון עור ${st}`);
+    }
+    if (match.life_aspiration) {
+        const la = pm.life_aspiration?.[match.life_aspiration] || match.life_aspiration;
+        parts.push(`שאיפה: ${la}`);
+    }
+    if (match.work_field) parts.push(`תחום עבודה: ${match.work_field}`);
+    if (match.about_me) parts.push(match.about_me);
+
+    return parts.length > 0 ? parts.join('. ') + '.' : 'אין תיאור נוסף.';
 }
 
 // ==========================================
@@ -244,9 +272,9 @@ router.get('/call', async (req, res) => {
             return res.json({ action: 'playback', file });
         }
         if (key === '2') {
-            await updateSession(enterId, 'requests');
-            const file = await textToUrl('מעבר לבקשות קשר.', 'static');
-            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+            await updateSession(enterId, 'requests', { page: 0 });
+            const file = await textToUrl('מעבר לפניות שהגיעו אליך.', 'static');
+            return res.json({ action: 'playback', file });
         }
         if (key === '3') {
             await updateSession(enterId, 'my_sent');
@@ -288,8 +316,8 @@ router.get('/call', async (req, res) => {
 
         const statusText = buildStatusText(counts);
         const menuText = g(user.gender,
-            'להצעות חדשות, הקש אחת. לבקשות קשר, הקש שתיים. לסטטוס הפניות שלך, הקש שלוש. לניהול תמונות, הקש ארבע. להודעות חשובות, הקש חמש. להגדרות, הקש תשע. לתמיכה, הקש אפס.',
-            'להצעות חדשות, הקשי אחת. לבקשות קשר, הקשי שתיים. לסטטוס הפניות שלך, הקשי שלוש. לניהול תמונות, הקשי ארבע. להודעות חשובות, הקשי חמש. להגדרות, הקשי תשע. לתמיכה, הקשי אפס.'
+            'להצעות חדשות, הקש אחת. לפניות שהגיעו אליך, הקש שתיים. לסטטוס הפניות שלך, הקש שלוש. לניהול תמונות, הקש ארבע. להודעות חשובות, הקש חמש. להגדרות, הקש תשע. לתמיכה, הקש אפס.',
+            'להצעות חדשות, הקשי אחת. לפניות שהגיעו אליך, הקשי שתיים. לסטטוס הפניות שלך, הקשי שלוש. לניהול תמונות, הקשי ארבע. להודעות חשובות, הקשי חמש. להגדרות, הקשי תשע. לתמיכה, הקשי אפס.'
         );
 
         const fullText = `${statusText} ${menuText}`;
@@ -312,16 +340,30 @@ router.get('/call', async (req, res) => {
             }
 
             if (key === '4') {
-                // שכבה 2 — פרטים נוספים
+                // שכבה 2 — מוצא, רקע, עיסוק, גובה
                 const more = await getMatchesForIvr(user.id, offset, 1);
                 const detailText = more.length > 0
                     ? buildMatchDetailText(more[0])
                     : 'אין פרטים נוספים.';
                 const actionsText = g(user.gender,
+                    'הקש חמש לתיאור מלא. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
+                    'הקשי חמש לתיאור מלא. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
+                );
+                const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            if (key === '5') {
+                // שכבה 3 — מראה, מבנה גוף, שאיפה, תיאור חופשי (כמו באתר)
+                const more = await getMatchesForIvr(user.id, offset, 1);
+                const fullText = more.length > 0
+                    ? buildMatchFullText(more[0])
+                    : 'אין תיאור נוסף.';
+                const actionsText = g(user.gender,
                     'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
                     'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
                 );
-                const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
+                const file = await textToUrl(`${fullText} ${actionsText}`, 'dynamic');
                 return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
             }
 
@@ -380,8 +422,8 @@ router.get('/call', async (req, res) => {
 
         const matchText  = buildMatchText(match);
         const actionsText = g(user.gender,
-            'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש סולמית לתפריט הראשי.',
-            'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי סולמית לתפריט הראשי.'
+            'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש סולמית לתפריט הראשי.',
+            'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`${matchText} ${actionsText}`, 'dynamic');
         return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });

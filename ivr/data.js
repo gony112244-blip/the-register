@@ -108,8 +108,10 @@ async function getMatchesForIvr(userId, offset = 0, limit = 1) {
     const targetGender = user.gender === 'male' ? 'female' : 'male';
 
     const result = await pool.query(
-        `SELECT id, full_name, age, city, study_place,
-                family_background, heritage_sector, current_occupation, about_me, gender
+        `SELECT id, full_name, age, city, study_place, height,
+                family_background, heritage_sector, current_occupation,
+                body_type, appearance, skin_tone, life_aspiration,
+                work_field, about_me, gender
          FROM users
          WHERE gender       = $1
            AND is_approved  = TRUE
