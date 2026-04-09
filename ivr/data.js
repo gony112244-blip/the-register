@@ -171,4 +171,57 @@ async function hideProfileFromIvr(userId, targetId) {
     );
 }
 
-module.exports = { getMenuCounts, getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr };
+// ==========================================
+// פניות נכנסות — שליפה עם פגינציה
+// ==========================================
+
+async function getIncomingRequestsForIvr(userId, offset = 0, limit = 1) {
+    const result = await pool.query(
+        `SELECT c.id AS connection_id, c.created_at,
+                u.id, u.full_name, u.age, u.city, u.study_place, u.height,
+                u.family_background, u.heritage_sector, u.current_occupation,
+                u.body_type, u.appearance, u.skin_tone, u.life_aspiration,
+                u.work_field, u.about_me, u.gender, u.status, u.head_covering
+         FROM connections c
+         JOIN users u ON c.sender_id = u.id
+         WHERE c.receiver_id = $1 AND c.status = 'pending'
+         ORDER BY c.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
+ * אישור פנייה — status → 'active'
+ * TODO: שליחת מייל לשולח תתווסף בגרסה עתידית
+ */
+async function approveRequestFromIvr(connectionId, userId) {
+    const result = await pool.query(
+        `UPDATE connections
+         SET status = 'active', updated_at = NOW(), last_action_by = $1
+         WHERE id = $2 AND receiver_id = $1 AND status = 'pending'`,
+        [userId, connectionId]
+    );
+    return result.rowCount > 0 ? 'ok' : 'not_found';
+}
+
+/**
+ * דחיית פנייה — status → 'rejected'
+ * TODO: שליחת מייל לשולח תתווסף בגרסה עתידית
+ */
+async function rejectRequestFromIvr(connectionId, userId) {
+    const result = await pool.query(
+        `UPDATE connections
+         SET status = 'rejected', updated_at = NOW()
+         WHERE id = $1 AND receiver_id = $2 AND status = 'pending'`,
+        [userId, connectionId]
+    );
+    return result.rowCount > 0 ? 'ok' : 'not_found';
+}
+
+module.exports = {
+    getMenuCounts,
+    getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
+    getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr
+};

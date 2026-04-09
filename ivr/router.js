@@ -8,7 +8,11 @@ const express = require('express');
 const router = express.Router();
 const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession } = require('./auth');
 const { textToUrl, numberToHebrew } = require('./tts');
-const { getMenuCounts, getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr } = require('./data');
+const {
+    getMenuCounts,
+    getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
+    getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr
+} = require('./data');
 
 // ==========================================
 // Middleware — אימות token לכל נתיבי /ivr/
@@ -446,6 +450,102 @@ router.get('/call', async (req, res) => {
             'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`${matchText} ${actionsText}`, 'dynamic');
+        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+    }
+
+    // --- מצב: requests — פניות שהגיעו אליי ---
+    if (session.state === 'requests') {
+        const data     = session.data || {};
+        let   offset   = parseInt(data.page || 0, 10);
+        const connId   = data.currentConnectionId || null;
+
+        // תגובה על פנייה קיימת
+        if (key && connId) {
+            if (key === '#') {
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            if (key === '4') {
+                const reqs = await getIncomingRequestsForIvr(user.id, offset, 1);
+                const detailText = reqs.length > 0
+                    ? buildMatchDetailText(reqs[0])
+                    : 'אין פרטים נוספים.';
+                const actionsText = g(user.gender,
+                    'הקש חמש לתיאור מלא. הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר.',
+                    'הקשי חמש לתיאור מלא. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
+                );
+                const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            if (key === '5') {
+                const reqs = await getIncomingRequestsForIvr(user.id, offset, 1);
+                const fullText = reqs.length > 0
+                    ? buildMatchFullText(reqs[0])
+                    : 'אין תיאור נוסף.';
+                const actionsText = g(user.gender,
+                    'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר.',
+                    'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
+                );
+                const file = await textToUrl(`${fullText} ${actionsText}`, 'dynamic');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            let responseText = '';
+            if (key === '1') {
+                const result = await approveRequestFromIvr(connId, user.id).catch(() => 'error');
+                responseText = result === 'ok'
+                    ? g(user.gender, 'הפנייה אושרה. עוברים לפנייה הבאה.', 'הפנייה אושרה. עוברים לפנייה הבאה.')
+                    : 'אירעה תקלה. עוברים לפנייה הבאה.';
+                console.log(`[IVR] ✅ פנייה אושרה: connId=${connId} | userId=${user.id}`);
+            } else if (key === '2') {
+                const result = await rejectRequestFromIvr(connId, user.id).catch(() => 'error');
+                responseText = result === 'ok'
+                    ? 'הפנייה נדחתה. עוברים לפנייה הבאה.'
+                    : 'אירעה תקלה. עוברים לפנייה הבאה.';
+                console.log(`[IVR] ❌ פנייה נדחתה: connId=${connId} | userId=${user.id}`);
+            } else if (key === '8') {
+                responseText = g(user.gender, 'דולגים לפנייה הבאה.', 'דולגות לפנייה הבאה.');
+            } else {
+                const actionsText = g(user.gender,
+                    'מקש לא מוכר. הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר.',
+                    'מקש לא מוכר. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
+                );
+                const file = await textToUrl(actionsText, 'static');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            offset++;
+            await updateSession(enterId, 'requests', { page: offset });
+            const file = await textToUrl(responseText, 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        // טעינת הפנייה הבאה
+        let reqs = [];
+        try {
+            reqs = await getIncomingRequestsForIvr(user.id, offset, 1);
+        } catch (err) {
+            console.error('[IVR] ❌ שגיאה בשליפת פניות:', err.message);
+        }
+
+        if (reqs.length === 0) {
+            await updateSession(enterId, 'menu');
+            const file = await textToUrl('אין פניות ממתינות לתשובתך. חוזרים לתפריט הראשי.', 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        const req = reqs[0];
+        await updateSession(enterId, 'requests', { page: offset, currentConnectionId: req.connection_id });
+
+        const reqText    = buildMatchText(req);
+        const actionsText = g(user.gender,
+            'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש סולמית לתפריט הראשי.',
+            'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
+        );
+        const file = await textToUrl(`פנייה שהגיעה אליך. ${reqText} ${actionsText}`, 'dynamic');
         return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
     }
 
