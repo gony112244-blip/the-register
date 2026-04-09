@@ -135,4 +135,16 @@ async function updateSessionByUser(userId, state, data = {}) {
     );
 }
 
-module.exports = { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateSessionByUser };
+// ==========================================
+// עדכון PIN — מוצפן ב-bcrypt
+// ==========================================
+async function updateUserPin(userId, newPin) {
+    const bcrypt = require('bcrypt');
+    const hash   = await bcrypt.hash(newPin, 10);
+    await pool.query(
+        `UPDATE users SET ivr_pin = $1, ivr_failed_attempts = 0, ivr_blocked_until = NULL WHERE id = $2`,
+        [hash, userId]
+    );
+}
+
+module.exports = { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateSessionByUser, updateUserPin };

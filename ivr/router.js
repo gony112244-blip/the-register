@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession } = require('./auth');
+const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateUserPin } = require('./auth');
 const { textToUrl, numberToHebrew } = require('./tts');
 const {
     getMenuCounts,
@@ -548,6 +548,143 @@ router.get('/call', async (req, res) => {
         );
         const file = await textToUrl(`פנייה שהגיעה אליך. ${reqText} ${actionsText}`, 'dynamic');
         return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+    }
+
+    // --- מצב: settings — שינוי PIN ---
+    if (session.state === 'settings') {
+        const data    = session.data || {};
+        const step    = data.step   || null;
+
+        // # — חזרה לתפריט בכל שלב
+        if (key === '#') {
+            await updateSession(enterId, 'menu');
+            const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        // --- שלב א': כניסה ראשונה — בקש PIN נוכחי ---
+        if (!step) {
+            await updateSession(enterId, 'settings', { step: 'wait_current', attempts: 0 });
+            const text = g(user.gender,
+                'להחלפת קוד הכניסה, הקש את הקוד הנוכחי, ארבע ספרות.',
+                'להחלפת קוד הכניסה, הקשי את הקוד הנוכחי, ארבע ספרות.'
+            );
+            const file = await textToUrl(text, 'static');
+            return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+        }
+
+        // --- שלב ב': אימות PIN נוכחי ---
+        if (step === 'wait_current') {
+            if (!key) {
+                const text = g(user.gender,
+                    'אנא הקש את קוד הכניסה הנוכחי.',
+                    'אנא הקשי את קוד הכניסה הנוכחי.'
+                );
+                const file = await textToUrl(text, 'static');
+                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            }
+
+            const pinResult = await checkPin(user.id, key).catch(() => 'error');
+
+            if (pinResult === 'ok') {
+                await updateSession(enterId, 'settings', { step: 'wait_new' });
+                const text = g(user.gender,
+                    'קוד נכון. הקש קוד חדש בן ארבע ספרות.',
+                    'קוד נכון. הקשי קוד חדש בן ארבע ספרות.'
+                );
+                const file = await textToUrl(text, 'static');
+                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            }
+
+            if (pinResult === 'blocked') {
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('הכניסה נחסמה זמנית עקב ניסיונות שגויים. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            // PIN שגוי — עד 3 ניסיונות
+            const attempts = (data.attempts || 0) + 1;
+            if (attempts >= 3) {
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('קוד שגוי יותר מדי פעמים. חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+            await updateSession(enterId, 'settings', { step: 'wait_current', attempts });
+            const text = g(user.gender,
+                `קוד שגוי. נסה שוב. הקש את קוד הכניסה הנוכחי.`,
+                `קוד שגוי. נסי שוב. הקשי את קוד הכניסה הנוכחי.`
+            );
+            const file = await textToUrl(text, 'static');
+            return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+        }
+
+        // --- שלב ג': קבלת PIN חדש ---
+        if (step === 'wait_new') {
+            if (!key) {
+                const text = g(user.gender,
+                    'הקש קוד חדש בן ארבע ספרות.',
+                    'הקשי קוד חדש בן ארבע ספרות.'
+                );
+                const file = await textToUrl(text, 'static');
+                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            }
+            if (!/^\d{4}$/.test(key)) {
+                const text = g(user.gender,
+                    'קוד לא תקין. הקש ארבע ספרות בדיוק.',
+                    'קוד לא תקין. הקשי ארבע ספרות בדיוק.'
+                );
+                const file = await textToUrl(text, 'static');
+                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            }
+            await updateSession(enterId, 'settings', { step: 'wait_confirm', newPin: key });
+            const text = g(user.gender,
+                'הקש שוב את הקוד החדש לאישור.',
+                'הקשי שוב את הקוד החדש לאישור.'
+            );
+            const file = await textToUrl(text, 'static');
+            return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+        }
+
+        // --- שלב ד': אישור PIN חדש ---
+        if (step === 'wait_confirm') {
+            if (!key) {
+                const text = g(user.gender,
+                    'הקש שוב את הקוד החדש לאישור.',
+                    'הקשי שוב את הקוד החדש לאישור.'
+                );
+                const file = await textToUrl(text, 'static');
+                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            }
+            if (key !== data.newPin) {
+                await updateSession(enterId, 'settings', { step: 'wait_new' });
+                const text = g(user.gender,
+                    'הקודים אינם תואמים. הקש קוד חדש בן ארבע ספרות.',
+                    'הקודים אינם תואמים. הקשי קוד חדש בן ארבע ספרות.'
+                );
+                const file = await textToUrl(text, 'static');
+                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            }
+            try {
+                await updateUserPin(user.id, data.newPin);
+                await updateSession(enterId, 'menu');
+                const text = g(user.gender,
+                    'הקוד עודכן בהצלחה. חוזרים לתפריט הראשי.',
+                    'הקוד עודכן בהצלחה. חוזרים לתפריט הראשי.'
+                );
+                const file = await textToUrl(text, 'static');
+                return res.json({ action: 'playback', file });
+            } catch (err) {
+                console.error('[IVR] ❌ שגיאה בעדכון PIN:', err.message);
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('אירעה תקלה בעדכון הקוד. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+        }
+
+        // שלב לא מוכר
+        await updateSession(enterId, 'menu');
+        const file = await textToUrl('אירעה תקלה. חוזרים לתפריט הראשי.', 'static');
+        return res.json({ action: 'playback', file });
     }
 
     // --- מצב: my_sent — סטטוס פניות שיצאו ממני ---
