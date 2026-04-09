@@ -8,7 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession } = require('./auth');
 const { textToUrl, numberToHebrew } = require('./tts');
-const { getMenuCounts } = require('./data');
+const { getMenuCounts, getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr } = require('./data');
 
 // ==========================================
 // Middleware — אימות token לכל נתיבי /ivr/
@@ -57,6 +57,54 @@ function buildStatusText({ matches, requests, photos }) {
     if (parts.length === 1) return `יש לך ${parts[0]}.`;
     if (parts.length === 2) return `יש לך ${parts[0]}, ו${parts[1]}.`;
     return `יש לך ${parts[0]}, ${parts[1]}, ו${parts[2]}.`;
+}
+
+// ==========================================
+// הצעה — שכבה 1 (חובה): גיל, עיר, מוסד
+// ==========================================
+function buildMatchText(match) {
+    const pm = require('./phonetic-map.json');
+    const parts = [];
+
+    if (match.age) {
+        parts.push(`גיל ${numberToHebrew(match.age)}`);
+    }
+    if (match.city) {
+        const city = pm.cities_phonetic?.[match.city] || match.city;
+        parts.push(`מ${city}`);
+    }
+    if (match.study_place) {
+        const inst = pm.yeshivot_phonetic?.[match.study_place] || match.study_place;
+        const label = match.gender === 'female' ? 'בוגרת סמינר' : 'ישיבת';
+        parts.push(`${label} ${inst}`);
+    }
+
+    return parts.length > 0
+        ? `הצעה. ${parts.join(', ')}.`
+        : 'הצעה. פרטים לא זמינים.';
+}
+
+// ==========================================
+// הצעה — שכבה 2 (רשות, מקש 4): מוצא, רקע, עיסוק
+// ==========================================
+function buildMatchDetailText(match) {
+    const pm = require('./phonetic-map.json');
+    const parts = [];
+
+    if (match.heritage_sector) {
+        const sector = pm.heritage_sector?.[match.heritage_sector] || match.heritage_sector;
+        parts.push(`מוצא ${sector}`);
+    }
+    if (match.family_background) {
+        const bg = pm.family_background?.[match.family_background] || match.family_background;
+        parts.push(`רקע ${bg}`);
+    }
+    if (match.current_occupation) {
+        const occ = pm.current_occupation?.[match.current_occupation] || match.current_occupation;
+        parts.push(occ);
+    }
+
+    return parts.length > 0 ? parts.join(', ') + '.' : 'אין פרטים נוספים.';
 }
 
 // ==========================================
@@ -193,7 +241,7 @@ router.get('/call', async (req, res) => {
         if (key === '1') {
             await updateSession(enterId, 'matches', { page: 0 });
             const file = await textToUrl('מעבר להצעות חדשות.', 'static');
-            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+            return res.json({ action: 'playback', file });
         }
         if (key === '2') {
             await updateSession(enterId, 'requests');
@@ -246,6 +294,96 @@ router.get('/call', async (req, res) => {
 
         const fullText = `${statusText} ${menuText}`;
         const file = await textToUrl(fullText, 'dynamic');
+        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+    }
+
+    // --- מצב: matches — הצעות חדשות ---
+    if (session.state === 'matches') {
+        const data    = session.data || {};
+        let   offset  = parseInt(data.page  || 0, 10);
+        const matchId = data.currentMatchId || null;
+
+        // תגובה על הצעה קיימת (המשתמש לחץ מקש)
+        if (key && matchId) {
+            if (key === '#') {
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            if (key === '4') {
+                // שכבה 2 — פרטים נוספים
+                const more = await getMatchesForIvr(user.id, offset, 1);
+                const detailText = more.length > 0
+                    ? buildMatchDetailText(more[0])
+                    : 'אין פרטים נוספים.';
+                const actionsText = g(user.gender,
+                    'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
+                    'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
+                );
+                const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            let responseText = '';
+            if (key === '1') {
+                try {
+                    await sendConnectionFromIvr(user.id, matchId);
+                    responseText = g(user.gender,
+                        'פנייתך נקלטה בהצלחה. עוברים להצעה הבאה.',
+                        'פנייתך נקלטה בהצלחה. עוברים להצעה הבאה.'
+                    );
+                    console.log(`[IVR] 💌 פנייה נשלחה: ${user.id} → ${matchId}`);
+                } catch (e) {
+                    console.error('[IVR] ❌ שגיאה בשליחת פנייה:', e.message);
+                    responseText = 'אירעה תקלה בשליחת הפנייה. עוברים להצעה הבאה.';
+                }
+            } else if (key === '2') {
+                await hideProfileFromIvr(user.id, matchId);
+                responseText = 'הצעה הוסרה. עוברים להצעה הבאה.';
+                console.log(`[IVR] 🙈 הסתרה: ${user.id} → ${matchId}`);
+            } else if (key === '8') {
+                responseText = g(user.gender, 'דולגים להצעה הבאה.', 'דולגות להצעה הבאה.');
+            } else {
+                // מקש לא מוכר — חזרה על אפשרויות
+                const actionsText = g(user.gender,
+                    'מקש לא מוכר. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
+                    'מקש לא מוכר. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
+                );
+                const file = await textToUrl(actionsText, 'static');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            // עבור להצעה הבאה
+            offset++;
+            await updateSession(enterId, 'matches', { page: offset });
+            const file = await textToUrl(responseText, 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        // טעינת ההצעה הבאה (כניסה ראשונה, או callback אחרי פעולה)
+        let matches = [];
+        try {
+            matches = await getMatchesForIvr(user.id, offset, 1);
+        } catch (err) {
+            console.error('[IVR] ❌ שגיאה בשליפת הצעות:', err.message);
+        }
+
+        if (matches.length === 0) {
+            await updateSession(enterId, 'menu');
+            const file = await textToUrl('סיימנו את כל ההצעות החדשות. חוזרים לתפריט הראשי.', 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        const match = matches[0];
+        await updateSession(enterId, 'matches', { page: offset, currentMatchId: match.id });
+
+        const matchText  = buildMatchText(match);
+        const actionsText = g(user.gender,
+            'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש סולמית לתפריט הראשי.',
+            'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי סולמית לתפריט הראשי.'
+        );
+        const file = await textToUrl(`${matchText} ${actionsText}`, 'dynamic');
         return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
     }
 
