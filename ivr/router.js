@@ -112,6 +112,7 @@ function buildMatchDetailText(match) {
 // ==========================================
 router.get('/call', async (req, res) => {
     const { phone, digits } = req.query;
+    const key = digits?.trim() || null; // המקש שנלחץ — זמין בכל מצב
 
     console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${digits || 'none'}`);
 
@@ -235,7 +236,6 @@ router.get('/call', async (req, res) => {
 
     // --- מצב: menu — תפריט ראשי ---
     if (session.state === 'menu') {
-        const key = digits?.trim();
 
         // ניתוב לפי מקש שנלחץ
         if (key === '1') {
