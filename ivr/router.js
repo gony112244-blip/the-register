@@ -6,7 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { validateIvrToken } = require('./auth');
+const { validateIvrToken, getUserByPhone } = require('./auth');
 
 // ==========================================
 // Middleware — אימות token לכל נתיבי /ivr/
@@ -28,13 +28,56 @@ router.get('/call', async (req, res) => {
 
     console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${digits || 'none'}`);
 
-    // שלב זה — תגובה בסיסית לצורך בדיקת connectivity בלבד
-    // בשלב הבא יתווסף: זיהוי משתמש מה-DB, PIN, תפריטים
+    // --- שלב 3: זיהוי משתמש לפי phone ---
+    if (!phone) {
+        console.warn('[IVR] ⚠️ לא התקבל phone');
+        return res.json({ action: 'hangup' });
+    }
+
+    let user;
+    try {
+        user = await getUserByPhone(phone);
+    } catch (err) {
+        console.error('[IVR] ❌ שגיאת DB בזיהוי משתמש:', err.message);
+        return res.json({ action: 'hangup' });
+    }
+
+    // משתמש לא רשום במערכת
+    if (!user) {
+        console.log(`[IVR] 👤 מספר לא מזוהה: ${phone}`);
+        return res.json({
+            action: 'read',
+            text: 'מספר הטלפון שלך אינו רשום במערכת הפנקס. להרשמה היכנס לאתר פינקס דוט קלאוד.',
+            numDigits: 1,
+            timeout: 5
+        });
+    }
+
+    // משתמש חסום
+    if (user.is_blocked) {
+        console.log(`[IVR] 🚫 משתמש חסום: ${user.id}`);
+        return res.json({
+            action: 'playback',
+            text: 'החשבון שלך חסום. לפרטים פנה לצוות התמיכה דרך האתר.'
+        });
+    }
+
+    // משתמש לא מאושר
+    if (!user.is_approved) {
+        console.log(`[IVR] ⏳ משתמש ממתין לאישור: ${user.id}`);
+        return res.json({
+            action: 'playback',
+            text: 'הפרופיל שלך עדיין ממתין לאישור. נעדכן אותך במייל כשיאושר.'
+        });
+    }
+
+    // משתמש תקין — לוג הצלחה (שלבי PIN ותפריטים יתווספו בשלב הבא)
+    console.log(`[IVR] ✅ משתמש מזוהה: ${user.id} | ${user.full_name}`);
     return res.json({
         action: 'read',
-        file: 'https://pinkas.cloud/ivr-audio/static/test.mp3',
+        text: `שלום ${user.full_name}. המערכת בפיתוח. נתראה בקרוב.`,
         numDigits: 1,
-        timeout: 8
+        timeout: 5
     });
 });
 
