@@ -22,6 +22,14 @@ router.use((req, res, next) => {
 });
 
 // ==========================================
+// עזר: פנייה מגדרית — g(gender, זכר, נקבה)
+// gender מגיע מ-users.gender: 'male' | 'female'
+// ==========================================
+function g(gender, maleText, femaleText) {
+    return gender === 'female' ? femaleText : maleText;
+}
+
+// ==========================================
 // GET /ivr/call — webhook ראשי מימות משיח
 // ==========================================
 router.get('/call', async (req, res) => {
@@ -43,24 +51,32 @@ router.get('/call', async (req, res) => {
         return res.json({ action: 'hangup' });
     }
 
-    // משתמש לא רשום במערכת
+    // משתמש לא רשום במערכת (לא ידוע המגדר)
     if (!user) {
         console.log(`[IVR] 👤 מספר לא מזוהה: ${phone}`);
-        const file = await textToUrl('מספר הטלפון שלך אינו רשום במערכת הפנקס. להרשמה, היכנס לאתר פינקס.', 'static');
+        const file = await textToUrl('מספר הטלפון אינו רשום במערכת הפנקס. להרשמה, יש להיכנס לאתר פינקס.', 'static');
         return res.json({ action: 'playback', file });
     }
 
     // משתמש חסום
     if (user.is_blocked) {
         console.log(`[IVR] 🚫 משתמש חסום: ${user.id}`);
-        const file = await textToUrl('החשבון שלך חסום. לפרטים, פנה לצוות התמיכה דרך האתר.', 'static');
+        const text = g(user.gender,
+            'החשבון שלך חסום. לפרטים, פנה לצוות התמיכה דרך האתר.',
+            'החשבון שלך חסום. לפרטים, פני לצוות התמיכה דרך האתר.'
+        );
+        const file = await textToUrl(text, 'static');
         return res.json({ action: 'playback', file });
     }
 
     // משתמש לא מאושר
     if (!user.is_approved) {
         console.log(`[IVR] ⏳ משתמש ממתין לאישור: ${user.id}`);
-        const file = await textToUrl('הפרופיל שלך עדיין ממתין לאישור. נעדכן אותך במייל כאשר יאושר.', 'static');
+        const text = g(user.gender,
+            'הפרופיל שלך עדיין ממתין לאישור. נעדכן אותך במייל כאשר יאושר.',
+            'הפרופיל שלך עדיין ממתינה לאישור. נעדכן אותך במייל כאשר תאושרי.'
+        );
+        const file = await textToUrl(text, 'static');
         return res.json({ action: 'playback', file });
     }
 
@@ -88,22 +104,31 @@ router.get('/call', async (req, res) => {
         // אם אין PIN מוגדר / PIN לא נדרש → ישר לתפריט
         if (!user.ivr_pin || user.allow_ivr_no_pass) {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl(`שלום ${firstName}, ברוכים הבאים לפנקס.`, 'dynamic');
+            const welcomeText = g(user.gender,
+                `שלום ${firstName}, ברוך הבא לפנקס.`,
+                `שלום ${firstName}, ברוכה הבאת לפנקס.`
+            );
+            const file = await textToUrl(welcomeText, 'dynamic');
             return res.json({ action: 'playback', file });
         }
 
-        // יש PIN → בקש אותו
+        // יש PIN → בקש אותו (dynamic כי כולל את שם המשתמש)
         await updateSession(enterId, 'waiting_pin');
-        const file = await textToUrl(`שלום ${firstName}. אנא הזן את קוד הכניסה שלך, ארבע ספרות.`, 'static');
+        const pinPromptText = g(user.gender,
+            `שלום ${firstName}. אנא הזן את קוד הכניסה שלך, ארבע ספרות.`,
+            `שלום ${firstName}. אנא הזיני את קוד הכניסה שלך, ארבע ספרות.`
+        );
+        const file = await textToUrl(pinPromptText, 'dynamic');
         return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
     }
 
     // --- מצב: waiting_pin — ממתין לקוד ---
     if (session.state === 'waiting_pin') {
         if (!digits) {
-            // חזרה לבקשת PIN (timeout או לחיצה שגויה)
-            const file = await textToUrl('הזן את קוד הכניסה שלך, ארבע ספרות.', 'static');
-            return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+        // חזרה לבקשת PIN (timeout או לחיצה שגויה)
+        const repeatText = g(user.gender, 'הזן את קוד הכניסה שלך, ארבע ספרות.', 'הזיני את קוד הכניסה שלך, ארבע ספרות.');
+        const file = await textToUrl(repeatText, 'static');
+        return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
         }
 
         const pinResult = await checkPin(user.id, digits);
@@ -111,7 +136,11 @@ router.get('/call', async (req, res) => {
 
         if (pinResult === 'ok') {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl(`קוד נכון. ברוכים הבאים, ${firstName}.`, 'dynamic');
+            const welcomeText = g(user.gender,
+                `קוד נכון. ברוך הבא, ${firstName}.`,
+                `קוד נכון. ברוכה הבאת, ${firstName}.`
+            );
+            const file = await textToUrl(welcomeText, 'dynamic');
             return res.json({ action: 'playback', file });
         }
 
@@ -121,7 +150,8 @@ router.get('/call', async (req, res) => {
         }
 
         // PIN שגוי — נסה שוב
-        const file = await textToUrl('קוד שגוי. אנא נסה שוב.', 'static');
+        const retryText = g(user.gender, 'קוד שגוי. אנא נסה שוב.', 'קוד שגוי. אנא נסי שוב.');
+        const file = await textToUrl(retryText, 'static');
         return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
     }
 
