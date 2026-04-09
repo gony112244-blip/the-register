@@ -11,7 +11,8 @@ const { textToUrl, numberToHebrew } = require('./tts');
 const {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
-    getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr
+    getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
+    getMySentRequestsForIvr, cancelSentRequestFromIvr
 } = require('./data');
 
 // ==========================================
@@ -546,6 +547,111 @@ router.get('/call', async (req, res) => {
             'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`פנייה שהגיעה אליך. ${reqText} ${actionsText}`, 'dynamic');
+        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+    }
+
+    // --- מצב: my_sent — סטטוס פניות שיצאו ממני ---
+    if (session.state === 'my_sent') {
+        const data   = session.data || {};
+        let   offset = parseInt(data.page || 0, 10);
+        const connId = data.currentConnectionId || null;
+        const connStatus = data.currentConnectionStatus || null;
+
+        // תגובה לפנייה שנטענה
+        if (key && connId) {
+            if (key === '#') {
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            // ביטול פנייה ממתינה (רק כשסטטוס pending)
+            if (key === '1' && connStatus === 'pending') {
+                const result = await cancelSentRequestFromIvr(connId, user.id).catch(() => 'error');
+                const responseText = result === 'ok'
+                    ? 'הפנייה בוטלה. עוברים לפנייה הבאה.'
+                    : 'אירעה תקלה. עוברים לפנייה הבאה.';
+                offset++;
+                await updateSession(enterId, 'my_sent', { page: offset });
+                const file = await textToUrl(responseText, 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            // דילוג (key 8) — מתאים לכל סטטוס
+            if (key === '8') {
+                offset++;
+                await updateSession(enterId, 'my_sent', { page: offset });
+                const file = await textToUrl('עוברים לפנייה הבאה.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            // מקש לא מוכר
+            const unknownText = connStatus === 'pending'
+                ? g(user.gender,
+                    'מקש לא מוכר. הקש אחת לביטול. הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
+                    'מקש לא מוכר. הקשי אחת לביטול. הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.')
+                : g(user.gender,
+                    'מקש לא מוכר. הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
+                    'מקש לא מוכר. הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.');
+            const file = await textToUrl(unknownText, 'static');
+            return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        }
+
+        // טעינת הפנייה הבאה
+        let sent = [];
+        try {
+            sent = await getMySentRequestsForIvr(user.id, offset, 1);
+        } catch (err) {
+            console.error('[IVR] ❌ שגיאה בשליפת פניות שיצאו:', err.message);
+        }
+
+        if (sent.length === 0) {
+            await updateSession(enterId, 'menu');
+            const file = await textToUrl('אין פניות פעילות שיצאו ממך. חוזרים לתפריט הראשי.', 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        const conn = sent[0];
+        const name = conn.full_name || 'ללא שם';
+        const age  = conn.age ? `, ${numberToHebrew(conn.age)} שנים` : '';
+        const city = conn.city ? `, ${conn.city}` : '';
+
+        let connText = '';
+        let actionsText = '';
+
+        if (conn.status === 'pending') {
+            connText = `פנייתך ל${name}${age}${city} — טרם נענתה.`;
+            actionsText = g(user.gender,
+                'הקש אחת לביטול הפנייה. הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
+                'הקשי אחת לביטול הפנייה. הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.'
+            );
+        } else if (conn.status === 'active') {
+            connText = `הפנייה עם ${name}${age}${city} פעילה — שניכם הביעו עניין ראשוני.`;
+            actionsText = g(user.gender,
+                'הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
+                'הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.'
+            );
+        } else if (conn.status === 'waiting_for_shadchan') {
+            connText = `הפנייה עם ${name}${age}${city} בטיפול השדכנית. אין צורך בפעולה נוספת כרגע.`;
+            actionsText = g(user.gender,
+                'הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
+                'הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.'
+            );
+        } else {
+            connText = `פנייה ל${name} — ${conn.status}.`;
+            actionsText = g(user.gender,
+                'הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
+                'הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.'
+            );
+        }
+
+        await updateSession(enterId, 'my_sent', {
+            page:                    offset,
+            currentConnectionId:     conn.connection_id,
+            currentConnectionStatus: conn.status
+        });
+
+        const file = await textToUrl(`${connText} ${actionsText}`, 'dynamic');
         return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
     }
 

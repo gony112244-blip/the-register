@@ -220,8 +220,46 @@ async function rejectRequestFromIvr(connectionId, userId) {
     return result.rowCount > 0 ? 'ok' : 'not_found';
 }
 
+// ==========================================
+// פניות שיצאו ממני — שליפה וביטול
+// ==========================================
+
+/**
+ * שליפת הפניות שיצאו ממני — סטטוס עדכני.
+ * מציג: pending (ממתין), active (פעיל), waiting_for_shadchan (בטיפול).
+ */
+async function getMySentRequestsForIvr(userId, offset = 0, limit = 1) {
+    const result = await pool.query(
+        `SELECT c.id AS connection_id, c.status, c.created_at,
+                u.id AS user_id, u.full_name, u.age, u.city, u.study_place
+         FROM connections c
+         JOIN users u ON c.receiver_id = u.id
+         WHERE c.sender_id = $1
+           AND c.status IN ('pending', 'active', 'waiting_for_shadchan')
+         ORDER BY c.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
+ * ביטול פנייה ממתינה — מחיקת שורת ה-connection.
+ * מקביל ל-POST /cancel-request (ללא שליחת מייל — כרגע).
+ */
+async function cancelSentRequestFromIvr(connectionId, userId) {
+    const result = await pool.query(
+        `DELETE FROM connections
+         WHERE id = $1 AND sender_id = $2 AND status = 'pending'
+         RETURNING id`,
+        [connectionId, userId]
+    );
+    return result.rowCount > 0 ? 'ok' : 'not_found';
+}
+
 module.exports = {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
-    getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr
+    getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
+    getMySentRequestsForIvr, cancelSentRequestFromIvr
 };
