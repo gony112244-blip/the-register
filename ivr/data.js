@@ -215,7 +215,7 @@ async function rejectRequestFromIvr(connectionId, userId) {
         `UPDATE connections
          SET status = 'rejected', updated_at = NOW()
          WHERE id = $1 AND receiver_id = $2 AND status = 'pending'`,
-        [userId, connectionId]
+        [connectionId, userId]
     );
     return result.rowCount > 0 ? 'ok' : 'not_found';
 }
