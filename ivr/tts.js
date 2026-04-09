@@ -63,7 +63,7 @@ async function textToUrl(text, type = 'dynamic') {
             input: { text: mappedText },
             voice: {
                 languageCode: 'he-IL',
-                name: 'he-IL-Neural2-A', // קול נקבה נוירלי — הטוב ביותר
+                name: 'he-IL-Wavenet-A', // קול נקבה WaveNet — הטוב ביותר הזמין לעברית
                 ssmlGender: 'FEMALE'
             },
             audioConfig: {
