@@ -219,7 +219,7 @@ export default function AdminSupport() {
                                 <div style={s.replyBox}>
                                     <textarea
                                         style={s.replyInput}
-                                        placeholder="כתוב תשובה... (תישלח למייל המשתמש + לאתר אם מחובר)"
+                                        placeholder="כתוב תשובה... (תישלח למייל המשתמש ותופיע באתר אם הוא מחובר)"
                                         value={replyText}
                                         onChange={e => setReplyText(e.target.value)}
                                         rows={4}

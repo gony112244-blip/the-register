@@ -144,7 +144,7 @@ function AppContent() {
       setCurrentUser(null);
       window.dispatchEvent(new CustomEvent('userUpdated', { detail: null }));
       navigate('/login');
-      showToast('נותקת מהחשבון עקב חוסר פעילות', 'info', 7000);
+      showToast('החיבור למערכת הופסק בשל חוסר פעילות', 'info', 7000);
     };
 
     const intervalId = setInterval(tick, 60 * 1000);

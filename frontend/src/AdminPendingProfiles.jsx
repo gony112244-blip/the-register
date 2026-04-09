@@ -105,7 +105,7 @@ function AdminPendingProfiles() {
         const translations = {
             full_name: 'שם מלא', last_name: 'שם משפחה', age: 'גיל', gender: 'מגדר',
             status: 'סטטוס', family_background: 'רקע משפחתי', heritage_sector: 'מגזר עדתי',
-            father_heritage: 'עדות האב', mother_heritage: 'עדות האם',
+            father_heritage: 'עדת האב', mother_heritage: 'עדת האם',
             height: 'גובה', body_type: 'מבנה גוף', skin_tone: 'גוון עור', appearance: 'מראה כללי',
 
             // עיסוק ולימודים
@@ -252,14 +252,14 @@ function AdminPendingProfiles() {
                                         onClick={() => setExpandedUser(expandedUser === p.id ? null : p.id)}
                                         style={{ padding: '8px 15px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
                                     >
-                                        {expandedUser === p.id ? '🔼 סגור כרטיסייה' : '👁️ צפה בכרטיסייה המלאה'}
+                                        {expandedUser === p.id ? '🔼 סגור תצוגת כרטיס' : '👁️ צפה בכרטיס המלא'}
                                     </button>
                                 </div>
 
                                 {/* כרטיסיונת מלאה */}
                                 {expandedUser === p.id && (
                                     <div style={{ transform: 'scale(0.9)', transformOrigin: 'top center', marginBottom: '-50px', background: '#f8fafc', padding: '15px', borderRadius: '15px', border: '2px solid #cbd5e1', alignSelf: 'stretch' }}>
-                                         <h4 style={{textAlign: 'center', color: '#1e3a5f', marginTop: 0}}>כרטיסיית משתמש (לפני השינויים המבוקשים)</h4>
+                                         <h4 style={{textAlign: 'center', color: '#1e3a5f', marginTop: 0}}>כרטיס משתמש (לפני השינויים המבוקשים)</h4>
                                          <ProfileView externalUser={p} readOnly={true} isAdminView={true} />
                                     </div>
                                 )}

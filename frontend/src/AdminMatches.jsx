@@ -181,7 +181,7 @@ function AdminMatches() {
                 })
             });
             if (res.ok) {
-                showToast(closeForm.succeeded ? '🎉 שידוך הצליח! נרשם בהיסטוריה' : '✅ שידוך נסגר');
+                showToast(closeForm.succeeded ? '🎉 השידוך הצליח ונרשם בהיסטוריה' : '✅ שידוך נסגר');
                 setCloseModal(null);
                 setCloseForm({ succeeded: null, failReason: '', summary: '' });
                 fetchAll();
@@ -448,7 +448,7 @@ function AdminMatches() {
                         ) : (
                             <>
                                 <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '16px' }}>
-                                    סה"כ <strong>{successfulMatches.length}</strong> שידוכים מוצלחים!
+                                    סה״כ <strong>{successfulMatches.length}</strong> שידוכים מוצלחים!
                                 </p>
                                 {successfulMatches.map(m => (
                                     <div key={m.id} style={{ ...s.matchCard, borderTop: '4px solid #10b981' }}>

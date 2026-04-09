@@ -22,8 +22,8 @@ function ReportWrongEmail() {
                 {status === 'success' && (
                     <>
                         <span style={iconStyle}>✉️</span>
-                        <h2 style={titleStyle}>האימייל הוסר מהמערכת</h2>
-                        <p style={textStyle}>מצטערים על אי הנוחות. האימייל שלך הוסר ולא תקבל מאיתנו הודעות נוספות.</p>
+                        <h2 style={titleStyle}>כתובת המייל הוסרה מהמערכת</h2>
+                        <p style={textStyle}>מצטערים על אי־הנוחות. כתובת המייל הוסרה ולא תקבל מאיתנו הודעות נוספות.</p>
                     </>
                 )}
                 {status === 'error' && (

@@ -24,7 +24,7 @@ const T = {
     contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
     apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי', discuss: 'לדון עם השדכן/ית' },
     life_aspiration: {
-        learning: 'תלמוד תורה', career: 'קריירה', family: 'בנית בית',
+        learning: 'תלמוד תורה', career: 'קריירה', family: 'בניית בית',
         both: 'שילוב תורה ועבודה',
         study_only: 'ללמוד יום שלם', study_and_work: 'ללמוד ולעבוד',
         fixed_times: 'לקבוע עיתים', work_only: 'רק לעבוד'
