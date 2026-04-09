@@ -7,7 +7,8 @@
 const express = require('express');
 const router = express.Router();
 const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession } = require('./auth');
-const { textToUrl } = require('./tts');
+const { textToUrl, numberToHebrew } = require('./tts');
+const { getMenuCounts } = require('./data');
 
 // ==========================================
 // Middleware — אימות token לכל נתיבי /ivr/
@@ -27,6 +28,35 @@ router.use((req, res, next) => {
 // ==========================================
 function g(gender, maleText, femaleText) {
     return gender === 'female' ? femaleText : maleText;
+}
+
+// ==========================================
+// מבזק סטטוס — "יש לך X הצעות, Y בקשות..."
+// מייצר משפט עברי תקני עם פיסוק נכון
+// ==========================================
+function buildStatusText({ matches, requests, photos }) {
+    const parts = [];
+
+    if (matches > 0) {
+        const n = numberToHebrew(matches);
+        const noun = matches === 1 ? 'הצעה חדשה' : 'הצעות חדשות';
+        parts.push(`${n} ${noun}`);
+    }
+    if (requests > 0) {
+        const n = numberToHebrew(requests);
+        const noun = requests === 1 ? 'בקשת קשר ממתינה לתשובתך' : 'בקשות קשר ממתינות לתשובתך';
+        parts.push(`${n} ${noun}`);
+    }
+    if (photos > 0) {
+        const n = numberToHebrew(photos);
+        const noun = photos === 1 ? 'בקשת תמונה' : 'בקשות תמונה';
+        parts.push(`${n} ${noun}`);
+    }
+
+    if (parts.length === 0) return 'אין פעילות חדשה כרגע.';
+    if (parts.length === 1) return `יש לך ${parts[0]}.`;
+    if (parts.length === 2) return `יש לך ${parts[0]}, ו${parts[1]}.`;
+    return `יש לך ${parts[0]}, ${parts[1]}, ו${parts[2]}.`;
 }
 
 // ==========================================
@@ -155,10 +185,68 @@ router.get('/call', async (req, res) => {
         return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
     }
 
-    // --- מצב: menu — מאומת, תפריט ראשי (יתווסף בשלב הבא) ---
+    // --- מצב: menu — תפריט ראשי ---
     if (session.state === 'menu') {
-        const file = await textToUrl('ברוכים הבאים לפנקס. המערכת בשלבי פיתוח, ותהיה זמינה בקרוב.', 'static');
-        return res.json({ action: 'playback', file });
+        const key = digits?.trim();
+
+        // ניתוב לפי מקש שנלחץ
+        if (key === '1') {
+            await updateSession(enterId, 'matches', { page: 0 });
+            const file = await textToUrl('מעבר להצעות חדשות.', 'static');
+            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+        }
+        if (key === '2') {
+            await updateSession(enterId, 'requests');
+            const file = await textToUrl('מעבר לבקשות קשר.', 'static');
+            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+        }
+        if (key === '3') {
+            await updateSession(enterId, 'my_sent');
+            const file = await textToUrl('מעבר לסטטוס הפניות שלך.', 'static');
+            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+        }
+        if (key === '4') {
+            await updateSession(enterId, 'photos');
+            const file = await textToUrl('מעבר לניהול תמונות.', 'static');
+            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+        }
+        if (key === '5') {
+            await updateSession(enterId, 'messages');
+            const file = await textToUrl('מעבר להודעות חשובות.', 'static');
+            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+        }
+        if (key === '9') {
+            await updateSession(enterId, 'settings');
+            const file = await textToUrl('מעבר להגדרות.', 'static');
+            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+        }
+        if (key === '0') {
+            const file = await textToUrl('לתמיכה ולעזרה, יש להיכנס לאתר פינקס.', 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        // הקשה שגויה — חזרה לתפריט
+        if (key && !['1','2','3','4','5','9','0','#'].includes(key)) {
+            console.warn(`[IVR] ⚠️ מקש לא מוכר בתפריט: ${key}`);
+        }
+
+        // כניסה ראשונה לתפריט, חזרה מ-# , או מקש לא מוכר — הצג מבזק + תפריט
+        let counts = { matches: 0, requests: 0, photos: 0 };
+        try {
+            counts = await getMenuCounts(user.id);
+        } catch (err) {
+            console.error('[IVR] ⚠️ שגיאה בספירת תפריט:', err.message);
+        }
+
+        const statusText = buildStatusText(counts);
+        const menuText = g(user.gender,
+            'להצעות חדשות, הקש אחת. לבקשות קשר, הקש שתיים. לסטטוס הפניות שלך, הקש שלוש. לניהול תמונות, הקש ארבע. להודעות חשובות, הקש חמש. להגדרות, הקש תשע. לתמיכה, הקש אפס.',
+            'להצעות חדשות, הקשי אחת. לבקשות קשר, הקשי שתיים. לסטטוס הפניות שלך, הקשי שלוש. לניהול תמונות, הקשי ארבע. להודעות חשובות, הקשי חמש. להגדרות, הקשי תשע. לתמיכה, הקשי אפס.'
+        );
+
+        const fullText = `${statusText} ${menuText}`;
+        const file = await textToUrl(fullText, 'dynamic');
+        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
     }
 
     // מצב לא מוכר — ניתוק
