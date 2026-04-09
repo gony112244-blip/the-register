@@ -63,16 +63,30 @@ function buildStatusText({ matches, requests, photos }) {
 const pm = require('./phonetic-map.json');
 
 // ==========================================
-// הצעה — שכבה 1 (חובה): גיל, עיר, מוסד
+// הצעה — שכבה 1 (חובה): שם, סטטוס, גיל, עיר, מוסד
 // ==========================================
 function buildMatchText(match) {
     const parts = [];
 
+    // שם
+    if (match.full_name) parts.push(match.full_name);
+
+    // סטטוס (רווק/גרוש/אלמן)
+    if (match.status) {
+        const st = pm.status_personal?.[match.status] || match.status;
+        parts.push(st);
+    }
+
+    // גיל
     if (match.age) parts.push(`גיל ${numberToHebrew(match.age)}`);
+
+    // עיר
     if (match.city) {
         const city = pm.cities_phonetic?.[match.city] || match.city;
         parts.push(`מ${city}`);
     }
+
+    // מוסד לימודים
     if (match.study_place) {
         const inst = pm.yeshivot_phonetic?.[match.study_place] || match.study_place;
         const label = match.gender === 'female' ? 'בוגרת סמינר' : 'ישיבת';
@@ -103,6 +117,12 @@ function buildMatchDetailText(match) {
         parts.push(occ);
     }
     if (match.height) parts.push(`גובה ${numberToHebrew(match.height)} סנטימטר`);
+
+    // כיסוי ראש (רלוונטי לנשים)
+    if (match.gender === 'female' && match.head_covering) {
+        const hc = pm.head_covering?.[match.head_covering] || match.head_covering;
+        parts.push(`כיסוי ראש: ${hc}`);
+    }
 
     return parts.length > 0 ? parts.join(', ') + '.' : 'אין פרטים נוספים.';
 }
