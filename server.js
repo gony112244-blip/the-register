@@ -4289,6 +4289,13 @@ async function updateDbSchema() {
         // עמודת פלטפורמה בחיבורים (web / ivr)
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS last_accessed_platform VARCHAR(10) DEFAULT 'web'`);
 
+        // עמודות session לשיחות IVR (הוספה רטרואקטיבית אם הטבלה נוצרה עם schema ישן)
+        await pool.query(`ALTER TABLE ivr_sessions ADD COLUMN IF NOT EXISTS enter_id VARCHAR(100)`);
+        await pool.query(`ALTER TABLE ivr_sessions ADD COLUMN IF NOT EXISTS phone VARCHAR(20)`);
+        await pool.query(`ALTER TABLE ivr_sessions ADD COLUMN IF NOT EXISTS state VARCHAR(50) DEFAULT 'init'`);
+        await pool.query(`ALTER TABLE ivr_sessions ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'`);
+        await pool.query(`ALTER TABLE ivr_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
+
         console.log("✅ DB Schema updated: Wizard columns + IVR tables ensured.");
 
     } catch (err) {

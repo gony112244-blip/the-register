@@ -91,16 +91,27 @@ async function checkPin(userId, inputPin) {
 // ==========================================
 
 async function getOrCreateSession(enterId, userId, phone) {
-    const existing = await pool.query(
-        `SELECT * FROM ivr_sessions WHERE enter_id = $1`,
-        [enterId]
-    );
-    if (existing.rows[0]) return existing.rows[0];
+    // אם קיים session לאותו enterId ו-user → החזר אותו (אותה שיחה, בקשה חוזרת)
+    if (enterId) {
+        const existing = await pool.query(
+            `SELECT * FROM ivr_sessions WHERE user_id = $1 AND enter_id = $2`,
+            [userId, enterId]
+        );
+        if (existing.rows[0]) return existing.rows[0];
+    }
 
+    // שיחה חדשה — upsert לפי user_id (user_id הוא UNIQUE)
     const result = await pool.query(
-        `INSERT INTO ivr_sessions (enter_id, user_id, phone, state)
-         VALUES ($1, $2, $3, 'init') RETURNING *`,
-        [enterId, userId, phone]
+        `INSERT INTO ivr_sessions (user_id, enter_id, phone, state, data, created_at)
+         VALUES ($1, $2, $3, 'init', '{}', NOW())
+         ON CONFLICT (user_id) DO UPDATE
+             SET enter_id   = EXCLUDED.enter_id,
+                 phone      = EXCLUDED.phone,
+                 state      = 'init',
+                 data       = '{}',
+                 updated_at = NOW()
+         RETURNING *`,
+        [userId, enterId, phone]
     );
     return result.rows[0];
 }
@@ -114,4 +125,14 @@ async function updateSession(enterId, state, data = {}) {
     );
 }
 
-module.exports = { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession };
+// עדכון לפי user_id (fallback כאשר enter_id לא אמין)
+async function updateSessionByUser(userId, state, data = {}) {
+    await pool.query(
+        `UPDATE ivr_sessions
+         SET state = $1, data = $2, updated_at = NOW()
+         WHERE user_id = $3`,
+        [state, JSON.stringify(data), userId]
+    );
+}
+
+module.exports = { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateSessionByUser };
