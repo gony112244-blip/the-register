@@ -257,9 +257,83 @@ async function cancelSentRequestFromIvr(connectionId, userId) {
     return result.rowCount > 0 ? 'ok' : 'not_found';
 }
 
+// ==========================================
+// ניהול תמונות — בקשות ממתינות לאישור/דחייה
+// ==========================================
+
+/**
+ * שליפת בקשות תמונה ממתינות — אנשים שרוצים לראות את תמונתי.
+ * מקביל ל-GET /pending-photo-requests
+ */
+async function getPhotoRequestsForIvr(userId, offset = 0, limit = 1) {
+    const result = await pool.query(
+        `SELECT pa.id AS request_id, pa.requester_id, pa.created_at,
+                u.full_name, u.age, u.city, u.gender
+         FROM photo_approvals pa
+         JOIN users u ON u.id = pa.requester_id
+         WHERE pa.target_id = $1 AND pa.status = 'pending'
+         ORDER BY pa.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
+ * אישור בקשת תמונה.
+ * מקביל ל-POST /respond-photo-request {response:'approve'}.
+ * כלל: מי שמאשר — גם רואה את תמונות המבקש (יצירת אישור הפוך).
+ * TODO: שליחת מייל למבקש — יתווסף בגרסה עתידית.
+ */
+async function approvePhotoRequestFromIvr(requesterId, userId) {
+    // אשר את הבקשה המקורית
+    const result = await pool.query(
+        `UPDATE photo_approvals SET status = 'approved', updated_at = NOW()
+         WHERE requester_id = $1 AND target_id = $2 AND status = 'pending'
+         RETURNING id`,
+        [requesterId, userId]
+    );
+    if (result.rowCount === 0) return 'not_found';
+
+    // צור/עדכן אישור הפוך — גם המאשר יכול לראות
+    const reverseExists = await pool.query(
+        `SELECT id FROM photo_approvals WHERE requester_id = $1 AND target_id = $2`,
+        [userId, requesterId]
+    );
+    if (reverseExists.rows.length === 0) {
+        await pool.query(
+            `INSERT INTO photo_approvals (requester_id, target_id, status) VALUES ($1, $2, 'approved')`,
+            [userId, requesterId]
+        );
+    } else {
+        await pool.query(
+            `UPDATE photo_approvals SET status = 'approved', updated_at = NOW()
+             WHERE requester_id = $1 AND target_id = $2`,
+            [userId, requesterId]
+        );
+    }
+    return 'ok';
+}
+
+/**
+ * דחיית בקשת תמונה.
+ * מקביל ל-POST /respond-photo-request {response:'reject'}.
+ * TODO: שליחת מייל למבקש — יתווסף בגרסה עתידית.
+ */
+async function rejectPhotoRequestFromIvr(requesterId, userId) {
+    const result = await pool.query(
+        `UPDATE photo_approvals SET status = 'rejected', updated_at = NOW()
+         WHERE requester_id = $1 AND target_id = $2 AND status = 'pending'
+         RETURNING id`,
+        [requesterId, userId]
+    );
+    return result.rowCount > 0 ? 'ok' : 'not_found';
+}
+
 module.exports = {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
-    getMySentRequestsForIvr, cancelSentRequestFromIvr
+    getMySentRequestsForIvr, cancelSentRequestFromIvr,
+    getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr
 };

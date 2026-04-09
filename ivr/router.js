@@ -12,7 +12,8 @@ const {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
-    getMySentRequestsForIvr, cancelSentRequestFromIvr
+    getMySentRequestsForIvr, cancelSentRequestFromIvr,
+    getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr
 } = require('./data');
 
 // ==========================================
@@ -685,6 +686,83 @@ router.get('/call', async (req, res) => {
         await updateSession(enterId, 'menu');
         const file = await textToUrl('אירעה תקלה. חוזרים לתפריט הראשי.', 'static');
         return res.json({ action: 'playback', file });
+    }
+
+    // --- מצב: photos — ניהול בקשות תמונה ---
+    if (session.state === 'photos') {
+        const data        = session.data || {};
+        let   offset      = parseInt(data.page || 0, 10);
+        const requesterId = data.currentRequesterId || null;
+
+        // תגובה על בקשה שנטענה
+        if (key && requesterId) {
+            if (key === '#') {
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            let responseText = '';
+            if (key === '1') {
+                const result = await approvePhotoRequestFromIvr(requesterId, user.id).catch(() => 'error');
+                responseText = result === 'ok'
+                    ? 'הסכמת לחשיפת תמונתך. עוברים לבקשה הבאה.'
+                    : 'אירעה תקלה. עוברים לבקשה הבאה.';
+                console.log(`[IVR] 📷 תמונה אושרה: requesterId=${requesterId} | userId=${user.id}`);
+            } else if (key === '2') {
+                const result = await rejectPhotoRequestFromIvr(requesterId, user.id).catch(() => 'error');
+                responseText = result === 'ok'
+                    ? 'הבקשה נדחתה. עוברים לבקשה הבאה.'
+                    : 'אירעה תקלה. עוברים לבקשה הבאה.';
+                console.log(`[IVR] 📷 תמונה נדחתה: requesterId=${requesterId} | userId=${user.id}`);
+            } else if (key === '8') {
+                responseText = 'עוברים לבקשה הבאה.';
+            } else {
+                const actionsText = g(user.gender,
+                    'מקש לא מוכר. הקש אחת — הסכמה. הקש שתיים — דחייה. הקש שמונה — דלג.',
+                    'מקש לא מוכר. הקשי אחת — הסכמה. הקשי שתיים — דחייה. הקשי שמונה — דלגי.'
+                );
+                const file = await textToUrl(actionsText, 'static');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            offset++;
+            await updateSession(enterId, 'photos', { page: offset });
+            const file = await textToUrl(responseText, 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        // טעינת הבקשה הבאה
+        let photos = [];
+        try {
+            photos = await getPhotoRequestsForIvr(user.id, offset, 1);
+        } catch (err) {
+            console.error('[IVR] ❌ שגיאה בשליפת בקשות תמונה:', err.message);
+        }
+
+        if (photos.length === 0) {
+            await updateSession(enterId, 'menu');
+            const file = await textToUrl('אין בקשות תמונה ממתינות. חוזרים לתפריט הראשי.', 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        const photo    = photos[0];
+        const name     = photo.full_name || 'ללא שם';
+        const age      = photo.age  ? `, ${numberToHebrew(photo.age)} שנים` : '';
+        const city     = photo.city ? `, ${photo.city}` : '';
+        const genderWord = photo.gender === 'female'
+            ? 'מבקשת'
+            : 'מבקש';
+
+        await updateSession(enterId, 'photos', { page: offset, currentRequesterId: photo.requester_id });
+
+        const photoText   = `${name}${age}${city} ${genderWord} לראות את תמונתך.`;
+        const actionsText = g(user.gender,
+            'הקש אחת — הסכם לחשיפה. הקש שתיים — דחה את הבקשה. הקש שמונה — דלג. הקש סולמית לתפריט הראשי.',
+            'הקשי אחת — הסכמי לחשיפה. הקשי שתיים — דחי את הבקשה. הקשי שמונה — דלגי. הקשי סולמית לתפריט הראשי.'
+        );
+        const file = await textToUrl(`${photoText} ${actionsText}`, 'dynamic');
+        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
     }
 
     // --- מצב: my_sent — סטטוס פניות שיצאו ממני ---
