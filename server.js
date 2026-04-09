@@ -4234,7 +4234,55 @@ async function updateDbSchema() {
             await pool.query(q).catch((e) => console.warn('[schema index]', e.message));
         }
 
-        console.log("✅ DB Schema updated: Wizard columns ensured.");
+        // ==========================================
+        // 📞 IVR — שדות וטבלאות מערכת טלפונית
+        // ==========================================
+
+        // שדות IVR בטבלת users
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ivr_pin VARCHAR(255)`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS allow_ivr_no_pass BOOLEAN DEFAULT FALSE`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ivr_failed_attempts INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ivr_blocked_until TIMESTAMP`);
+
+        // טבלת session — זיכרון שיחה (להמשך מנקודת עצירה)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS ivr_sessions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+                last_menu VARCHAR(50),
+                last_item_id INTEGER,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        // טבלת לוג שיחות — לניתוח BI בלבד
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS ivr_logs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                caller_phone VARCHAR(20),
+                call_duration_seconds INTEGER,
+                drop_point_menu VARCHAR(50),
+                actions_taken JSONB,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        // טבלת "נשמע בטלפון" — סנכרון עם הפרונט
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS ivr_match_views (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                viewed_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                viewed_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, viewed_user_id)
+            )
+        `);
+
+        // עמודת פלטפורמה בחיבורים (web / ivr)
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS last_accessed_platform VARCHAR(10) DEFAULT 'web'`);
+
+        console.log("✅ DB Schema updated: Wizard columns + IVR tables ensured.");
 
     } catch (err) {
         console.error("⚠️ Failed to update DB Schema:", err);
