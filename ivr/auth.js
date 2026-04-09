@@ -86,4 +86,32 @@ async function checkPin(userId, inputPin) {
     return 'wrong';
 }
 
-module.exports = { validateIvrToken, getUserByPhone, checkPin };
+// ==========================================
+// ניהול sessions של שיחות IVR
+// ==========================================
+
+async function getOrCreateSession(enterId, userId, phone) {
+    const existing = await pool.query(
+        `SELECT * FROM ivr_sessions WHERE enter_id = $1`,
+        [enterId]
+    );
+    if (existing.rows[0]) return existing.rows[0];
+
+    const result = await pool.query(
+        `INSERT INTO ivr_sessions (enter_id, user_id, phone, state)
+         VALUES ($1, $2, $3, 'init') RETURNING *`,
+        [enterId, userId, phone]
+    );
+    return result.rows[0];
+}
+
+async function updateSession(enterId, state, data = {}) {
+    await pool.query(
+        `UPDATE ivr_sessions
+         SET state = $1, data = $2, updated_at = NOW()
+         WHERE enter_id = $3`,
+        [state, JSON.stringify(data), enterId]
+    );
+}
+
+module.exports = { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession };
