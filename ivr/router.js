@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const { validateIvrToken, getUserByPhone } = require('./auth');
+const { textToUrl } = require('./tts');
 
 // ==========================================
 // Middleware — אימות token לכל נתיבי /ivr/
@@ -45,40 +46,29 @@ router.get('/call', async (req, res) => {
     // משתמש לא רשום במערכת
     if (!user) {
         console.log(`[IVR] 👤 מספר לא מזוהה: ${phone}`);
-        return res.json({
-            action: 'read',
-            text: 'מספר הטלפון שלך אינו רשום במערכת הפנקס. להרשמה היכנס לאתר פינקס דוט קלאוד.',
-            numDigits: 1,
-            timeout: 5
-        });
+        const file = await textToUrl('מספר הטלפון שלך אינו רשום במערכת הפנקס. להרשמה היכנס לאתר.', 'static');
+        return res.json({ action: 'playback', file });
     }
 
     // משתמש חסום
     if (user.is_blocked) {
         console.log(`[IVR] 🚫 משתמש חסום: ${user.id}`);
-        return res.json({
-            action: 'playback',
-            text: 'החשבון שלך חסום. לפרטים פנה לצוות התמיכה דרך האתר.'
-        });
+        const file = await textToUrl('החשבון שלך חסום. לפרטים פנה לצוות התמיכה דרך האתר.', 'static');
+        return res.json({ action: 'playback', file });
     }
 
     // משתמש לא מאושר
     if (!user.is_approved) {
         console.log(`[IVR] ⏳ משתמש ממתין לאישור: ${user.id}`);
-        return res.json({
-            action: 'playback',
-            text: 'הפרופיל שלך עדיין ממתין לאישור. נעדכן אותך במייל כשיאושר.'
-        });
+        const file = await textToUrl('הפרופיל שלך עדיין ממתין לאישור. נעדכן אותך במייל כשיאושר.', 'static');
+        return res.json({ action: 'playback', file });
     }
 
-    // משתמש תקין — לוג הצלחה (שלבי PIN ותפריטים יתווספו בשלב הבא)
+    // משתמש תקין — ברכת כניסה + בקשת הקשה (שלבי PIN ותפריטים בשלב הבא)
     console.log(`[IVR] ✅ משתמש מזוהה: ${user.id} | ${user.full_name}`);
-    return res.json({
-        action: 'read',
-        text: `שלום ${user.full_name}. המערכת בפיתוח. נתראה בקרוב.`,
-        numDigits: 1,
-        timeout: 5
-    });
+    const firstName = user.full_name?.split(' ')[0] || user.full_name;
+    const file = await textToUrl(`שלום ${firstName}. המערכת בפיתוח. נתראה בקרוב.`, 'dynamic');
+    return res.json({ action: 'read', file, numDigits: 1, timeout: 5 });
 });
 
 // ==========================================

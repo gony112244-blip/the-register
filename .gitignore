@@ -1,5 +1,7 @@
 node_modules
 .env
+google-tts-credentials.json
+*credentials*.json
 uploads
 .DS_Store
 dist
