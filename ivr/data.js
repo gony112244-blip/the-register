@@ -330,10 +330,53 @@ async function rejectPhotoRequestFromIvr(requesterId, userId) {
     return result.rowCount > 0 ? 'ok' : 'not_found';
 }
 
+// ==========================================
+// הודעות חשובות — מסוננות לפי האפיון
+// ==========================================
+
+/**
+ * שליפת הודעות חשובות שלא נקראו — מסוננות:
+ *   ✅ admin_message     — הודעה אישית מהשדכנית
+ *   ✅ photo_request     — בקשת תמונה (מישהו מבקש לראות)
+ *   ✅ photo_response    — תגובה לבקשת תמונה שלי
+ *   ✅ system מ-user אמיתי — ביטול פנייה / ביטול חיבור
+ *   ❌ system מ-user 1  — ברוכים הבאים, אישור פרופיל, תזכורות
+ */
+async function getMessagesForIvr(userId, offset = 0, limit = 1) {
+    const result = await pool.query(
+        `SELECT m.id, m.content, m.type, m.created_at,
+                u.full_name AS from_name
+         FROM messages m
+         LEFT JOIN users u ON u.id = m.from_user_id
+         WHERE m.to_user_id = $1
+           AND m.is_read = FALSE
+           AND (
+               m.type IN ('admin_message', 'photo_request', 'photo_response')
+               OR (m.type = 'system' AND m.from_user_id IS NOT NULL AND m.from_user_id != 1)
+           )
+         ORDER BY m.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
+ * סימון הודעה כנקראה אחרי שהמשתמש שמע אותה.
+ */
+async function markMessageReadFromIvr(messageId, userId) {
+    await pool.query(
+        `UPDATE messages SET is_read = TRUE
+         WHERE id = $1 AND to_user_id = $2`,
+        [messageId, userId]
+    );
+}
+
 module.exports = {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr
+    getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
+    getMessagesForIvr, markMessageReadFromIvr
 };

@@ -13,7 +13,8 @@ const {
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr
+    getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
+    getMessagesForIvr, markMessageReadFromIvr
 } = require('./data');
 
 // ==========================================
@@ -548,6 +549,86 @@ router.get('/call', async (req, res) => {
             'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`פנייה שהגיעה אליך. ${reqText} ${actionsText}`, 'dynamic');
+        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+    }
+
+    // --- מצב: messages — הודעות חשובות ---
+    if (session.state === 'messages') {
+        const data      = session.data || {};
+        let   offset    = parseInt(data.page || 0, 10);
+        const msgId     = data.currentMessageId   || null;
+        const msgText   = data.currentMessageText || null;
+
+        // פעולה על הודעה שכבר נטענה
+        if (key && msgId) {
+            if (key === '#') {
+                await updateSession(enterId, 'menu');
+                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            // מקש 1 — האזנה חוזרת
+            if (key === '1' && msgText) {
+                const replayText  = msgText;
+                const actionsText = g(user.gender,
+                    'הקש אחת להאזנה חוזרת. הקש שמונה להודעה הבאה. הקש סולמית לתפריט הראשי.',
+                    'הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה. הקשי סולמית לתפריט הראשי.'
+                );
+                const file = await textToUrl(`${replayText} ${actionsText}`, 'dynamic');
+                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            }
+
+            // מקש 8 — הודעה הבאה (סמן כנקראה)
+            if (key === '8') {
+                await markMessageReadFromIvr(msgId, user.id).catch(() => {});
+                offset++;
+                await updateSession(enterId, 'messages', { page: offset });
+                const file = await textToUrl('עוברים להודעה הבאה.', 'static');
+                return res.json({ action: 'playback', file });
+            }
+
+            // מקש לא מוכר
+            const actionsText = g(user.gender,
+                'מקש לא מוכר. הקש אחת להאזנה חוזרת. הקש שמונה להודעה הבאה.',
+                'מקש לא מוכר. הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה.'
+            );
+            const file = await textToUrl(actionsText, 'static');
+            return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        }
+
+        // טעינת ההודעה הבאה
+        let messages = [];
+        try {
+            messages = await getMessagesForIvr(user.id, offset, 1);
+        } catch (err) {
+            console.error('[IVR] ❌ שגיאה בשליפת הודעות:', err.message);
+        }
+
+        if (messages.length === 0) {
+            await updateSession(enterId, 'menu');
+            const file = await textToUrl('אין הודעות חדשות הדורשות תשומת לבך. חוזרים לתפריט הראשי.', 'static');
+            return res.json({ action: 'playback', file });
+        }
+
+        const msg = messages[0];
+
+        // ניקוי אמוג'י והכנת הטקסט לקריאה
+        const cleanContent = (msg.content || '')
+            .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
+            .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+            .trim();
+
+        await updateSession(enterId, 'messages', {
+            page:               offset,
+            currentMessageId:   msg.id,
+            currentMessageText: cleanContent
+        });
+
+        const actionsText = g(user.gender,
+            'הקש אחת להאזנה חוזרת. הקש שמונה להודעה הבאה. הקש סולמית לתפריט הראשי.',
+            'הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה. הקשי סולמית לתפריט הראשי.'
+        );
+        const file = await textToUrl(`הודעה חדשה: ${cleanContent} ${actionsText}`, 'dynamic');
         return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
     }
 
