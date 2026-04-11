@@ -14,7 +14,9 @@ function validateIvrToken(token) {
         console.error('[IVR] ⚠️ IVR_SERVICE_TOKEN לא מוגדר ב-.env');
         return false;
     }
-    return token === expected;
+    // ימות המשיח לפעמים מצרפים נתונים לטוקן אחרי '?' — מנקים אותם לפני ההשוואה
+    const clean = (token || '').split('?')[0].trim();
+    return clean === expected;
 }
 
 // ==========================================
