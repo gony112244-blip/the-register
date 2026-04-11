@@ -166,14 +166,13 @@ function buildMatchFullText(match) {
 // GET /ivr/call — webhook ראשי מימות משיח
 // ==========================================
 router.get('/call', async (req, res) => {
-    // לוג זמני — לזיהוי שמות הפרמטרים שימות שולחים
-    console.log('[IVR] 🔍 query params:', JSON.stringify(req.query));
+    // ימות המשיח שולחים: ApiPhone, ApiExtension, ApiYFCallId
+    const phone   = req.query.ApiPhone    || req.query.phone;
+    const digits  = req.query.ApiExtension || req.query.digits;
+    const enterId = req.query.ApiYFCallId  || req.query.EnterID || req.query.enterId || `${phone}_${Date.now()}`;
+    const key     = digits?.trim() || null;
 
-    const phone  = req.query.phone || req.query.Phone || req.query.phoneNumber || req.query.caller || req.query.CallerID || req.query.msisdn || req.query.Msisdn;
-    const digits = req.query.digits || req.query.Digits || req.query.digit || req.query.input;
-    const key = digits?.trim() || null;
-
-    console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${digits || 'none'}`);
+    console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${digits || 'none'} | enterId: ${enterId}`);
 
     // --- שלב 3: זיהוי משתמש לפי phone ---
     if (!phone) {
@@ -222,8 +221,6 @@ router.get('/call', async (req, res) => {
     console.log(`[IVR] ✅ משתמש מזוהה: ${user.id} | ${user.full_name}`);
     const firstName = user.full_name?.split(' ')[0] || user.full_name;
 
-    // מזהה ייחודי לשיחה (ימות שולחים EnterID, fallback לפי phone+timestamp)
-    const enterId = req.query.EnterID || req.query.enterID || `${phone}_${Date.now()}`;
 
     let session;
     try {
