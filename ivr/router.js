@@ -1,13 +1,14 @@
 /**
  * IVR Router — נתיב /ivr/call
  * ימות משיח שולחים GET לכאן בכל אינטראקציה עם המתקשר.
- * השרת מחזיר JSON עם פקודה (playback / read / hangup).
+ * השרת מחזיר טקסט פשוט בפורמט ימות המשיח (id_list_message / read / go_to_folder).
  */
 
 const express = require('express');
 const router = express.Router();
 const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateUserPin } = require('./auth');
-const { textToUrl, numberToHebrew } = require('./tts');
+const { numberToHebrew } = require('./tts');
+async function textToUrl(text) { return text; }
 const {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
@@ -24,7 +25,7 @@ router.use((req, res, next) => {
     const { token } = req.query;
     if (!validateIvrToken(token)) {
         console.warn(`[IVR] ❌ Token לא תקין | IP: ${req.ip} | token: ${token}`);
-        return res.status(403).json({ error: 'Forbidden' });
+        return res.status(403).type('text').send('Forbidden');
     }
     next();
 });
@@ -163,21 +164,48 @@ function buildMatchFullText(match) {
 }
 
 // ==========================================
+// helpers — פורמט תגובה לימות המשיח
+// ימות מצפים לטקסט פשוט (plain text), לא JSON.
+// ==========================================
+function sanitizeForYemot(text) {
+    return (text || '')
+        .replace(/\./g, ',')
+        .replace(/-/g, ' ')
+        .replace(/["'&|]/g, '');
+}
+function yemotPlayback(res, text) {
+    const clean = sanitizeForYemot(text);
+    console.log(`[IVR] ← playback: ${clean.substring(0, 80)}...`);
+    res.type('text').send(`id_list_message=t-${clean}`);
+}
+function yemotRead(res, text, varName = 'digits', maxDigits = 1, minDigits = 1, timeout = 8) {
+    const clean = sanitizeForYemot(text);
+    console.log(`[IVR] ← read(${varName},${minDigits}-${maxDigits}): ${clean.substring(0, 80)}...`);
+    res.type('text').send(`read=t-${clean}=${varName},,${maxDigits},${minDigits},${timeout},NO,no,yes`);
+}
+function yemotHangup(res) {
+    console.log('[IVR] ← hangup');
+    res.type('text').send('go_to_folder=hangup');
+}
+
+// ==========================================
 // GET /ivr/call — webhook ראשי מימות משיח
 // ==========================================
 router.get('/call', async (req, res) => {
-    // ימות המשיח שולחים: ApiPhone, ApiExtension, ApiYFCallId
+    // ימות המשיח שולחים: ApiPhone, ApiCallId, ApiDID, ApiRealDID, ApiExtension, ApiTime
+    // ההקשות של המשתמש מגיעות בפרמטר ששמו נקבע ב-read (אנחנו קוראים לו "digits")
     const phone   = req.query.ApiPhone    || req.query.phone;
-    const digits  = req.query.ApiExtension || req.query.digits;
-    const enterId = req.query.ApiYFCallId  || req.query.EnterID || req.query.enterId || `${phone}_${Date.now()}`;
+    const digits  = req.query.digits;
+    const enterId = req.query.ApiCallId   || req.query.ApiYFCallId || req.query.EnterID || req.query.enterId || `${phone}_${Date.now()}`;
     const key     = digits?.trim() || null;
 
     console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${digits || 'none'} | enterId: ${enterId}`);
+    console.log(`[IVR] 🔍 כל הפרמטרים:`, JSON.stringify(req.query));
 
     // --- שלב 3: זיהוי משתמש לפי phone ---
     if (!phone) {
         console.warn('[IVR] ⚠️ לא התקבל phone');
-        return res.json({ action: 'hangup' });
+        return yemotHangup(res);
     }
 
     let user;
@@ -185,14 +213,14 @@ router.get('/call', async (req, res) => {
         user = await getUserByPhone(phone);
     } catch (err) {
         console.error('[IVR] ❌ שגיאת DB בזיהוי משתמש:', err.message);
-        return res.json({ action: 'hangup' });
+        return yemotHangup(res);
     }
 
     // משתמש לא רשום במערכת (לא ידוע המגדר)
     if (!user) {
         console.log(`[IVR] 👤 מספר לא מזוהה: ${phone}`);
         const file = await textToUrl('מספר הטלפון אינו רשום במערכת הפנקס. להרשמה, יש להיכנס לאתר פינקס.', 'static');
-        return res.json({ action: 'playback', file });
+        return yemotPlayback(res, file);
     }
 
     // משתמש חסום
@@ -203,7 +231,7 @@ router.get('/call', async (req, res) => {
             'החשבון שלך חסום. לפרטים, פני לצוות התמיכה דרך האתר.'
         );
         const file = await textToUrl(text, 'static');
-        return res.json({ action: 'playback', file });
+        return yemotPlayback(res, file);
     }
 
     // משתמש לא מאושר
@@ -214,7 +242,7 @@ router.get('/call', async (req, res) => {
             'הפרופיל שלך עדיין ממתינה לאישור. נעדכן אותך במייל כאשר תאושרי.'
         );
         const file = await textToUrl(text, 'static');
-        return res.json({ action: 'playback', file });
+        return yemotPlayback(res, file);
     }
 
     // משתמש תקין — ניהול session ו-PIN
@@ -227,7 +255,7 @@ router.get('/call', async (req, res) => {
         session = await getOrCreateSession(enterId, user.id, phone);
     } catch (err) {
         console.error('[IVR] ❌ שגיאת session:', err.message);
-        return res.json({ action: 'hangup' });
+        return yemotHangup(res);
     }
 
     // ==========================================
@@ -244,7 +272,7 @@ router.get('/call', async (req, res) => {
                 `שלום ${firstName}, ברוכה הבאת לפנקס.`
             );
             const file = await textToUrl(welcomeText, 'dynamic');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         // יש PIN → בקש אותו (dynamic כי כולל את שם המשתמש)
@@ -254,7 +282,7 @@ router.get('/call', async (req, res) => {
             `שלום ${firstName}. אנא הזיני את קוד הכניסה שלך, ארבע ספרות.`
         );
         const file = await textToUrl(pinPromptText, 'dynamic');
-        return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+        return yemotRead(res, file, 'digits', 4, 4, 15);
     }
 
     // --- מצב: waiting_pin — ממתין לקוד ---
@@ -263,7 +291,7 @@ router.get('/call', async (req, res) => {
         // חזרה לבקשת PIN (timeout או לחיצה שגויה)
         const repeatText = g(user.gender, 'הזן את קוד הכניסה שלך, ארבע ספרות.', 'הזיני את קוד הכניסה שלך, ארבע ספרות.');
         const file = await textToUrl(repeatText, 'static');
-        return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+        return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
         const pinResult = await checkPin(user.id, digits);
@@ -276,18 +304,18 @@ router.get('/call', async (req, res) => {
                 `קוד נכון. ברוכה הבאת, ${firstName}.`
             );
             const file = await textToUrl(welcomeText, 'dynamic');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         if (pinResult === 'blocked') {
             const file = await textToUrl('הגישה חסומה לשלושים דקות, עקב ניסיונות כושלים חוזרים. נסה שוב מאוחר יותר.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         // PIN שגוי — נסה שוב
         const retryText = g(user.gender, 'קוד שגוי. אנא נסה שוב.', 'קוד שגוי. אנא נסי שוב.');
         const file = await textToUrl(retryText, 'static');
-        return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+        return yemotRead(res, file, 'digits', 4, 4, 15);
     }
 
     // --- מצב: menu — תפריט ראשי ---
@@ -297,36 +325,36 @@ router.get('/call', async (req, res) => {
         if (key === '1') {
             await updateSession(enterId, 'matches', { page: 0 });
             const file = await textToUrl('מעבר להצעות חדשות.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
         if (key === '2') {
             await updateSession(enterId, 'requests', { page: 0 });
             const file = await textToUrl('מעבר לפניות שהגיעו אליך.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
         if (key === '3') {
             await updateSession(enterId, 'my_sent');
             const file = await textToUrl('מעבר לסטטוס הפניות שלך.', 'static');
-            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+            return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '4') {
             await updateSession(enterId, 'photos');
             const file = await textToUrl('מעבר לניהול תמונות.', 'static');
-            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+            return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '5') {
             await updateSession(enterId, 'messages');
             const file = await textToUrl('מעבר להודעות חשובות.', 'static');
-            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+            return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '9') {
             await updateSession(enterId, 'settings');
             const file = await textToUrl('מעבר להגדרות.', 'static');
-            return res.json({ action: 'playback', file }); // יתפתח בשלב הבא
+            return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '0') {
             const file = await textToUrl('לתמיכה ולעזרה, יש להיכנס לאתר פינקס.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         // הקשה שגויה — חזרה לתפריט
@@ -350,7 +378,7 @@ router.get('/call', async (req, res) => {
 
         const fullText = `${statusText} ${menuText}`;
         const file = await textToUrl(fullText, 'dynamic');
-        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
     // --- מצב: matches — הצעות חדשות ---
@@ -364,7 +392,7 @@ router.get('/call', async (req, res) => {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             if (key === '4') {
@@ -378,7 +406,7 @@ router.get('/call', async (req, res) => {
                     'הקשי חמש לתיאור מלא. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
                 );
                 const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             if (key === '5') {
@@ -392,7 +420,7 @@ router.get('/call', async (req, res) => {
                     'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
                 );
                 const file = await textToUrl(`${fullText} ${actionsText}`, 'dynamic');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             let responseText = '';
@@ -421,14 +449,14 @@ router.get('/call', async (req, res) => {
                     'מקש לא מוכר. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
                 );
                 const file = await textToUrl(actionsText, 'static');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             // עבור להצעה הבאה
             offset++;
             await updateSession(enterId, 'matches', { page: offset });
             const file = await textToUrl(responseText, 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         // טעינת ההצעה הבאה (כניסה ראשונה, או callback אחרי פעולה)
@@ -442,7 +470,7 @@ router.get('/call', async (req, res) => {
         if (matches.length === 0) {
             await updateSession(enterId, 'menu');
             const file = await textToUrl('סיימנו את כל ההצעות החדשות. חוזרים לתפריט הראשי.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         const match = matches[0];
@@ -454,7 +482,7 @@ router.get('/call', async (req, res) => {
             'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`${matchText} ${actionsText}`, 'dynamic');
-        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
     // --- מצב: requests — פניות שהגיעו אליי ---
@@ -468,7 +496,7 @@ router.get('/call', async (req, res) => {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             if (key === '4') {
@@ -481,7 +509,7 @@ router.get('/call', async (req, res) => {
                     'הקשי חמש לתיאור מלא. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
                 );
                 const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             if (key === '5') {
@@ -494,7 +522,7 @@ router.get('/call', async (req, res) => {
                     'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
                 );
                 const file = await textToUrl(`${fullText} ${actionsText}`, 'dynamic');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             let responseText = '';
@@ -518,13 +546,13 @@ router.get('/call', async (req, res) => {
                     'מקש לא מוכר. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
                 );
                 const file = await textToUrl(actionsText, 'static');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             offset++;
             await updateSession(enterId, 'requests', { page: offset });
             const file = await textToUrl(responseText, 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         // טעינת הפנייה הבאה
@@ -538,7 +566,7 @@ router.get('/call', async (req, res) => {
         if (reqs.length === 0) {
             await updateSession(enterId, 'menu');
             const file = await textToUrl('אין פניות ממתינות לתשובתך. חוזרים לתפריט הראשי.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         const req = reqs[0];
@@ -550,7 +578,7 @@ router.get('/call', async (req, res) => {
             'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`פנייה שהגיעה אליך. ${reqText} ${actionsText}`, 'dynamic');
-        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
     // --- מצב: messages — הודעות חשובות ---
@@ -565,7 +593,7 @@ router.get('/call', async (req, res) => {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             // מקש 1 — האזנה חוזרת
@@ -576,7 +604,7 @@ router.get('/call', async (req, res) => {
                     'הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה. הקשי סולמית לתפריט הראשי.'
                 );
                 const file = await textToUrl(`${replayText} ${actionsText}`, 'dynamic');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             // מקש 8 — הודעה הבאה (סמן כנקראה)
@@ -585,7 +613,7 @@ router.get('/call', async (req, res) => {
                 offset++;
                 await updateSession(enterId, 'messages', { page: offset });
                 const file = await textToUrl('עוברים להודעה הבאה.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             // מקש לא מוכר
@@ -594,7 +622,7 @@ router.get('/call', async (req, res) => {
                 'מקש לא מוכר. הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה.'
             );
             const file = await textToUrl(actionsText, 'static');
-            return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
         // טעינת ההודעה הבאה
@@ -608,7 +636,7 @@ router.get('/call', async (req, res) => {
         if (messages.length === 0) {
             await updateSession(enterId, 'menu');
             const file = await textToUrl('אין הודעות חדשות הדורשות תשומת לבך. חוזרים לתפריט הראשי.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         const msg = messages[0];
@@ -630,7 +658,7 @@ router.get('/call', async (req, res) => {
             'הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`הודעה חדשה: ${cleanContent} ${actionsText}`, 'dynamic');
-        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
     // --- מצב: settings — שינוי PIN ---
@@ -642,7 +670,7 @@ router.get('/call', async (req, res) => {
         if (key === '#') {
             await updateSession(enterId, 'menu');
             const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         // --- שלב א': כניסה ראשונה — בקש PIN נוכחי ---
@@ -653,7 +681,7 @@ router.get('/call', async (req, res) => {
                 'להחלפת קוד הכניסה, הקשי את הקוד הנוכחי, ארבע ספרות.'
             );
             const file = await textToUrl(text, 'static');
-            return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
         // --- שלב ב': אימות PIN נוכחי ---
@@ -664,7 +692,7 @@ router.get('/call', async (req, res) => {
                     'אנא הקשי את קוד הכניסה הנוכחי.'
                 );
                 const file = await textToUrl(text, 'static');
-                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+                return yemotRead(res, file, 'digits', 4, 4, 15);
             }
 
             const pinResult = await checkPin(user.id, key).catch(() => 'error');
@@ -676,13 +704,13 @@ router.get('/call', async (req, res) => {
                     'קוד נכון. הקשי קוד חדש בן ארבע ספרות.'
                 );
                 const file = await textToUrl(text, 'static');
-                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+                return yemotRead(res, file, 'digits', 4, 4, 15);
             }
 
             if (pinResult === 'blocked') {
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('הכניסה נחסמה זמנית עקב ניסיונות שגויים. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             // PIN שגוי — עד 3 ניסיונות
@@ -690,7 +718,7 @@ router.get('/call', async (req, res) => {
             if (attempts >= 3) {
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('קוד שגוי יותר מדי פעמים. חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
             await updateSession(enterId, 'settings', { step: 'wait_current', attempts });
             const text = g(user.gender,
@@ -698,7 +726,7 @@ router.get('/call', async (req, res) => {
                 `קוד שגוי. נסי שוב. הקשי את קוד הכניסה הנוכחי.`
             );
             const file = await textToUrl(text, 'static');
-            return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
         // --- שלב ג': קבלת PIN חדש ---
@@ -709,7 +737,7 @@ router.get('/call', async (req, res) => {
                     'הקשי קוד חדש בן ארבע ספרות.'
                 );
                 const file = await textToUrl(text, 'static');
-                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+                return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             if (!/^\d{4}$/.test(key)) {
                 const text = g(user.gender,
@@ -717,7 +745,7 @@ router.get('/call', async (req, res) => {
                     'קוד לא תקין. הקשי ארבע ספרות בדיוק.'
                 );
                 const file = await textToUrl(text, 'static');
-                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+                return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             await updateSession(enterId, 'settings', { step: 'wait_confirm', newPin: key });
             const text = g(user.gender,
@@ -725,7 +753,7 @@ router.get('/call', async (req, res) => {
                 'הקשי שוב את הקוד החדש לאישור.'
             );
             const file = await textToUrl(text, 'static');
-            return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+            return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
         // --- שלב ד': אישור PIN חדש ---
@@ -736,7 +764,7 @@ router.get('/call', async (req, res) => {
                     'הקשי שוב את הקוד החדש לאישור.'
                 );
                 const file = await textToUrl(text, 'static');
-                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+                return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             if (key !== data.newPin) {
                 await updateSession(enterId, 'settings', { step: 'wait_new' });
@@ -745,7 +773,7 @@ router.get('/call', async (req, res) => {
                     'הקודים אינם תואמים. הקשי קוד חדש בן ארבע ספרות.'
                 );
                 const file = await textToUrl(text, 'static');
-                return res.json({ action: 'read', file, numDigits: 4, timeout: 15 });
+                return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             try {
                 await updateUserPin(user.id, data.newPin);
@@ -755,19 +783,19 @@ router.get('/call', async (req, res) => {
                     'הקוד עודכן בהצלחה. חוזרים לתפריט הראשי.'
                 );
                 const file = await textToUrl(text, 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             } catch (err) {
                 console.error('[IVR] ❌ שגיאה בעדכון PIN:', err.message);
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('אירעה תקלה בעדכון הקוד. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
         }
 
         // שלב לא מוכר
         await updateSession(enterId, 'menu');
         const file = await textToUrl('אירעה תקלה. חוזרים לתפריט הראשי.', 'static');
-        return res.json({ action: 'playback', file });
+        return yemotPlayback(res, file);
     }
 
     // --- מצב: photos — ניהול בקשות תמונה ---
@@ -781,7 +809,7 @@ router.get('/call', async (req, res) => {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             let responseText = '';
@@ -805,13 +833,13 @@ router.get('/call', async (req, res) => {
                     'מקש לא מוכר. הקשי אחת — הסכמה. הקשי שתיים — דחייה. הקשי שמונה — דלגי.'
                 );
                 const file = await textToUrl(actionsText, 'static');
-                return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             offset++;
             await updateSession(enterId, 'photos', { page: offset });
             const file = await textToUrl(responseText, 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         // טעינת הבקשה הבאה
@@ -825,7 +853,7 @@ router.get('/call', async (req, res) => {
         if (photos.length === 0) {
             await updateSession(enterId, 'menu');
             const file = await textToUrl('אין בקשות תמונה ממתינות. חוזרים לתפריט הראשי.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         const photo    = photos[0];
@@ -844,7 +872,7 @@ router.get('/call', async (req, res) => {
             'הקשי אחת — הסכמי לחשיפה. הקשי שתיים — דחי את הבקשה. הקשי שמונה — דלגי. הקשי סולמית לתפריט הראשי.'
         );
         const file = await textToUrl(`${photoText} ${actionsText}`, 'dynamic');
-        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
     // --- מצב: my_sent — סטטוס פניות שיצאו ממני ---
@@ -859,7 +887,7 @@ router.get('/call', async (req, res) => {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
                 const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             // ביטול פנייה ממתינה (רק כשסטטוס pending)
@@ -871,7 +899,7 @@ router.get('/call', async (req, res) => {
                 offset++;
                 await updateSession(enterId, 'my_sent', { page: offset });
                 const file = await textToUrl(responseText, 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             // דילוג (key 8) — מתאים לכל סטטוס
@@ -879,7 +907,7 @@ router.get('/call', async (req, res) => {
                 offset++;
                 await updateSession(enterId, 'my_sent', { page: offset });
                 const file = await textToUrl('עוברים לפנייה הבאה.', 'static');
-                return res.json({ action: 'playback', file });
+                return yemotPlayback(res, file);
             }
 
             // מקש לא מוכר
@@ -891,7 +919,7 @@ router.get('/call', async (req, res) => {
                     'מקש לא מוכר. הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
                     'מקש לא מוכר. הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.');
             const file = await textToUrl(unknownText, 'static');
-            return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+            return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
         // טעינת הפנייה הבאה
@@ -905,7 +933,7 @@ router.get('/call', async (req, res) => {
         if (sent.length === 0) {
             await updateSession(enterId, 'menu');
             const file = await textToUrl('אין פניות פעילות שיצאו ממך. חוזרים לתפריט הראשי.', 'static');
-            return res.json({ action: 'playback', file });
+            return yemotPlayback(res, file);
         }
 
         const conn = sent[0];
@@ -949,12 +977,12 @@ router.get('/call', async (req, res) => {
         });
 
         const file = await textToUrl(`${connText} ${actionsText}`, 'dynamic');
-        return res.json({ action: 'read', file, numDigits: 1, timeout: 8 });
+        return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
     // מצב לא מוכר — ניתוק
     console.warn(`[IVR] ⚠️ session state לא מוכר: ${session.state}`);
-    return res.json({ action: 'hangup' });
+    return yemotHangup(res);
 });
 
 // ==========================================
@@ -963,7 +991,7 @@ router.get('/call', async (req, res) => {
 router.get('/hangup', async (req, res) => {
     const { phone } = req.query;
     console.log(`[IVR] 📵 ניתוק | phone: ${phone}`);
-    return res.json({ status: 'ok' });
+    return res.type('text').send('ok');
 });
 
 module.exports = router;
