@@ -166,8 +166,12 @@ function buildMatchFullText(match) {
 // GET /ivr/call — webhook ראשי מימות משיח
 // ==========================================
 router.get('/call', async (req, res) => {
-    const { phone, digits } = req.query;
-    const key = digits?.trim() || null; // המקש שנלחץ — זמין בכל מצב
+    // לוג זמני — לזיהוי שמות הפרמטרים שימות שולחים
+    console.log('[IVR] 🔍 query params:', JSON.stringify(req.query));
+
+    const phone  = req.query.phone || req.query.Phone || req.query.phoneNumber || req.query.caller || req.query.CallerID || req.query.msisdn || req.query.Msisdn;
+    const digits = req.query.digits || req.query.Digits || req.query.digit || req.query.input;
+    const key = digits?.trim() || null;
 
     console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${digits || 'none'}`);
 
