@@ -1,4 +1,5 @@
-require('dotenv').config(); // חובה: טעינת המשתנים הסודיים (.env)
+// override: true — קובץ .env מנצח משתני סביבה ישנים ש-PM2 או השרת מזריקים (אחרת EMAIL_* לא מתעדכן)
+require('dotenv').config({ override: true }); // חובה: טעינת המשתנים הסודיים (.env)
 const cors = require('cors');
 const express = require('express');
 const pool = require('./db');
