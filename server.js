@@ -1769,6 +1769,7 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: "טווח הגובה אינו תקין", missingFields: ['search_height_min', 'search_height_max'] });
         }
         if (missingFields.length > 0) {
+            console.error(`[update-safe-fields 400] userId=${userId} gender=${mergedProfile.gender} missing=${JSON.stringify([...new Set(missingFields)])}`);
             return res.status(400).json({ message: "לא ניתן לשמור לפני שהפרופיל מלא", missingFields: [...new Set(missingFields)] });
         }
 
