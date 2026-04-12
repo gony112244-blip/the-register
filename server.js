@@ -133,6 +133,12 @@ const { getEmailTemplate } = require('./emailTemplates');
 async function sendEmail(to, subject, htmlContent, userId = null) {
     if (!transporter) await initMailer();
 
+    // אם ה-transporter עדיין null לאחר initMailer — נחזיר false במקום throw
+    if (!transporter) {
+        console.error('❌ Email transporter is not available (initMailer failed).');
+        return false;
+    }
+
     // אם יש userId, בדוק אם המשתמש רוצה לקבל מיילים
     if (userId) {
         try {
@@ -178,7 +184,7 @@ async function sendEmail(to, subject, htmlContent, userId = null) {
         }
         return true;
     } catch (err) {
-        console.error("❌ Error sending email:", err);
+        console.error(`❌ Error sending email to ${to}:`, err.message || err);
         return false;
     }
 }
@@ -940,21 +946,36 @@ app.get('/health', async (req, res) => {
 // אחסון קודי איפוס (בזיכרון - בפרודקשן צריך Redis)
 const resetCodes = new Map();
 
-// שלב 1: שליחת קוד אימוש
+// שלב 1: שליחת קוד אימות
 app.post('/forgot-password', async (req, res) => {
     const { phone, method, email: emailFromClient } = req.body;
 
+    // ולידציה בסיסית
+    if (!phone) {
+        return res.status(400).json({ message: "נא להזין מספר טלפון" });
+    }
+    if (!method) {
+        return res.status(400).json({ message: "נא לבחור שיטת קבלת קוד" });
+    }
+
+    // ניקוי מספר הטלפון
+    const cleanPhone = phone.replace(/\D/g, '').trim();
+
     try {
         // 1. בדיקה אם המשתמש קיים ושליפת המייל שלו מהדאטאבייס (אבטחה)
-        const result = await pool.query('SELECT id, email, full_name FROM users WHERE phone = $1', [phone]);
+        const result = await pool.query(
+            'SELECT id, email, full_name FROM users WHERE phone = $1',
+            [cleanPhone]
+        );
 
         if (result.rows.length === 0) {
+            // נחזיר 404 אבל הודעה כללית (לא לחשוף אם הטלפון קיים)
             return res.status(404).json({ message: "מספר הטלפון לא נמצא במערכת" });
         }
 
         const user = result.rows[0];
         
-        // קביעת כתובת המייל - עדיפות למה שיש ב-DB, אם אין (ורק אם זה בטוח) משתמשים במה שנשלח
+        // קביעת כתובת המייל - עדיפות למה שיש ב-DB, אם אין משתמשים במה שנשלח מהלקוח
         const targetEmail = user.email || emailFromClient;
 
         if (method === 'email' && !targetEmail) {
@@ -965,7 +986,7 @@ app.post('/forgot-password', async (req, res) => {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
 
         // 3. שמירת הקוד בזיכרון (resetCodes)
-        resetCodes.set(phone, {
+        resetCodes.set(cleanPhone, {
             code,
             expires: Date.now() + 10 * 60 * 1000,
             attempts: 0,
@@ -974,29 +995,30 @@ app.post('/forgot-password', async (req, res) => {
 
         // 4. שליחה לפי השיטה שנבחרה
         if (method === 'email') {
+            console.log(`[forgot-password] Sending reset code to email: ${targetEmail} for phone: ${cleanPhone}`);
             const sent = await sendTemplateEmail(targetEmail, 'reset_password', {
                 code,
-                fullName: user.full_name
+                fullName: user.full_name || ''
             });
 
             if (sent) {
-                res.json({ message: "📧 קוד אימות נשלח למייל שלך!" });
+                return res.json({ message: "📧 קוד אימות נשלח למייל שלך!" });
             } else {
-                res.status(500).json({ message: "תקלה בשליחת המייל, נא לנסות שוב מאוחר יותר" });
+                console.error(`[forgot-password] Failed to send email to ${targetEmail}`);
+                return res.status(500).json({ message: "תקלה בשליחת המייל — אנא נסה שוב מאוחר יותר, או בחר שיטת שיחה קולית." });
             }
         } else if (method === 'call') {
-            // לצרכי פיתוח - מדפיסים ללוג ומחזירים ב-JSON (בפרודקשן להסיר את ה-code מהתגובה)
-            console.log(`📞 שיחה קולית לטלפון ${phone} עם הקוד: ${code}`);
-            res.json({
+            console.log(`📞 שיחה קולית לטלפון ${cleanPhone} עם הקוד: ${code}`);
+            return res.json({
                 message: "📞 שיחה קולית יוצאת אליך עכשיו עם הקוד",
-                code: process.env.NODE_ENV === 'production' ? null : code 
+                code: process.env.NODE_ENV === 'production' ? undefined : code 
             });
         } else {
-            res.status(400).json({ message: "נא לבחור שיטת קבלת קוד" });
+            return res.status(400).json({ message: "נא לבחור שיטת קבלת קוד" });
         }
 
     } catch (err) {
-        console.error("Forgot password error:", err);
+        console.error("[forgot-password] Server error:", err.message || err);
         res.status(500).json({ message: "שגיאת שרת פנימית" });
     }
 });
@@ -1004,21 +1026,22 @@ app.post('/forgot-password', async (req, res) => {
 // שלב 2: אימות הקוד
 app.post('/verify-reset-code', async (req, res) => {
     const { phone, code } = req.body;
+    const cleanPhone = (phone || '').replace(/\D/g, '').trim();
 
-    const stored = resetCodes.get(phone);
+    const stored = resetCodes.get(cleanPhone);
 
     if (!stored) {
         return res.status(400).json({ message: "לא נמצא קוד איפוס. נא לבקש קוד חדש." });
     }
 
     if (Date.now() > stored.expires) {
-        resetCodes.delete(phone);
+        resetCodes.delete(cleanPhone);
         return res.status(400).json({ message: "הקוד פג תוקף. נא לבקש קוד חדש." });
     }
 
     stored.attempts++;
     if (stored.attempts > 5) {
-        resetCodes.delete(phone);
+        resetCodes.delete(cleanPhone);
         return res.status(429).json({ message: "יותר מדי ניסיונות. נא לבקש קוד חדש." });
     }
 
@@ -1034,15 +1057,16 @@ app.post('/verify-reset-code', async (req, res) => {
 // שלב 3: איפוס הסיסמה
 app.post('/reset-password', async (req, res) => {
     const { phone, code, newPassword } = req.body;
+    const cleanPhone = (phone || '').replace(/\D/g, '').trim();
 
-    const stored = resetCodes.get(phone);
+    const stored = resetCodes.get(cleanPhone);
 
     if (!stored || !stored.verified || stored.code !== code) {
         return res.status(400).json({ message: "תהליך האימות לא הושלם. התחל מחדש." });
     }
 
     if (Date.now() > stored.expires) {
-        resetCodes.delete(phone);
+        resetCodes.delete(cleanPhone);
         return res.status(400).json({ message: "פג תוקף. התחל מחדש." });
     }
 
@@ -1051,10 +1075,10 @@ app.post('/reset-password', async (req, res) => {
 
         await pool.query(
             'UPDATE users SET password = $1 WHERE phone = $2',
-            [hashedPassword, phone]
+            [hashedPassword, cleanPhone]
         );
 
-        resetCodes.delete(phone);
+        resetCodes.delete(cleanPhone);
 
         res.json({ message: "הסיסמה שונתה בהצלחה!" });
     } catch (err) {
@@ -1681,10 +1705,10 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
 // שדות רגישים שכן דורשים אישור: full_name, last_name, phone, status,
 //   full_address, father_full_name, mother_full_name, references, rabbi, mechutanim
 const SAFE_FIELDS = new Set([
-    'birth_date', 'country_of_birth', 'city',
+    'birth_date', 'country_of_birth', 'city', 'gender',
     'heritage_sector', 'family_background', 'father_occupation', 'mother_occupation',
     'father_heritage', 'mother_heritage', 'siblings_count', 'sibling_position',
-    'height', 'body_type', 'skin_tone', 'appearance',
+    'height', 'body_type', 'skin_tone', 'appearance', 'head_covering',
     'apartment_help',
     'current_occupation', 'life_aspiration', 'work_field', 'occupation_details',
     'yeshiva_name', 'yeshiva_ketana_name', 'study_place', 'study_field', 'favorite_study',
@@ -1694,7 +1718,7 @@ const SAFE_FIELDS = new Set([
     'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
     'search_body_types', 'search_appearances', 'search_statuses', 'search_backgrounds',
     'search_heritage_sectors', 'mixed_heritage_ok', 'search_financial_min', 'search_financial_discuss',
-    'search_occupations', 'search_life_aspirations',
+    'search_occupations', 'search_life_aspirations', 'search_head_covering',
 ]);
 
 const NUMERIC_FIELDS = new Set(['age', 'height', 'children_count', 'siblings_count', 'sibling_position',
@@ -1712,7 +1736,7 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
         const mergedProfile = { ...currentUserRes.rows[0], ...changes };
         const isMissing = (value) => value === undefined || value === null || value === '';
         const requiredForMatching = [
-            'birth_date', 'gender', 'city', 'status',
+            'birth_date', 'gender', 'city',
             'family_background', 'heritage_sector',
             'height', 'body_type', 'skin_tone', 'appearance',
             'current_occupation',
@@ -1723,6 +1747,9 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
         const missingFields = requiredForMatching.filter((field) => isMissing(mergedProfile[field]));
         if (mergedProfile.gender === 'male' && isMissing(mergedProfile.yeshiva_name)) {
             missingFields.push('yeshiva_name');
+        }
+        if (mergedProfile.gender === 'female' && isMissing(mergedProfile.head_covering)) {
+            missingFields.push('head_covering');
         }
         if (['working', 'both', 'fixed_times'].includes(mergedProfile.current_occupation) && isMissing(mergedProfile.work_field)) {
             missingFields.push('work_field');

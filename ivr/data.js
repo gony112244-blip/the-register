@@ -142,6 +142,51 @@ async function getMatchesForIvr(userId, offset = 0, limit = 1) {
 }
 
 /**
+ * כל ההצעות — כמו getMatchesForIvr אך כולל פרופילים שהוסתרו (דולגו).
+ * מאפשר עיון מחדש בהצעות שנדחו/דולגו.
+ */
+async function getAllMatchesForIvr(userId, offset = 0, limit = 1) {
+    const userResult = await pool.query(
+        `SELECT gender FROM users WHERE id = $1`,
+        [userId]
+    );
+    const user = userResult.rows[0];
+    if (!user || !user.gender) return [];
+
+    const targetGender = user.gender === 'male' ? 'female' : 'male';
+
+    const result = await pool.query(
+        `SELECT id, full_name, age, city, study_place, height,
+                family_background, heritage_sector, current_occupation,
+                body_type, appearance, skin_tone, life_aspiration,
+                work_field, about_me, gender, status, head_covering
+         FROM users
+         WHERE gender       = $1
+           AND is_approved  = TRUE
+           AND is_blocked   = FALSE
+           AND id          != $2
+           AND id NOT IN (
+               SELECT receiver_id FROM connections
+               WHERE sender_id = $2 AND status IN ('active','waiting_for_shadchan','pending')
+           )
+           AND id NOT IN (
+               SELECT sender_id FROM connections
+               WHERE receiver_id = $2 AND status IN ('active','waiting_for_shadchan')
+           )
+           AND id NOT IN (
+               SELECT blocker_id FROM user_blocks WHERE blocked_id = $2
+           )
+           AND id NOT IN (
+               SELECT blocked_id FROM user_blocks WHERE blocker_id = $2
+           )
+         ORDER BY id
+         LIMIT $3 OFFSET $4`,
+        [targetGender, userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
  * שליחת פנייה מהמערכת הטלפונית
  */
 async function sendConnectionFromIvr(senderId, receiverId) {
@@ -384,7 +429,7 @@ async function updateTtsLastPlayed(profileUserId) {
 
 module.exports = {
     getMenuCounts,
-    getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
+    getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,

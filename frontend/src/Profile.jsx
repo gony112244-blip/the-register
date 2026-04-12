@@ -372,7 +372,7 @@ function Profile() {
 
     // שדות שנשמרים מיידית גם אצל משתמש מאושר (לא רגישים)
     const SAFE_FIELDS = new Set([
-        'birth_date', 'country_of_birth', 'city',
+        'birth_date', 'country_of_birth', 'city', 'gender',
         'heritage_sector', 'family_background', 'father_occupation', 'mother_occupation',
         'father_heritage', 'mother_heritage', 'siblings_count', 'sibling_position',
         'height', 'body_type', 'skin_tone', 'appearance', 'head_covering',
