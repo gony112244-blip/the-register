@@ -32,6 +32,17 @@ function loadIndex() {
     try {
         if (fs.existsSync(INDEX_PATH)) {
             ttsIndex = JSON.parse(fs.readFileSync(INDEX_PATH, 'utf8'));
+            let migrated = 0;
+            for (const [hash, entry] of Object.entries(ttsIndex)) {
+                if (entry.yemotPath && !entry.yemotPath.startsWith('/')) {
+                    entry.yemotPath = '/' + entry.yemotPath;
+                    migrated++;
+                }
+            }
+            if (migrated > 0) {
+                saveIndex();
+                console.log(`[TTS] 🔄 אינדקס: ${migrated} נתיבים עודכנו עם / מוביל`);
+            }
             console.log(`[TTS] 📖 אינדקס נטען: ${Object.keys(ttsIndex).length} רשומות`);
         }
     } catch (err) {
@@ -67,7 +78,7 @@ function getHash(text) {
 // ==========================================
 function buildYemotPath(hash) {
     const subdir = hash.slice(0, 2);
-    return `tts_cache/${subdir}/${hash}`;
+    return `/tts_cache/${subdir}/${hash}`;
 }
 
 function buildUploadPath(hash) {
@@ -251,7 +262,7 @@ async function uploadProfileAudio(userId, text, layer = 'L1') {
     const yemotDir = `tts_profiles/${String(userId).slice(-2)}`;
     const yemotFileName = `${userId}_${layer}`;
     const uploadPath = `ivr2:/${yemotDir}/${yemotFileName}.wav`;
-    const yemotPath = `${yemotDir}/${yemotFileName}`;
+    const yemotPath = `/${yemotDir}/${yemotFileName}`;
 
     try {
         const mp3Path = await generateGoogleTts(text, hash);
