@@ -1782,6 +1782,62 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
 });
 
 // --- בקשה לשינוי פרופיל (דורש אישור מנהל) — לשדות רגישים בלבד ---
+// ==========================================
+// GET /api/ivr-settings — הגדרות כניסה לטלפון
+// ==========================================
+app.get('/api/ivr-settings', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT allow_ivr_no_pass, ivr_pin FROM users WHERE id = $1',
+            [req.user.id]
+        );
+        const user = result.rows[0];
+        res.json({
+            allow_ivr_no_pass: user?.allow_ivr_no_pass || false,
+            has_pin: !!(user?.ivr_pin)
+        });
+    } catch (err) {
+        console.error('[IVR Settings GET]', err.message);
+        res.status(500).json({ message: 'שגיאה בשרת' });
+    }
+});
+
+// ==========================================
+// POST /api/ivr-settings — שמירת הגדרות כניסה לטלפון
+// ==========================================
+app.post('/api/ivr-settings', authenticateToken, async (req, res) => {
+    const { allow_ivr_no_pass, new_pin } = req.body;
+    try {
+        if (allow_ivr_no_pass) {
+            // כניסה מהירה — ללא קוד, מנקים גם PIN קיים
+            await pool.query(
+                'UPDATE users SET allow_ivr_no_pass = TRUE, ivr_pin = NULL WHERE id = $1',
+                [req.user.id]
+            );
+        } else if (new_pin) {
+            // כניסה עם קוד חדש
+            if (!/^\d{4}$/.test(new_pin)) {
+                return res.status(400).json({ message: 'הקוד חייב להכיל 4 ספרות בדיוק' });
+            }
+            const pinHash = await bcrypt.hash(new_pin, 10);
+            await pool.query(
+                'UPDATE users SET allow_ivr_no_pass = FALSE, ivr_pin = $1 WHERE id = $2',
+                [pinHash, req.user.id]
+            );
+        } else {
+            // כניסה עם קוד — ללא שינוי קוד קיים
+            await pool.query(
+                'UPDATE users SET allow_ivr_no_pass = FALSE WHERE id = $1',
+                [req.user.id]
+            );
+        }
+        res.json({ success: true, message: 'ההגדרות נשמרו בהצלחה' });
+    } catch (err) {
+        console.error('[IVR Settings POST]', err.message);
+        res.status(500).json({ message: 'שגיאה בשרת' });
+    }
+});
+
 app.post('/request-profile-update', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const changes = req.body.changes; // אובייקט עם השינויים
