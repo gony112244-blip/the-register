@@ -1663,6 +1663,14 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
 
         res.json({ message: "הפרופיל עודכן בהצלחה! ✅", user: updatedUser });
 
+        // יצירת אודיו IVR ברקע (fire & forget)
+        try {
+            const { generateProfileAudio } = require('./ivr/profileAudio');
+            generateProfileAudio(updatedUser).catch(e =>
+                console.error('[ProfileAudio] ❌ background:', e.message)
+            );
+        } catch (e) { /* IVR module not critical */ }
+
     } catch (err) {
         console.error("Update error:", err);
         res.status(500).json({ message: "שגיאה בשמירת הנתונים בשרת" });
@@ -1758,6 +1766,15 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
         const user = updated.rows[0];
         delete user.password;
         res.json({ message: "נשמר!", user });
+
+        // יצירת אודיו IVR ברקע
+        try {
+            const { generateProfileAudio } = require('./ivr/profileAudio');
+            generateProfileAudio(updated.rows[0]).catch(e =>
+                console.error('[ProfileAudio] ❌ background:', e.message)
+            );
+        } catch (e) { /* IVR module not critical */ }
+
     } catch (err) {
         console.error("update-safe-fields error:", err);
         res.status(500).json({ message: "שגיאה בשמירה: " + err.message });
@@ -3429,6 +3446,18 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
         }
 
         res.json({ message: "השינויים אושרו בהצלחה" });
+
+        // יצירת אודיו IVR ברקע אחרי אישור שינויים
+        try {
+            const updatedUserRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+            if (updatedUserRes.rows.length > 0) {
+                const { generateProfileAudio } = require('./ivr/profileAudio');
+                generateProfileAudio(updatedUserRes.rows[0]).catch(e =>
+                    console.error('[ProfileAudio] ❌ background:', e.message)
+                );
+            }
+        } catch (e) { /* IVR module not critical */ }
+
     } catch (err) {
         console.error("[Approve] Error:", err.message, err.detail || '', err.hint || '');
         res.status(500).json({ message: "שגיאה באישור השינויים: " + err.message + (err.detail ? ' | ' + err.detail : '') });
@@ -4296,6 +4325,9 @@ async function updateDbSchema() {
         await pool.query(`ALTER TABLE ivr_sessions ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}'`);
         await pool.query(`ALTER TABLE ivr_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`);
 
+        // עמודת tts_last_played — מתי פרופיל הושמע לאחרונה ב-IVR (לניקוי אודיו ישן)
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tts_last_played TIMESTAMP`);
+
         console.log("✅ DB Schema updated: Wizard columns + IVR tables ensured.");
 
     } catch (err) {
@@ -4651,5 +4683,22 @@ updateDbSchema().then(() => {
 
     app.listen(port, () => {
         console.log(`🚀 שרת השידוכים רץ בפורט ${port}: http://localhost:${port}/status`);
+
+        // העלאת משפטים סטטיים לימות (ברקע, לא חוסם את השרת)
+        if (process.env.YEMOT_NUMBER && process.env.YEMOT_PASSWORD) {
+            const { getAllStaticPhrases } = require('./ivr/static-phrases');
+            const { preloadStaticPhrases } = require('./ivr/tts');
+            const phrases = getAllStaticPhrases();
+            console.log(`[TTS] 📋 ${phrases.length} משפטים סטטיים מוכנים להעלאה`);
+            preloadStaticPhrases(phrases).catch(err =>
+                console.error('[TTS] ❌ שגיאה בהעלאת סטטיים:', err.message)
+            );
+
+            // הפעלת job ניקוי קבצי פרופיל ישנים
+            const { startCleanupScheduler } = require('./ivr/cleanupJob');
+            startCleanupScheduler(pool);
+        } else {
+            console.log('[TTS] ⏭️ YEMOT credentials not set — skipping static phrase upload');
+        }
     });
 });

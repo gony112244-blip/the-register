@@ -372,11 +372,22 @@ async function markMessageReadFromIvr(messageId, userId) {
     );
 }
 
+/**
+ * עדכון tts_last_played — נקרא כשפרופיל מושמע ב-IVR
+ */
+async function updateTtsLastPlayed(profileUserId) {
+    await pool.query(
+        'UPDATE users SET tts_last_played = NOW() WHERE id = $1',
+        [profileUserId]
+    ).catch(() => {});
+}
+
 module.exports = {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
-    getMessagesForIvr, markMessageReadFromIvr
+    getMessagesForIvr, markMessageReadFromIvr,
+    updateTtsLastPlayed
 };

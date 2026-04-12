@@ -7,15 +7,15 @@
 const express = require('express');
 const router = express.Router();
 const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateUserPin } = require('./auth');
-const { numberToHebrew } = require('./tts');
-async function textToUrl(text) { return text; }
+const { textToYemot, numberToHebrew } = require('./tts');
 const {
     getMenuCounts,
     getMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
-    getMessagesForIvr, markMessageReadFromIvr
+    getMessagesForIvr, markMessageReadFromIvr,
+    updateTtsLastPlayed
 } = require('./data');
 
 // ==========================================
@@ -165,23 +165,15 @@ function buildMatchFullText(match) {
 
 // ==========================================
 // helpers — פורמט תגובה לימות המשיח
-// ימות מצפים לטקסט פשוט (plain text), לא JSON.
+// audioSeg = segment מוכן: "f-tts_cache/xx/hash" או "t-text"
 // ==========================================
-function sanitizeForYemot(text) {
-    return (text || '')
-        .replace(/\./g, ',')
-        .replace(/-/g, ' ')
-        .replace(/["'&|]/g, '');
+function yemotPlayback(res, audioSeg) {
+    console.log(`[IVR] ← playback: ${audioSeg.substring(0, 80)}...`);
+    res.type('text').send(`id_list_message=${audioSeg}`);
 }
-function yemotPlayback(res, text) {
-    const clean = sanitizeForYemot(text);
-    console.log(`[IVR] ← playback: ${clean.substring(0, 80)}...`);
-    res.type('text').send(`id_list_message=t-${clean}`);
-}
-function yemotRead(res, text, varName = 'digits', maxDigits = 1, minDigits = 1, timeout = 8) {
-    const clean = sanitizeForYemot(text);
-    console.log(`[IVR] ← read(${varName},${minDigits}-${maxDigits}): ${clean.substring(0, 80)}...`);
-    res.type('text').send(`read=t-${clean}=${varName},,${maxDigits},${minDigits},${timeout},NO,no,yes`);
+function yemotRead(res, audioSeg, varName = 'digits', maxDigits = 1, minDigits = 1, timeout = 8) {
+    console.log(`[IVR] ← read(${varName},${minDigits}-${maxDigits}): ${audioSeg.substring(0, 80)}...`);
+    res.type('text').send(`read=${audioSeg}=${varName},,${maxDigits},${minDigits},${timeout},NO,no,yes`);
 }
 function yemotHangup(res) {
     console.log('[IVR] ← hangup');
@@ -219,7 +211,7 @@ router.get('/call', async (req, res) => {
     // משתמש לא רשום במערכת (לא ידוע המגדר)
     if (!user) {
         console.log(`[IVR] 👤 מספר לא מזוהה: ${phone}`);
-        const file = await textToUrl('מספר הטלפון אינו רשום במערכת הפנקס. להרשמה, יש להיכנס לאתר פינקס.', 'static');
+        const file = await textToYemot('מספר הטלפון אינו רשום במערכת הפנקס. להרשמה, יש להיכנס לאתר פינקס.');
         return yemotPlayback(res, file);
     }
 
@@ -230,7 +222,7 @@ router.get('/call', async (req, res) => {
             'החשבון שלך חסום. לפרטים, פנה לצוות התמיכה דרך האתר.',
             'החשבון שלך חסום. לפרטים, פני לצוות התמיכה דרך האתר.'
         );
-        const file = await textToUrl(text, 'static');
+        const file = await textToYemot(text);
         return yemotPlayback(res, file);
     }
 
@@ -241,7 +233,7 @@ router.get('/call', async (req, res) => {
             'הפרופיל שלך עדיין ממתין לאישור. נעדכן אותך במייל כאשר יאושר.',
             'הפרופיל שלך עדיין ממתינה לאישור. נעדכן אותך במייל כאשר תאושרי.'
         );
-        const file = await textToUrl(text, 'static');
+        const file = await textToYemot(text);
         return yemotPlayback(res, file);
     }
 
@@ -271,7 +263,7 @@ router.get('/call', async (req, res) => {
                 `שלום ${firstName}, ברוך הבא לפנקס.`,
                 `שלום ${firstName}, ברוכה הבאת לפנקס.`
             );
-            const file = await textToUrl(welcomeText, 'dynamic');
+            const file = await textToYemot(welcomeText);
             return yemotPlayback(res, file);
         }
 
@@ -281,7 +273,7 @@ router.get('/call', async (req, res) => {
             `שלום ${firstName}. אנא הזן את קוד הכניסה שלך, ארבע ספרות.`,
             `שלום ${firstName}. אנא הזיני את קוד הכניסה שלך, ארבע ספרות.`
         );
-        const file = await textToUrl(pinPromptText, 'dynamic');
+        const file = await textToYemot(pinPromptText);
         return yemotRead(res, file, 'digits', 4, 4, 15);
     }
 
@@ -290,7 +282,7 @@ router.get('/call', async (req, res) => {
         if (!digits) {
         // חזרה לבקשת PIN (timeout או לחיצה שגויה)
         const repeatText = g(user.gender, 'הזן את קוד הכניסה שלך, ארבע ספרות.', 'הזיני את קוד הכניסה שלך, ארבע ספרות.');
-        const file = await textToUrl(repeatText, 'static');
+        const file = await textToYemot(repeatText);
         return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
@@ -303,18 +295,18 @@ router.get('/call', async (req, res) => {
                 `קוד נכון. ברוך הבא, ${firstName}.`,
                 `קוד נכון. ברוכה הבאת, ${firstName}.`
             );
-            const file = await textToUrl(welcomeText, 'dynamic');
+            const file = await textToYemot(welcomeText);
             return yemotPlayback(res, file);
         }
 
         if (pinResult === 'blocked') {
-            const file = await textToUrl('הגישה חסומה לשלושים דקות, עקב ניסיונות כושלים חוזרים. נסה שוב מאוחר יותר.', 'static');
+            const file = await textToYemot('הגישה חסומה לשלושים דקות, עקב ניסיונות כושלים חוזרים. נסה שוב מאוחר יותר.');
             return yemotPlayback(res, file);
         }
 
         // PIN שגוי — נסה שוב
         const retryText = g(user.gender, 'קוד שגוי. אנא נסה שוב.', 'קוד שגוי. אנא נסי שוב.');
-        const file = await textToUrl(retryText, 'static');
+        const file = await textToYemot(retryText);
         return yemotRead(res, file, 'digits', 4, 4, 15);
     }
 
@@ -324,36 +316,36 @@ router.get('/call', async (req, res) => {
         // ניתוב לפי מקש שנלחץ
         if (key === '1') {
             await updateSession(enterId, 'matches', { page: 0 });
-            const file = await textToUrl('מעבר להצעות חדשות.', 'static');
+            const file = await textToYemot('מעבר להצעות חדשות.');
             return yemotPlayback(res, file);
         }
         if (key === '2') {
             await updateSession(enterId, 'requests', { page: 0 });
-            const file = await textToUrl('מעבר לפניות שהגיעו אליך.', 'static');
+            const file = await textToYemot('מעבר לפניות שהגיעו אליך.');
             return yemotPlayback(res, file);
         }
         if (key === '3') {
             await updateSession(enterId, 'my_sent');
-            const file = await textToUrl('מעבר לסטטוס הפניות שלך.', 'static');
+            const file = await textToYemot('מעבר לסטטוס הפניות שלך.');
             return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '4') {
             await updateSession(enterId, 'photos');
-            const file = await textToUrl('מעבר לניהול תמונות.', 'static');
+            const file = await textToYemot('מעבר לניהול תמונות.');
             return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '5') {
             await updateSession(enterId, 'messages');
-            const file = await textToUrl('מעבר להודעות חשובות.', 'static');
+            const file = await textToYemot('מעבר להודעות חשובות.');
             return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '9') {
             await updateSession(enterId, 'settings');
-            const file = await textToUrl('מעבר להגדרות.', 'static');
+            const file = await textToYemot('מעבר להגדרות.');
             return yemotPlayback(res, file); // יתפתח בשלב הבא
         }
         if (key === '0') {
-            const file = await textToUrl('לתמיכה ולעזרה, יש להיכנס לאתר פינקס.', 'static');
+            const file = await textToYemot('לתמיכה ולעזרה, יש להיכנס לאתר פינקס.');
             return yemotPlayback(res, file);
         }
 
@@ -377,7 +369,7 @@ router.get('/call', async (req, res) => {
         );
 
         const fullText = `${statusText} ${menuText}`;
-        const file = await textToUrl(fullText, 'dynamic');
+        const file = await textToYemot(fullText);
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
@@ -391,7 +383,7 @@ router.get('/call', async (req, res) => {
         if (key && matchId) {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
 
@@ -405,7 +397,7 @@ router.get('/call', async (req, res) => {
                     'הקש חמש לתיאור מלא. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
                     'הקשי חמש לתיאור מלא. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
                 );
-                const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
+                const file = await textToYemot(`${detailText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
@@ -419,7 +411,7 @@ router.get('/call', async (req, res) => {
                     'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
                     'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
                 );
-                const file = await textToUrl(`${fullText} ${actionsText}`, 'dynamic');
+                const file = await textToYemot(`${fullText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
@@ -448,14 +440,14 @@ router.get('/call', async (req, res) => {
                     'מקש לא מוכר. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
                     'מקש לא מוכר. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
                 );
-                const file = await textToUrl(actionsText, 'static');
+                const file = await textToYemot(actionsText);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             // עבור להצעה הבאה
             offset++;
             await updateSession(enterId, 'matches', { page: offset });
-            const file = await textToUrl(responseText, 'static');
+            const file = await textToYemot(responseText);
             return yemotPlayback(res, file);
         }
 
@@ -469,19 +461,20 @@ router.get('/call', async (req, res) => {
 
         if (matches.length === 0) {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl('סיימנו את כל ההצעות החדשות. חוזרים לתפריט הראשי.', 'static');
+            const file = await textToYemot('סיימנו את כל ההצעות החדשות. חוזרים לתפריט הראשי.');
             return yemotPlayback(res, file);
         }
 
         const match = matches[0];
         await updateSession(enterId, 'matches', { page: offset, currentMatchId: match.id });
+        updateTtsLastPlayed(match.id);
 
         const matchText  = buildMatchText(match);
         const actionsText = g(user.gender,
             'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש סולמית לתפריט הראשי.',
             'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
-        const file = await textToUrl(`${matchText} ${actionsText}`, 'dynamic');
+        const file = await textToYemot(`${matchText} ${actionsText}`);
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
@@ -495,7 +488,7 @@ router.get('/call', async (req, res) => {
         if (key && connId) {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
 
@@ -508,7 +501,7 @@ router.get('/call', async (req, res) => {
                     'הקש חמש לתיאור מלא. הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר.',
                     'הקשי חמש לתיאור מלא. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
                 );
-                const file = await textToUrl(`${detailText} ${actionsText}`, 'dynamic');
+                const file = await textToYemot(`${detailText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
@@ -521,7 +514,7 @@ router.get('/call', async (req, res) => {
                     'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר.',
                     'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
                 );
-                const file = await textToUrl(`${fullText} ${actionsText}`, 'dynamic');
+                const file = await textToYemot(`${fullText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
@@ -545,13 +538,13 @@ router.get('/call', async (req, res) => {
                     'מקש לא מוכר. הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר.',
                     'מקש לא מוכר. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר.'
                 );
-                const file = await textToUrl(actionsText, 'static');
+                const file = await textToYemot(actionsText);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             offset++;
             await updateSession(enterId, 'requests', { page: offset });
-            const file = await textToUrl(responseText, 'static');
+            const file = await textToYemot(responseText);
             return yemotPlayback(res, file);
         }
 
@@ -565,19 +558,20 @@ router.get('/call', async (req, res) => {
 
         if (reqs.length === 0) {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl('אין פניות ממתינות לתשובתך. חוזרים לתפריט הראשי.', 'static');
+            const file = await textToYemot('אין פניות ממתינות לתשובתך. חוזרים לתפריט הראשי.');
             return yemotPlayback(res, file);
         }
 
         const req = reqs[0];
         await updateSession(enterId, 'requests', { page: offset, currentConnectionId: req.connection_id });
+        updateTtsLastPlayed(req.id);
 
         const reqText    = buildMatchText(req);
         const actionsText = g(user.gender,
             'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש סולמית לתפריט הראשי.',
             'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי סולמית לתפריט הראשי.'
         );
-        const file = await textToUrl(`פנייה שהגיעה אליך. ${reqText} ${actionsText}`, 'dynamic');
+        const file = await textToYemot(`פנייה שהגיעה אליך. ${reqText} ${actionsText}`);
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
@@ -592,7 +586,7 @@ router.get('/call', async (req, res) => {
         if (key && msgId) {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
 
@@ -603,7 +597,7 @@ router.get('/call', async (req, res) => {
                     'הקש אחת להאזנה חוזרת. הקש שמונה להודעה הבאה. הקש סולמית לתפריט הראשי.',
                     'הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה. הקשי סולמית לתפריט הראשי.'
                 );
-                const file = await textToUrl(`${replayText} ${actionsText}`, 'dynamic');
+                const file = await textToYemot(`${replayText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
@@ -612,7 +606,7 @@ router.get('/call', async (req, res) => {
                 await markMessageReadFromIvr(msgId, user.id).catch(() => {});
                 offset++;
                 await updateSession(enterId, 'messages', { page: offset });
-                const file = await textToUrl('עוברים להודעה הבאה.', 'static');
+                const file = await textToYemot('עוברים להודעה הבאה.');
                 return yemotPlayback(res, file);
             }
 
@@ -621,7 +615,7 @@ router.get('/call', async (req, res) => {
                 'מקש לא מוכר. הקש אחת להאזנה חוזרת. הקש שמונה להודעה הבאה.',
                 'מקש לא מוכר. הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה.'
             );
-            const file = await textToUrl(actionsText, 'static');
+            const file = await textToYemot(actionsText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
@@ -635,7 +629,7 @@ router.get('/call', async (req, res) => {
 
         if (messages.length === 0) {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl('אין הודעות חדשות הדורשות תשומת לבך. חוזרים לתפריט הראשי.', 'static');
+            const file = await textToYemot('אין הודעות חדשות הדורשות תשומת לבך. חוזרים לתפריט הראשי.');
             return yemotPlayback(res, file);
         }
 
@@ -657,7 +651,7 @@ router.get('/call', async (req, res) => {
             'הקש אחת להאזנה חוזרת. הקש שמונה להודעה הבאה. הקש סולמית לתפריט הראשי.',
             'הקשי אחת להאזנה חוזרת. הקשי שמונה להודעה הבאה. הקשי סולמית לתפריט הראשי.'
         );
-        const file = await textToUrl(`הודעה חדשה: ${cleanContent} ${actionsText}`, 'dynamic');
+        const file = await textToYemot(`הודעה חדשה: ${cleanContent} ${actionsText}`);
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
@@ -669,7 +663,7 @@ router.get('/call', async (req, res) => {
         // # — חזרה לתפריט בכל שלב
         if (key === '#') {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+            const file = await textToYemot('חוזרים לתפריט הראשי.');
             return yemotPlayback(res, file);
         }
 
@@ -680,7 +674,7 @@ router.get('/call', async (req, res) => {
                 'להחלפת קוד הכניסה, הקש את הקוד הנוכחי, ארבע ספרות.',
                 'להחלפת קוד הכניסה, הקשי את הקוד הנוכחי, ארבע ספרות.'
             );
-            const file = await textToUrl(text, 'static');
+            const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
@@ -691,7 +685,7 @@ router.get('/call', async (req, res) => {
                     'אנא הקש את קוד הכניסה הנוכחי.',
                     'אנא הקשי את קוד הכניסה הנוכחי.'
                 );
-                const file = await textToUrl(text, 'static');
+                const file = await textToYemot(text);
                 return yemotRead(res, file, 'digits', 4, 4, 15);
             }
 
@@ -703,13 +697,13 @@ router.get('/call', async (req, res) => {
                     'קוד נכון. הקש קוד חדש בן ארבע ספרות.',
                     'קוד נכון. הקשי קוד חדש בן ארבע ספרות.'
                 );
-                const file = await textToUrl(text, 'static');
+                const file = await textToYemot(text);
                 return yemotRead(res, file, 'digits', 4, 4, 15);
             }
 
             if (pinResult === 'blocked') {
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('הכניסה נחסמה זמנית עקב ניסיונות שגויים. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('הכניסה נחסמה זמנית עקב ניסיונות שגויים. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
 
@@ -717,7 +711,7 @@ router.get('/call', async (req, res) => {
             const attempts = (data.attempts || 0) + 1;
             if (attempts >= 3) {
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('קוד שגוי יותר מדי פעמים. חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('קוד שגוי יותר מדי פעמים. חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
             await updateSession(enterId, 'settings', { step: 'wait_current', attempts });
@@ -725,7 +719,7 @@ router.get('/call', async (req, res) => {
                 `קוד שגוי. נסה שוב. הקש את קוד הכניסה הנוכחי.`,
                 `קוד שגוי. נסי שוב. הקשי את קוד הכניסה הנוכחי.`
             );
-            const file = await textToUrl(text, 'static');
+            const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
@@ -736,7 +730,7 @@ router.get('/call', async (req, res) => {
                     'הקש קוד חדש בן ארבע ספרות.',
                     'הקשי קוד חדש בן ארבע ספרות.'
                 );
-                const file = await textToUrl(text, 'static');
+                const file = await textToYemot(text);
                 return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             if (!/^\d{4}$/.test(key)) {
@@ -744,7 +738,7 @@ router.get('/call', async (req, res) => {
                     'קוד לא תקין. הקש ארבע ספרות בדיוק.',
                     'קוד לא תקין. הקשי ארבע ספרות בדיוק.'
                 );
-                const file = await textToUrl(text, 'static');
+                const file = await textToYemot(text);
                 return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             await updateSession(enterId, 'settings', { step: 'wait_confirm', newPin: key });
@@ -752,7 +746,7 @@ router.get('/call', async (req, res) => {
                 'הקש שוב את הקוד החדש לאישור.',
                 'הקשי שוב את הקוד החדש לאישור.'
             );
-            const file = await textToUrl(text, 'static');
+            const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
@@ -763,7 +757,7 @@ router.get('/call', async (req, res) => {
                     'הקש שוב את הקוד החדש לאישור.',
                     'הקשי שוב את הקוד החדש לאישור.'
                 );
-                const file = await textToUrl(text, 'static');
+                const file = await textToYemot(text);
                 return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             if (key !== data.newPin) {
@@ -772,7 +766,7 @@ router.get('/call', async (req, res) => {
                     'הקודים אינם תואמים. הקש קוד חדש בן ארבע ספרות.',
                     'הקודים אינם תואמים. הקשי קוד חדש בן ארבע ספרות.'
                 );
-                const file = await textToUrl(text, 'static');
+                const file = await textToYemot(text);
                 return yemotRead(res, file, 'digits', 4, 4, 15);
             }
             try {
@@ -782,19 +776,19 @@ router.get('/call', async (req, res) => {
                     'הקוד עודכן בהצלחה. חוזרים לתפריט הראשי.',
                     'הקוד עודכן בהצלחה. חוזרים לתפריט הראשי.'
                 );
-                const file = await textToUrl(text, 'static');
+                const file = await textToYemot(text);
                 return yemotPlayback(res, file);
             } catch (err) {
                 console.error('[IVR] ❌ שגיאה בעדכון PIN:', err.message);
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('אירעה תקלה בעדכון הקוד. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('אירעה תקלה בעדכון הקוד. נסה שוב מאוחר יותר. חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
         }
 
         // שלב לא מוכר
         await updateSession(enterId, 'menu');
-        const file = await textToUrl('אירעה תקלה. חוזרים לתפריט הראשי.', 'static');
+        const file = await textToYemot('אירעה תקלה. חוזרים לתפריט הראשי.');
         return yemotPlayback(res, file);
     }
 
@@ -808,7 +802,7 @@ router.get('/call', async (req, res) => {
         if (key && requesterId) {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
 
@@ -832,13 +826,13 @@ router.get('/call', async (req, res) => {
                     'מקש לא מוכר. הקש אחת — הסכמה. הקש שתיים — דחייה. הקש שמונה — דלג.',
                     'מקש לא מוכר. הקשי אחת — הסכמה. הקשי שתיים — דחייה. הקשי שמונה — דלגי.'
                 );
-                const file = await textToUrl(actionsText, 'static');
+                const file = await textToYemot(actionsText);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             offset++;
             await updateSession(enterId, 'photos', { page: offset });
-            const file = await textToUrl(responseText, 'static');
+            const file = await textToYemot(responseText);
             return yemotPlayback(res, file);
         }
 
@@ -852,7 +846,7 @@ router.get('/call', async (req, res) => {
 
         if (photos.length === 0) {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl('אין בקשות תמונה ממתינות. חוזרים לתפריט הראשי.', 'static');
+            const file = await textToYemot('אין בקשות תמונה ממתינות. חוזרים לתפריט הראשי.');
             return yemotPlayback(res, file);
         }
 
@@ -871,7 +865,7 @@ router.get('/call', async (req, res) => {
             'הקש אחת — הסכם לחשיפה. הקש שתיים — דחה את הבקשה. הקש שמונה — דלג. הקש סולמית לתפריט הראשי.',
             'הקשי אחת — הסכמי לחשיפה. הקשי שתיים — דחי את הבקשה. הקשי שמונה — דלגי. הקשי סולמית לתפריט הראשי.'
         );
-        const file = await textToUrl(`${photoText} ${actionsText}`, 'dynamic');
+        const file = await textToYemot(`${photoText} ${actionsText}`);
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
@@ -886,7 +880,7 @@ router.get('/call', async (req, res) => {
         if (key && connId) {
             if (key === '#') {
                 await updateSession(enterId, 'menu');
-                const file = await textToUrl('חוזרים לתפריט הראשי.', 'static');
+                const file = await textToYemot('חוזרים לתפריט הראשי.');
                 return yemotPlayback(res, file);
             }
 
@@ -898,7 +892,7 @@ router.get('/call', async (req, res) => {
                     : 'אירעה תקלה. עוברים לפנייה הבאה.';
                 offset++;
                 await updateSession(enterId, 'my_sent', { page: offset });
-                const file = await textToUrl(responseText, 'static');
+                const file = await textToYemot(responseText);
                 return yemotPlayback(res, file);
             }
 
@@ -906,7 +900,7 @@ router.get('/call', async (req, res) => {
             if (key === '8') {
                 offset++;
                 await updateSession(enterId, 'my_sent', { page: offset });
-                const file = await textToUrl('עוברים לפנייה הבאה.', 'static');
+                const file = await textToYemot('עוברים לפנייה הבאה.');
                 return yemotPlayback(res, file);
             }
 
@@ -918,7 +912,7 @@ router.get('/call', async (req, res) => {
                 : g(user.gender,
                     'מקש לא מוכר. הקש שמונה להמשך. הקש סולמית לתפריט הראשי.',
                     'מקש לא מוכר. הקשי שמונה להמשך. הקשי סולמית לתפריט הראשי.');
-            const file = await textToUrl(unknownText, 'static');
+            const file = await textToYemot(unknownText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
@@ -932,7 +926,7 @@ router.get('/call', async (req, res) => {
 
         if (sent.length === 0) {
             await updateSession(enterId, 'menu');
-            const file = await textToUrl('אין פניות פעילות שיצאו ממך. חוזרים לתפריט הראשי.', 'static');
+            const file = await textToYemot('אין פניות פעילות שיצאו ממך. חוזרים לתפריט הראשי.');
             return yemotPlayback(res, file);
         }
 
@@ -976,7 +970,7 @@ router.get('/call', async (req, res) => {
             currentConnectionStatus: conn.status
         });
 
-        const file = await textToUrl(`${connText} ${actionsText}`, 'dynamic');
+        const file = await textToYemot(`${connText} ${actionsText}`);
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
