@@ -13,3 +13,6 @@ node
 FETCH_HEAD
 the-register@*
 rclone-v*-windows-amd64/
+
+# IVR runtime files — generated on server, never commit
+ivr-audio/
