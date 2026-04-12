@@ -483,6 +483,17 @@ function Profile() {
                         setUser(prev => ({ ...prev, ...safeUpdated }));
                         localStorage.setItem('user', JSON.stringify({ ...user, ...safeUpdated }));
                     }
+                } else {
+                    let errMsg = 'שגיאה בשמירת הפרופיל';
+                    try {
+                        const errBody = await safeRes.json();
+                        if (errBody.message) errMsg = errBody.message;
+                        if (Array.isArray(errBody.missingFields) && errBody.missingFields.length) {
+                            errMsg += ` — חסרים: ${errBody.missingFields.join(', ')}`;
+                        }
+                    } catch { /* ignore */ }
+                    showToast(errMsg, 'error');
+                    return;
                 }
 
                 // שלב ב׳: שדות רגישים — דרך אישור המנהל (שם, טלפון, ממליצים, כתובת)
