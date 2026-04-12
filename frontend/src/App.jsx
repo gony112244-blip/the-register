@@ -21,6 +21,7 @@ import EmailReminderModal from './components/EmailReminderModal'; // תזכור�
 import VerifyEmailLink from './VerifyEmailLink';
 import ReportWrongEmail from './ReportWrongEmail';
 
+import IvrSettings from './IvrSettings';
 import AdminMatches from './AdminMatches';
 import AdminPendingProfiles from './AdminPendingProfiles';
 import AdminUsers from './AdminUsers';
@@ -175,6 +176,7 @@ function AppContent() {
         <Route path="/connections" element={<Connections />} />
         <Route path="/photo-requests" element={<PhotoRequests />} />
         <Route path="/hidden-profiles" element={<HiddenProfiles />} />
+        <Route path="/ivr-settings" element={<IvrSettings />} />
 
         {/* יצירת קשר */}
         <Route path="/contact" element={<ContactForm />} />

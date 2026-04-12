@@ -99,12 +99,6 @@ function Profile() {
     const [errors, setErrors] = useState({}); // שגיאות ולידציה
     const [message, setMessage] = useState('');
 
-    // הגדרות כניסה לטלפון (IVR)
-    const [ivrSettings, setIvrSettings] = useState({ allow_ivr_no_pass: false, has_pin: false });
-    const [ivrMode, setIvrMode] = useState('no_pass'); // 'no_pass' | 'with_pin'
-    const [ivrNewPin, setIvrNewPin] = useState('');
-    const [ivrSaving, setIvrSaving] = useState(false);
-    const [ivrMessage, setIvrMessage] = useState({ text: '', type: '' });
 
     const handleDeleteAccount = async () => {
         const confirm1 = window.confirm('❗ האם אתה בטוח שברצונך למחוק את חשבונך לצמיתות?');
@@ -220,49 +214,7 @@ function Profile() {
 
         fetchProfile();
 
-        // טעינת הגדרות IVR
-        fetch(`${API_BASE}/api/ivr-settings`, { headers: { 'Authorization': `Bearer ${token}` } })
-            .then(r => r.ok ? r.json() : null)
-            .then(data => {
-                if (data) {
-                    setIvrSettings(data);
-                    setIvrMode(data.allow_ivr_no_pass ? 'no_pass' : 'with_pin');
-                }
-            })
-            .catch(() => {});
     }, [navigate, token]);
-
-    // שמירת הגדרות IVR
-    const handleSaveIvrSettings = async () => {
-        if (ivrMode === 'with_pin' && ivrNewPin && !/^\d{4}$/.test(ivrNewPin)) {
-            setIvrMessage({ text: 'הקוד חייב להיות 4 ספרות בדיוק', type: 'error' });
-            return;
-        }
-        setIvrSaving(true);
-        setIvrMessage({ text: '', type: '' });
-        try {
-            const body = {
-                allow_ivr_no_pass: ivrMode === 'no_pass',
-                new_pin: ivrMode === 'with_pin' ? ivrNewPin : undefined
-            };
-            const res = await fetch(`${API_BASE}/api/ivr-settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (res.ok) {
-                setIvrMessage({ text: '✅ ההגדרות נשמרו בהצלחה', type: 'success' });
-                setIvrNewPin('');
-                setIvrSettings({ allow_ivr_no_pass: ivrMode === 'no_pass', has_pin: ivrMode === 'with_pin' && (!!ivrNewPin || ivrSettings.has_pin) });
-            } else {
-                setIvrMessage({ text: data.message || 'שגיאה בשמירה', type: 'error' });
-            }
-        } catch {
-            setIvrMessage({ text: 'תקלה בתקשורת עם השרת', type: 'error' });
-        }
-        setIvrSaving(false);
-    };
 
     // שמירת שינויים
     const handleChange = (e) => {
@@ -1846,144 +1798,6 @@ function Profile() {
                                     </button>
                                 </>
                             )}
-                        </div>
-
-                        {/* =========== הגדרות כניסה לטלפון (IVR) =========== */}
-                        <div style={{ ...styles.card, marginTop: '30px', border: '2px solid #e0e7ff', background: '#f8f9ff' }}>
-                            <h3 style={{ ...styles.cardTitle, color: '#3730a3' }}>📞 הגדרות כניסה למערכת הטלפון</h3>
-
-                            {/* הסבר */}
-                            <div style={{
-                                background: '#eff6ff',
-                                border: '1px solid #bfdbfe',
-                                borderRadius: '10px',
-                                padding: '14px 16px',
-                                marginBottom: '20px',
-                                fontSize: '0.92rem',
-                                color: '#1e40af',
-                                lineHeight: '1.6'
-                            }}>
-                                <strong>איך זה עובד?</strong><br />
-                                כשאתה מתקשר למערכת הטלפון, היא מזהה אותך לפי <strong>מספר הטלפון שלך</strong> — ללא צורך להזדהות.<br />
-                                אם תרצה, תוכל להוסיף <strong>קוד סודי של 4 ספרות</strong> שיידרש בכל כניסה, להגנה על המידע שלך.
-                            </div>
-
-                            {/* בחירת מצב */}
-                            <div style={{ display: 'flex', gap: '14px', marginBottom: '18px', flexWrap: 'wrap' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setIvrMode('no_pass')}
-                                    style={{
-                                        flex: 1,
-                                        minWidth: '200px',
-                                        padding: '18px 14px',
-                                        borderRadius: '14px',
-                                        border: ivrMode === 'no_pass' ? '2.5px solid #4f46e5' : '2px solid #e2e8f0',
-                                        background: ivrMode === 'no_pass' ? '#eef2ff' : '#fff',
-                                        cursor: 'pointer',
-                                        textAlign: 'right',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <div style={{ fontSize: '1.6rem', marginBottom: '6px' }}>⚡</div>
-                                    <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '1rem' }}>כניסה מהירה</div>
-                                    <div style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '4px' }}>
-                                        המערכת מזהה אותי לפי מספר הטלפון — ללא קוד
-                                    </div>
-                                    {ivrMode === 'no_pass' && (
-                                        <div style={{ color: '#4f46e5', fontWeight: '700', marginTop: '8px', fontSize: '0.85rem' }}>✓ נבחר</div>
-                                    )}
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setIvrMode('with_pin')}
-                                    style={{
-                                        flex: 1,
-                                        minWidth: '200px',
-                                        padding: '18px 14px',
-                                        borderRadius: '14px',
-                                        border: ivrMode === 'with_pin' ? '2.5px solid #0891b2' : '2px solid #e2e8f0',
-                                        background: ivrMode === 'with_pin' ? '#ecfeff' : '#fff',
-                                        cursor: 'pointer',
-                                        textAlign: 'right',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <div style={{ fontSize: '1.6rem', marginBottom: '6px' }}>🔐</div>
-                                    <div style={{ fontWeight: '700', color: '#1e293b', fontSize: '1rem' }}>כניסה עם קוד סודי</div>
-                                    <div style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '4px' }}>
-                                        מגן על המידע שלי — דורש 4 ספרות בכל כניסה
-                                    </div>
-                                    {ivrMode === 'with_pin' && (
-                                        <div style={{ color: '#0891b2', fontWeight: '700', marginTop: '8px', fontSize: '0.85rem' }}>✓ נבחר</div>
-                                    )}
-                                </button>
-                            </div>
-
-                            {/* שדה קוד (מוצג רק במצב with_pin) */}
-                            {ivrMode === 'with_pin' && (
-                                <div style={{ marginBottom: '16px' }}>
-                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#334155', fontSize: '0.9rem' }}>
-                                        {ivrSettings.has_pin ? 'קוד קיים — הזן קוד חדש לשינוי (אופציונלי):' : 'בחר קוד סודי (4 ספרות):'}
-                                    </label>
-                                    <input
-                                        type="password"
-                                        inputMode="numeric"
-                                        maxLength={4}
-                                        placeholder="• • • •"
-                                        value={ivrNewPin}
-                                        onChange={e => setIvrNewPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                        style={{
-                                            ...styles.input,
-                                            width: '140px',
-                                            fontSize: '1.6rem',
-                                            letterSpacing: '10px',
-                                            textAlign: 'center',
-                                            direction: 'ltr'
-                                        }}
-                                    />
-                                    {!ivrSettings.has_pin && !ivrNewPin && (
-                                        <p style={{ color: '#f59e0b', fontSize: '0.85rem', marginTop: '6px' }}>
-                                            ⚠️ יש להזין קוד 4 ספרות כדי לשמור מצב זה
-                                        </p>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* הודעת סטטוס */}
-                            {ivrMessage.text && (
-                                <div style={{
-                                    padding: '10px 14px',
-                                    borderRadius: '8px',
-                                    marginBottom: '12px',
-                                    background: ivrMessage.type === 'success' ? '#dcfce7' : '#fee2e2',
-                                    color: ivrMessage.type === 'success' ? '#15803d' : '#b91c1c',
-                                    fontWeight: '600',
-                                    fontSize: '0.9rem'
-                                }}>
-                                    {ivrMessage.text}
-                                </div>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={handleSaveIvrSettings}
-                                disabled={ivrSaving || (ivrMode === 'with_pin' && !ivrSettings.has_pin && !ivrNewPin)}
-                                style={{
-                                    padding: '12px 28px',
-                                    borderRadius: '10px',
-                                    border: 'none',
-                                    background: ivrSaving ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                                    color: '#fff',
-                                    fontWeight: '700',
-                                    fontSize: '0.95rem',
-                                    cursor: ivrSaving ? 'not-allowed' : 'pointer',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                {ivrSaving ? '⏳ שומר...' : '💾 שמור הגדרות טלפון'}
-                            </button>
                         </div>
 
                         <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

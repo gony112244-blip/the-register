@@ -193,7 +193,10 @@ function Navbar() {
             <span className="navbar-welcome">שלום, {user.full_name}</span>
             <NotificationsPanel user={user} onUserUpdate={handleUserUpdate} />
             {!user.is_admin && (
-              <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיס שלי</Link>
+              <>
+                <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיס שלי</Link>
+                <Link to="/ivr-settings" className="navbar-profile-btn" style={{ background: 'rgba(79,70,229,0.12)', color: '#4f46e5' }}>📞</Link>
+              </>
             )}
             <button onClick={handleLogout} className="navbar-logout-btn">יציאה</button>
           </>
