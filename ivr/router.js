@@ -189,7 +189,7 @@ router.get('/call', async (req, res) => {
     const phone   = req.query.ApiPhone    || req.query.phone;
     const digits  = req.query.digits;
     const enterId = req.query.ApiCallId   || req.query.ApiYFCallId || req.query.EnterID || req.query.enterId || `${phone}_${Date.now()}`;
-    const key     = digits?.trim() || null;
+    const key     = digits != null ? String(digits).trim() || null : null;
 
     console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${digits || 'none'} | enterId: ${enterId}`);
     console.log(`[IVR] 🔍 כל הפרמטרים:`, JSON.stringify(req.query));
