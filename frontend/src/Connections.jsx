@@ -226,7 +226,7 @@ function Connections() {
             {cancelModal && (
                 <div style={styles.overlay}>
                     <div style={styles.cancelModalBox}>
-                        <h3 style={{ color: '#1e3a5f', margin: '0 0 6px' }}>💔 ביטול שידוך</h3>
+                        <h3 style={{ color: '#1e3a5f', margin: '0 0 6px' }}>בטל הצעת שידוך</h3>
                         <p style={{ color: '#6b7280', margin: '0 0 16px', fontSize: '0.9rem' }}>
                             עם: <strong>{cancelModal.name}</strong><br />
                             בחר/י סיבה — תישלח לצד השני
@@ -297,6 +297,18 @@ function Connections() {
 
                                         <div style={styles.infoSection}>
                                             <h4 style={styles.infoTitle}>👥 פרטים לבירורים:</h4>
+
+                                            {/* הורים */}
+                                            {(conn.father_full_name || conn.mother_full_name) && (
+                                                <div style={{ ...styles.infoItem, flexWrap: 'wrap', gap: '6px 20px', paddingBottom: 8, marginBottom: 4, borderBottom: '1px solid #e2e8f0' }}>
+                                                    {conn.father_full_name && (
+                                                        <span><span style={styles.infoLabel}>אב: </span>{conn.father_full_name}</span>
+                                                    )}
+                                                    {conn.mother_full_name && (
+                                                        <span><span style={styles.infoLabel}>אם: </span>{conn.mother_full_name}</span>
+                                                    )}
+                                                </div>
+                                            )}
 
                                             <div style={styles.infoItem}>
                                                 <span style={styles.infoLabel}>ממליץ 1:</span>
@@ -370,7 +382,7 @@ function Connections() {
                                                     onClick={() => setCancelModal({ connectionId: conn.id, name: conn.full_name })}
                                                     style={styles.cancelConnBtn}
                                                 >
-                                                    ✕ ביטול שידוך
+                                                    ✕ בטל הצעת שידוך
                                                 </button>
                                             </div>
                                         )}

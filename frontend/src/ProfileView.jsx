@@ -41,14 +41,28 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
         status: { single: 'רווק / רווקה', divorced: 'גרוש / גרושה', widower: 'אלמן / אלמנה' },
         family_background: { haredi: 'חרדי', dati_leumi: 'דתי לאומי', masorti: 'מסורתי', baal_teshuva: 'חוזר בתשובה' },
         heritage_sector: { ashkenazi: 'אשכנזי', sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב' },
-        body_type: { very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה', average: 'ממוצע', athletic: 'ספורטיבי', full: 'מלא' },
-        skin_tone: { fair: 'בהיר', medium: 'בינוני', olive: 'זית', dark: 'כהה' },
+        body_type: {
+            very_thin: 'רזה מאוד', thin: 'רזה', slim: 'רזה',
+            average_thin: 'רזה-ממוצע', average: 'ממוצע',
+            average_full: 'ממוצע-מלא', full: 'מלא', athletic: 'ספורטיבי'
+        },
+        skin_tone: {
+            very_light: 'בהיר מאוד', light: 'בהיר', fair: 'בהיר',
+            light_average: 'בהיר-ממוצע', medium: 'שזוף', tan: 'שחום',
+            olive: 'זית', dark: 'כהה'
+        },
         appearance: { fair: 'נחמד', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד', stunning: 'מרשים במיוחד' },
         current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב', fixed_times: 'קובע עיתים' },
         contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
         apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי' },
-        life_aspiration: { learning: 'תלמוד תורה', career: 'קריירה', family: 'בניית בית', both: 'שילוב תורה ועבודה' },
+        life_aspiration: {
+            learning: 'תלמוד תורה', career: 'קריירה', family: 'בניית בית', both: 'שילוב תורה ועבודה',
+            study_only: 'ללמוד יום שלם', study_and_work: 'ללמוד ולעבוד',
+            fixed_times: 'לקבוע עיתים', work_only: 'רק לעבוד'
+        },
         home_style: { quiet: 'שקטה ורגועה', active: 'פעילה וחברותית', flexible: 'גמיש' },
+        country_of_birth: { israel: 'ישראל', abroad: 'חו"ל' },
+        favorite_study: { iyun: 'עיון', bekiut: 'בקיאות', none: 'ללא העדפה' },
     };
     const tr = (field, val) => T[field]?.[val] || val || '—';
     const show = (val) => val && val !== '' && val !== '0' && val !== 0 && val !== 'null' && val !== 'undefined';
@@ -238,15 +252,14 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                             <Section title="👨‍👩‍👧‍👦 רקע משפחתי" color="#f0fdf4" border="#86efac">
                                 <Row label="רקע דתי" val={tr('family_background', user.family_background)} />
                                 <Row label="מגזר עדתי" val={tr('heritage_sector', user.heritage_sector)} />
-                                <Row label="עדת האב" val={user.father_heritage} />
-                                <Row label="עדת האם" val={user.mother_heritage} />
+                                <Row label="עדת האב" val={tr('heritage_sector', user.father_heritage)} />
+                                <Row label="עדת האם" val={tr('heritage_sector', user.mother_heritage)} />
                                 <Row label="עיסוק האב" val={user.father_occupation} />
                                 <Row label="עיסוק האם" val={user.mother_occupation} />
                                 <Row label="מספר אחים" val={user.siblings_count} />
                                 <Row label="מיקום בין האחים" val={user.sibling_position} />
-                                <Row label="ארץ לידה" val={user.country_of_birth} />
+                                <Row label="ארץ לידה" val={tr('country_of_birth', user.country_of_birth)} />
                                 {show(user.siblings_details) && <Row label="פרטי אחים" val={user.siblings_details} fullWidth />}
-                                {show(user.family_background) && <Row label="רקע משפחתי" val={user.family_background} fullWidth />}
                             </Section>
 
                             {/* Appearance */}
@@ -304,7 +317,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 <Row label="ישיבה קטנה" val={user.yeshiva_ketana_name} />
                                 <Row label="סמינר/מוסד" val={user.study_place} />
                                 <Row label="תחום לימוד" val={user.study_field} />
-                                <Row label="נושא לימוד אהוב" val={user.favorite_study} />
+                                <Row label="נושא לימוד אהוב" val={tr('favorite_study', user.favorite_study)} />
                             </Section>
                         </div>
                     )}
@@ -425,11 +438,15 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 {show(user.search_life_aspirations) && (
                                     <div style={S.fullRow}>
                                         <span style={S.rowLabel}>שאיפה:</span>
-                                        <span style={S.rowVal}>{user.search_life_aspirations}</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_life_aspirations.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('life_aspiration', s)}</span>
+                                            ))}
+                                        </div>
                                     </div>
                                 )}
 
-                                <Row label="כלאיים" val={user.mixed_heritage_ok ? 'כן, מתאים' : 'לא מעדיף'} />
+                                <Row label="מעורב עדתי" val={user.mixed_heritage_ok ? 'מתאים לי' : 'מעדיף/ת מגזר זהה'} />
                                 {show(user.search_financial_min) && (
                                     <Row label="עזרת דירה מינימלית" val={`₪${Number(user.search_financial_min).toLocaleString()}`} />
                                 )}

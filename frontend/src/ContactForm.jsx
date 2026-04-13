@@ -70,7 +70,10 @@ export default function ContactForm() {
             <div style={s.card}>
                 <button onClick={() => navigate(-1)} style={s.back}>← חזרה</button>
                 <h1 style={s.title}>📬 יצירת קשר</h1>
-                <p style={s.subtitle}>מלא את הפרטים ושלח — הפנייה תישמר במערכת</p>
+                <p style={s.subtitle}>
+                    תקלה באתר, שאלה על השימוש או הצעה לשיפור.<br />
+                    מלא את הפרטים ושלח — נחזור אליך בהקדם.
+                </p>
 
                 <form onSubmit={handleSubmit} style={s.form}>
                     <div style={s.row}>
@@ -113,14 +116,19 @@ export default function ContactForm() {
                             />
                         </div>
                         <div style={s.field}>
-                            <label style={s.label}>נושא</label>
-                            <input
+                            <label style={s.label}>סוג פנייה</label>
+                            <select
                                 style={s.input}
                                 name="subject"
                                 value={form.subject}
                                 onChange={handleChange}
-                                placeholder="במה נוכל לעזור?"
-                            />
+                            >
+                                <option value="">בחר סוג פנייה...</option>
+                                <option value="תקלה טכנית">🔧 תקלה טכנית</option>
+                                <option value="שאלה על האתר">❓ שאלה על האתר</option>
+                                <option value="רעיון / שיפור">💡 רעיון או שיפור</option>
+                                <option value="אחר">📝 אחר</option>
+                            </select>
                         </div>
                     </div>
 

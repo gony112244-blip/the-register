@@ -24,6 +24,7 @@ function AdminMatches() {
     const [matches, setMatches] = useState([]);
     const [shadchaniot, setShadchaniot] = useState([]);
     const [successfulMatches, setSuccessfulMatches] = useState([]);
+    const [closedHistory, setClosedHistory] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // מודל כרטיס
@@ -55,7 +56,7 @@ function AdminMatches() {
 
     const fetchAll = async () => {
         setLoading(true);
-        await Promise.all([fetchMatches(), fetchShadchaniot(), fetchSuccessful()]);
+        await Promise.all([fetchMatches(), fetchShadchaniot(), fetchSuccessful(), fetchClosedHistory()]);
         setLoading(false);
     };
 
@@ -86,6 +87,16 @@ function AdminMatches() {
             });
             const data = await res.json();
             setSuccessfulMatches(Array.isArray(data) ? data : []);
+        } catch (err) { console.error(err); }
+    };
+
+    const fetchClosedHistory = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/admin/closed-connections`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            setClosedHistory(Array.isArray(data) ? data : []);
         } catch (err) { console.error(err); }
     };
 
@@ -215,6 +226,9 @@ function AdminMatches() {
                     </button>
                     <button style={activeTab === 'successful' ? s.activeTab : s.tab} onClick={() => setActiveTab('successful')}>
                         🎉 שידוכים שהצליחו {successfulMatches.length > 0 && <span style={s.badge}>{successfulMatches.length}</span>}
+                    </button>
+                    <button style={activeTab === 'history' ? s.activeTab : s.tab} onClick={() => setActiveTab('history')}>
+                        📁 היסטוריה {closedHistory.length > 0 && <span style={s.badge}>{closedHistory.length}</span>}
                     </button>
                 </div>
 
@@ -464,6 +478,65 @@ function AdminMatches() {
                                                 </div>
                                             </div>
                                             <div style={{ fontSize: '2rem' }}>💍</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* ===== טאב היסטוריה ===== */}
+                {activeTab === 'history' && (
+                    <div>
+                        {closedHistory.length === 0 ? (
+                            <div style={s.empty}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>📁</div>
+                                <div>אין היסטוריה עדיין</div>
+                            </div>
+                        ) : (
+                            <>
+                                <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '16px' }}>
+                                    סה״כ <strong>{closedHistory.length}</strong> הצעות שנסגרו
+                                </p>
+                                {closedHistory.map(m => (
+                                    <div key={m.id} style={{
+                                        ...s.matchCard,
+                                        borderTop: `4px solid ${m.match_succeeded ? '#10b981' : '#ef4444'}`
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ ...s.matchTitle, color: m.match_succeeded ? '#10b981' : '#374151' }}>
+                                                    {m.match_succeeded ? '🎉' : '📁'} {m.sender_name} & {m.receiver_name}
+                                                </div>
+                                                <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                    {m.shadchanit_name && (
+                                                        <span style={{ background: '#f3f4f6', color: '#374151', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem' }}>
+                                                            👩‍💼 {m.shadchanit_name}
+                                                        </span>
+                                                    )}
+                                                    <span>📅 נסגר: {fmtDate(m.closed_at)}</span>
+                                                    <span style={{ color: '#9ca3af' }}>נפתח: {fmtDate(m.created_at)}</span>
+                                                </div>
+                                                {!m.match_succeeded && m.fail_reason && (
+                                                    <div style={{ fontSize: '0.85rem', color: '#ef4444', marginTop: '4px' }}>
+                                                        סיבה: {m.fail_reason}
+                                                    </div>
+                                                )}
+                                                {m.close_summary && (
+                                                    <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '2px' }}>
+                                                        {m.close_summary}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span style={{
+                                                fontSize: '0.8rem', padding: '3px 10px', borderRadius: '12px',
+                                                background: m.match_succeeded ? '#d1fae5' : '#fee2e2',
+                                                color: m.match_succeeded ? '#065f46' : '#991b1b',
+                                                fontWeight: 600, whiteSpace: 'nowrap', marginRight: '8px'
+                                            }}>
+                                                {m.match_succeeded ? 'הצליח' : 'לא הצליח'}
+                                            </span>
                                         </div>
                                     </div>
                                 ))}

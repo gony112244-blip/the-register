@@ -355,6 +355,7 @@ function Profile() {
             search_height_max: 200,
             search_body_types: 'very_thin,thin,average_thin,average,average_full,full',
             search_appearances: 'fair,ok,good,handsome,very_handsome,stunning',
+            search_skin_tones: 'very_light,light,light_average,medium,tan,dark',
             search_statuses: 'single',
             search_backgrounds: 'haredi,baal_teshuva,dati_leumi',
             search_heritage_sectors: 'ashkenazi,sephardi',
@@ -556,19 +557,21 @@ function Profile() {
             // תנאים מיוחדים
             if (user.country_of_birth === 'abroad') required.push('origin_country', 'aliyah_age');
             if (user.gender === 'male') required.push('yeshiva_name');
+            if (user.gender === 'female') required.push('head_covering');
             if (['working', 'both', 'fixed_times'].includes(user.current_occupation)) required.push('work_field');
             if (user.apartment_help === 'yes') required.push('apartment_amount');
             if (user.has_children) required.push('children_count');
         } else if (step === 2) {
             required = ['street', 'house_number', 'father_full_name', 'mother_full_name', 'reference_1_name', 'reference_1_phone', 'reference_2_name', 'reference_2_phone'];
         } else if (step === 3) {
-            // חלק ג' קריטי להתאמות חיפוש
             required = [
                 'search_min_age', 'search_max_age',
                 'search_height_min', 'search_height_max',
+                'search_body_types', 'search_appearances', 'search_skin_tones',
                 'search_statuses', 'search_backgrounds',
                 'search_heritage_sectors', 'search_occupations', 'search_life_aspirations'
             ];
+            if (user.gender === 'male') required.push('search_head_covering');
         }
 
         const newErrors = {};
@@ -603,7 +606,10 @@ function Profile() {
 
         if (!isValid && shouldShowErrorToast) {
             showToast("נא למלא את כל השדות המסומנים באדום", "error");
-            // גלילה לשדה הראשון שחסר (אופציונלי, כרגע נסתפק בהודעה וסימון)
+            setTimeout(() => {
+                const firstErr = document.querySelector('[data-field-error="true"]');
+                if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 50);
         }
         return isValid;
     };
@@ -914,7 +920,10 @@ function Profile() {
                                 {user.gender === 'female' && (
                                     <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                         <label>מה תרצי ללבוש (בנישואין)</label>
-                                        <select name="head_covering" value={user.head_covering || ''} onChange={handleChange} style={styles.input}>
+                                        <p style={{ margin: '2px 0 6px', fontSize: '0.8rem', color: '#64748b' }}>
+                                            מידע זה משמש להתאמה מדויקת מול העדפות המועמדים ומשפיע על מי שיראה את הפרופיל שלך.
+                                        </p>
+                                        <select name="head_covering" value={user.head_covering || ''} onChange={handleChange} style={{ ...styles.input, borderColor: errors.head_covering ? 'red' : '#e2e8f0' }}>
                                             <option value="">בחר...</option>
                                             <option value="paah">פאה</option>
                                             <option value="kisui">כיסוי</option>
@@ -1023,7 +1032,7 @@ function Profile() {
 
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>פירוט עיסוק (אופציונלי)</label>
-                                    <textarea name="occupation_details" value={user.occupation_details || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '60px' }} maxLength={400} placeholder="פרט על סדר היום שלך... (עד 400 תווים)" />
+                                    <textarea name="occupation_details" value={user.occupation_details || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '60px' }} maxLength={150} placeholder="פרט על סדר היום שלך... (עד 150 תווים)" />
                                 </div>
                             </div>
                         </div>
@@ -1035,19 +1044,19 @@ function Profile() {
                             <div style={styles.grid}>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>מעט על עצמי (מי שמתבייש יבקש מאחר שיכתוב)</label>
-                                    <textarea name="about_me" value={user.about_me || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={400} placeholder="(עד 400 תווים)" />
+                                    <textarea name="about_me" value={user.about_me || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={200} placeholder="(עד 200 תווים)" />
                                 </div>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>סגנון הבית שאני רוצה</label>
-                                    <textarea name="home_style" value={user.home_style || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={400} placeholder="איך הבית שלנו ייראה מבחינה רוחנית/אווירה? (עד 400 תווים)" />
+                                    <textarea name="home_style" value={user.home_style || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={150} placeholder="איך הבית שלנו ייראה מבחינה רוחנית/אווירה? (עד 150 תווים)" />
                                 </div>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>השידוך שאני רוצה</label>
-                                    <textarea name="partner_description" value={user.partner_description || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={400} placeholder="תכונות אופי, סגנון... (עד 400 תווים)" />
+                                    <textarea name="partner_description" value={user.partner_description || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={200} placeholder="תכונות אופי, סגנון... (עד 200 תווים)" />
                                 </div>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>מה חשוב לי בחיים ומה אני אוהב לעשות</label>
-                                    <textarea name="important_in_life" value={user.important_in_life || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={400} placeholder="(עד 400 תווים)" />
+                                    <textarea name="important_in_life" value={user.important_in_life || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={200} placeholder="(עד 200 תווים)" />
                                 </div>
                             </div>
                         </div>
@@ -1235,10 +1244,10 @@ function Profile() {
 
                         <div style={styles.card}>
                             <h3 style={styles.cardTitle}>✨ מראה חיצוני</h3>
-                            <p style={styles.hint}>מה רמת המראה שמתאימה לך? (אם לא תסמן - הכל מתאים)</p>
+                            <p style={styles.hint}>סמן את מה שמתאים לך — חובה לבחור לפחות אפשרות אחת בכל קטגוריה.</p>
 
-                            <div style={{ marginTop: '15px' }}>
-                                <label style={{ fontWeight: 'bold' }}>מראה כללי:</label>
+                            <div data-field-error={errors.search_appearances ? 'true' : undefined} style={{ marginTop: '15px', ...(errors.search_appearances ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_appearances ? '#ef4444' : undefined }}>מראה כללי: {errors.search_appearances && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'fair', label: 'נחמד' },
@@ -1267,8 +1276,8 @@ function Profile() {
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: '20px' }}>
-                                <label style={{ fontWeight: 'bold' }}>מבנה גוף:</label>
+                            <div data-field-error={errors.search_body_types ? 'true' : undefined} style={{ marginTop: '20px', ...(errors.search_body_types ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_body_types ? '#ef4444' : undefined }}>מבנה גוף: {errors.search_body_types && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'very_thin', label: 'רזה מאוד' },
@@ -1297,8 +1306,8 @@ function Profile() {
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: '20px' }}>
-                                <label style={{ fontWeight: 'bold' }}>גוון עור:</label>
+                            <div data-field-error={errors.search_skin_tones ? 'true' : undefined} style={{ marginTop: '20px', ...(errors.search_skin_tones ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_skin_tones ? '#ef4444' : undefined }}>גוון עור: {errors.search_skin_tones && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'very_light', label: 'בהיר מאוד' },
@@ -1332,8 +1341,8 @@ function Profile() {
                         <div style={styles.card}>
                             <h3 style={styles.cardTitle}>🌍 מאפיינים ומגזר</h3>
 
-                            <div style={{ marginTop: '15px' }}>
-                                <label style={{ fontWeight: 'bold' }}>משפחתי/דתי:</label>
+                            <div data-field-error={errors.search_backgrounds ? 'true' : undefined} style={{ marginTop: '15px', ...(errors.search_backgrounds ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_backgrounds ? '#ef4444' : undefined }}>משפחתי/דתי: {errors.search_backgrounds && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'haredi', label: 'חרדי' },
@@ -1365,8 +1374,8 @@ function Profile() {
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: '20px' }}>
-                                <label style={{ fontWeight: 'bold' }}>מגזר עדתי:</label>
+                            <div data-field-error={errors.search_heritage_sectors ? 'true' : undefined} style={{ marginTop: '20px', ...(errors.search_heritage_sectors ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_heritage_sectors ? '#ef4444' : undefined }}>מגזר עדתי: {errors.search_heritage_sectors && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'ashkenazi', label: 'אשכנזי' },
@@ -1398,8 +1407,9 @@ function Profile() {
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: '20px' }}>
-                                <label style={{ fontWeight: 'bold' }}>כיסוי ראש:</label>
+                            {user.gender === 'male' && (
+                            <div data-field-error={errors.search_head_covering ? 'true' : undefined} style={{ marginTop: '20px', ...(errors.search_head_covering ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_head_covering ? '#ef4444' : undefined }}>כיסוי ראש: {errors.search_head_covering && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <p style={{ margin: '2px 0 6px', fontSize: '0.8rem', color: '#64748b' }}>
                                     "לא עקרוני" מופיעה בשני החיפושים
                                 </p>
@@ -1429,9 +1439,10 @@ function Profile() {
                                     ))}
                                 </div>
                             </div>
+                            )}
 
-                            <div style={{ marginTop: '20px' }}>
-                                <label style={{ fontWeight: 'bold' }}>סטטוס:</label>
+                            <div data-field-error={errors.search_statuses ? 'true' : undefined} style={{ marginTop: '20px', ...(errors.search_statuses ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_statuses ? '#ef4444' : undefined }}>סטטוס: {errors.search_statuses && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'single', label: 'רווק / רווקה' },
@@ -1468,8 +1479,8 @@ function Profile() {
                             <h3 style={styles.cardTitle}>💼 עיסוק ושאיפות</h3>
                             <p style={styles.hint}>חלק זה חשוב להתאמה בסגנון אורח החיים.</p>
 
-                            <div style={{ marginTop: '15px' }}>
-                                <label style={{ fontWeight: 'bold' }}>עיסוק כעת:</label>
+                            <div data-field-error={errors.search_occupations ? 'true' : undefined} style={{ marginTop: '15px', ...(errors.search_occupations ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_occupations ? '#ef4444' : undefined }}>עיסוק כעת: {errors.search_occupations && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'studying', label: 'לומד/ת' },
@@ -1502,8 +1513,8 @@ function Profile() {
                             </div>
 
 
-                            <div style={{ marginTop: '20px' }}>
-                                <label style={{ fontWeight: 'bold' }}>שאיפה בחיים (של המיועד):</label>
+                            <div data-field-error={errors.search_life_aspirations ? 'true' : undefined} style={{ marginTop: '20px', ...(errors.search_life_aspirations ? { border: '2px solid #ef4444', borderRadius: '10px', padding: '10px', background: '#fef2f2' } : {}) }}>
+                                <label style={{ fontWeight: 'bold', color: errors.search_life_aspirations ? '#ef4444' : undefined }}>שאיפה בחיים (של המיועד): {errors.search_life_aspirations && <span style={{ fontSize: '0.8rem' }}>⚠️ חובה</span>}</label>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '5px' }}>
                                     {[
                                         { value: 'study_only', label: 'ללמוד יום שלם' },

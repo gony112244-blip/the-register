@@ -103,12 +103,10 @@ function Matches() {
             });
             const data = await res.json();
             if (res.ok) {
-                if (data.is_blocked_by_target) {
-                    setModalMatch(null);
-                    showToast('🚫 משתמש זה חסם אותך — לא ניתן לצפות בכרטיס', 'info');
-                    return;
-                }
                 setModalMatch(data);
+            } else {
+                setModalMatch(null);
+                showToast(data.message || 'הכרטיס אינו זמין כרגע', 'info');
             }
         } catch { }
     };
@@ -205,6 +203,7 @@ function Matches() {
             </div>
         </div>
     );
+
 
     return (
         <div style={styles.page}>

@@ -17,7 +17,7 @@ import HiddenProfiles from './HiddenProfiles';
 import ForgotPassword from './ForgotPassword';
 import Requests from './Requests';
 import PWAInstallPrompt from './components/PWAInstallPrompt'; // התקנת PWA
-import EmailReminderModal from './components/EmailReminderModal'; // תזכורת אימות מייל
+// EmailReminderModal הושבת — עדכון מייל זמין דרך הגדרות בלבד
 import VerifyEmailLink from './VerifyEmailLink';
 import ReportWrongEmail from './ReportWrongEmail';
 
@@ -158,7 +158,6 @@ function AppContent() {
   return (
     <div className="App">
       {showNavbar && <Navbar />}
-      <EmailReminderModal user={currentUser} onUpdateUser={handleUpdateUser} />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />

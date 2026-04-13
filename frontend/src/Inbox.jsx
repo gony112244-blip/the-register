@@ -87,14 +87,25 @@ function Inbox() {
         }
     };
 
-    const handleRejectConnection = async (connectionId) => {
-        if (!window.confirm("לדחות את השידוך?")) return;
+    const handleRejectConnection = async (connectionId, userId) => {
+        const choice = window.confirm("לדחות את ההצעה?");
+        if (!choice) return;
         try {
             await fetch(`${API_BASE}/reject-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId })
             });
+            // לאחר הדחייה, הצע חסימה בנוסח רך
+            const shouldBlock = window.confirm(
+                "ההצעה נדחתה.\n\nהאם תרצה שמועמד/ת זה לא יוכל/תוכל לפנות אליך שוב בעתיד?\n(לחץ 'אישור' כדי למנוע פניות חוזרות, או 'ביטול' כדי להשאיר אפשרות לפנייה חוזרת)"
+            );
+            if (shouldBlock && userId) {
+                await fetch(`${API_BASE}/block-user/${userId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            }
             fetchAll();
         } catch (err) {
             alert('שגיאה');

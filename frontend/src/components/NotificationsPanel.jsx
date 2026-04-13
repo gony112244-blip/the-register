@@ -97,10 +97,13 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
             const data = await res.json();
             if (res.ok) {
                 const updated = { ...user, email: emailToSend, is_email_verified: false };
-                onUserUpdate(updated);
                 setEmailStep('verify');
-                // דחיית ה-Toast למחזור הבא — מונע קריסת React (removeChild) עם שינוי מצב הדף
-                queueMicrotask(() => showToast('קוד אימות נשלח למייל שלך 📨', 'success'));
+                setLoading(false);
+                setTimeout(() => {
+                    onUserUpdate(updated);
+                    showToast('קוד אימות נשלח למייל שלך 📨', 'success');
+                }, 50);
+                return;
             } else {
                 showToast(data.message || 'שגיאה בשליחת הקוד', 'error');
             }
@@ -120,10 +123,14 @@ export default function NotificationsPanel({ user, onUserUpdate }) {
             const data = await res.json();
             if (res.ok) {
                 const updated = { ...user, is_email_verified: true, email_notifications_enabled: true };
-                onUserUpdate(updated);
                 setEmailStep('main');
                 setCodeInput('');
-                queueMicrotask(() => showToast('המייל אומת בהצלחה! ✅', 'success'));
+                setLoading(false);
+                setTimeout(() => {
+                    onUserUpdate(updated);
+                    showToast('המייל אומת בהצלחה! ✅', 'success');
+                }, 50);
+                return;
             } else {
                 showToast(data.message || 'קוד שגוי', 'error');
             }

@@ -13,8 +13,7 @@ async function parseResponseJson(res) {
 }
 
 function ForgotPassword() {
-    const [step, setStep] = useState(1); // 1=choose method, 2=enter code, 3=new password
-    const [method, setMethod] = useState(''); // 'email' or 'call'
+    const [step, setStep] = useState(1); // 1=phone+email, 2=enter code, 3=new password
     const [phone, setPhone] = useState('');
     const [email, setEmail] = useState('');
     const [code, setCode] = useState('');
@@ -24,43 +23,23 @@ function ForgotPassword() {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
-    // פונקציה לעדכון מצב בטוח
-    const safeSetStep = (newStep) => {
-        console.log(`[ForgotPassword] Switching from step ${step} to ${newStep}`);
-        try {
-            setStep(newStep);
-        } catch (err) {
-            console.error('[ForgotPassword] Error during setStep:', err);
-        }
-    };
-
     const handleSendCode = async (e) => {
         e.preventDefault();
-        if (!phone) {
-            setMessage('נא להזין מספר טלפון');
-            return;
-        }
-        if (method === 'email' && !email) {
-            setMessage('נא להזין כתובת מייל');
-            return;
-        }
+        if (!phone) { setMessage('נא להזין מספר טלפון'); return; }
+        if (!email) { setMessage('נא להזין כתובת מייל'); return; }
 
         setLoading(true);
         try {
             const res = await fetch(`${API_BASE}/forgot-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone, method, email })
+                body: JSON.stringify({ phone, method: 'email', email })
             });
             const data = await parseResponseJson(res);
 
             if (res.ok) {
-                if (method === 'email') {
-                    setMessage('📧 קוד אימות נשלח למייל שלך!');
-                } else {
-                    setMessage('📞 עוד רגע תגיע שיחה עם הקוד...');
-                }
-                setTimeout(() => safeSetStep(2), 100); // השהייה קטנה למנוע race condition
+                setMessage('📧 קוד אימות נשלח למייל שלך!');
+                setTimeout(() => setStep(2), 100);
             } else {
                 setMessage(data.message || 'שגיאה בשליחת הקוד');
             }
@@ -88,7 +67,7 @@ function ForgotPassword() {
 
             if (res.ok) {
                 setMessage('✅ הקוד אומת בהצלחה');
-                setTimeout(() => safeSetStep(3), 100);
+                setTimeout(() => setStep(3), 100);
             } else {
                 setMessage(data.message || 'קוד שגוי');
             }
@@ -140,8 +119,8 @@ function ForgotPassword() {
                     <span style={styles.icon}>🔐</span>
                     <h2 style={styles.title}>שכחתי סיסמה</h2>
                     <p style={styles.subtitle}>
-                        {step === 1 && 'איך תרצה לקבל את קוד האימות?'}
-                        {step === 2 && 'הזן את קוד האימות שקיבלת'}
+                        {step === 1 && 'הזן את מספר הטלפון וכתובת המייל שלך'}
+                        {step === 2 && 'הזן את קוד האימות שקיבלת במייל'}
                         {step === 3 && 'בחר סיסמה חדשה'}
                     </p>
                 </div>
@@ -151,64 +130,36 @@ function ForgotPassword() {
                     <div style={{ ...styles.progress, width: `${(step / 3) * 100}%` }}></div>
                 </div>
 
-                {/* Step 1: Choose Method */}
+                {/* Step 1: Phone + Email */}
                 {step === 1 && (
                     <div>
                         <form onSubmit={handleSendCode}>
                             <div style={styles.field}>
                                 <label style={styles.label}>📱 מספר טלפון</label>
                                 <input
-                                    type="text"
+                                    type="tel"
                                     value={phone}
                                     onChange={(e) => setPhone(e.target.value)}
                                     placeholder="05X-XXXXXXX"
                                     style={styles.input}
+                                    dir="ltr"
                                 />
                             </div>
-
-                            <div style={styles.methodSection}>
-                                <p style={styles.methodLabel}>בחר איך לקבל את הקוד:</p>
-
-                                <div
-                                    onClick={() => setMethod('call')}
-                                    style={method === 'call' ? styles.methodCardActive : styles.methodCard}
-                                >
-                                    <span style={styles.methodIcon}>📞</span>
-                                    <div>
-                                        <strong>שיחה קולית</strong>
-                                        <p style={styles.methodDesc}>תקבל שיחה עם הקוד</p>
-                                    </div>
-                                </div>
-
-                                <div
-                                    onClick={() => setMethod('email')}
-                                    style={method === 'email' ? styles.methodCardActive : styles.methodCard}
-                                >
-                                    <span style={styles.methodIcon}>📧</span>
-                                    <div>
-                                        <strong>אימייל</strong>
-                                        <p style={styles.methodDesc}>הקוד יישלח למייל</p>
-                                    </div>
-                                </div>
+                            <div style={styles.field}>
+                                <label style={styles.label}>📧 כתובת מייל לשחזור</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="example@email.com"
+                                    style={styles.input}
+                                    dir="ltr"
+                                />
                             </div>
-
-                            {method === 'email' && (
-                                <div style={styles.field}>
-                                    <label style={styles.label}>📧 כתובת מייל</label>
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        placeholder="example@email.com"
-                                        style={styles.input}
-                                    />
-                                </div>
-                            )}
-
                             <button
                                 type="submit"
-                                disabled={loading || !method}
-                                style={!method ? styles.buttonDisabled : styles.button}
+                                disabled={loading || !phone || !email}
+                                style={(!phone || !email) ? styles.buttonDisabled : styles.button}
                             >
                                 {loading ? '⏳ שולח...' : '📤 שלח קוד אימות'}
                             </button>
@@ -221,11 +172,7 @@ function ForgotPassword() {
                     <div>
                         <form onSubmit={handleVerifyCode}>
                             <div style={styles.infoBox}>
-                                {method === 'call' ? (
-                                    <p>📞 אנחנו מתקשרים אליך עכשיו עם הקוד...</p>
-                                ) : (
-                                    <p>📧 שלחנו קוד ל-{email}</p>
-                                )}
+                                <p>📧 שלחנו קוד אימות ל-{email}</p>
                             </div>
 
                             <div style={styles.field}>
@@ -365,44 +312,6 @@ const styles = {
         letterSpacing: '8px',
         boxSizing: 'border-box',
         fontWeight: 'bold'
-    },
-    methodSection: {
-        marginBottom: '20px'
-    },
-    methodLabel: {
-        color: '#374151',
-        fontWeight: '600',
-        marginBottom: '12px'
-    },
-    methodCard: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        padding: '15px',
-        border: '2px solid #e5e7eb',
-        borderRadius: '12px',
-        marginBottom: '10px',
-        cursor: 'pointer',
-        transition: 'all 0.2s'
-    },
-    methodCardActive: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        padding: '15px',
-        border: '2px solid #c9a227',
-        borderRadius: '12px',
-        marginBottom: '10px',
-        cursor: 'pointer',
-        background: 'linear-gradient(135deg, #fffbeb, #fef3c7)'
-    },
-    methodIcon: {
-        fontSize: '2rem'
-    },
-    methodDesc: {
-        margin: '5px 0 0',
-        fontSize: '0.85rem',
-        color: '#6b7280'
     },
     infoBox: {
         background: '#f0f9ff',

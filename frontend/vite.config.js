@@ -9,6 +9,34 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['notebook.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        // אל תכנס ל-cache בקשות POST/API
+        runtimeCaching: [
+          {
+            // נכסים סטטיים (JS/CSS/images) — מהמטמון תחילה
+            urlPattern: /\.(?:js|css|woff2?|png|jpg|jpeg|svg|ico)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'static-assets',
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 }
+            }
+          },
+          {
+            // ניווט דפים — רשת תחילה, fallback לindex.html
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages-cache',
+              networkTimeoutSeconds: 15,
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 }
+            }
+          }
+        ],
+        // אל תשתמש ב-navigation preload (מקור שגיאת payload)
+        navigationPreload: false
+      },
       manifest: {
         name: 'הפנקס - מערכת שידוכים',
         short_name: 'הפנקס',

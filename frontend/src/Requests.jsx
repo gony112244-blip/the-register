@@ -64,6 +64,7 @@ export default function Requests() {
     const [loading, setLoading] = useState(true);
     const [modalPerson, setModalPerson] = useState(null);
     const [rejectPhotoModal, setRejectPhotoModal] = useState(null); // { requesterId, name }
+    const [rejectConnModal, setRejectConnModal] = useState(null); // { connectionId, userId, name }
 
     const PHOTO_REJECT_REASONS = [
         { id: 1, text: 'אינני מעוניין/ת לשתף תמונות בשלב זה' },
@@ -107,12 +108,10 @@ export default function Requests() {
             });
             const data = await res.json();
             if (res.ok) {
-                if (data.is_blocked_by_target) {
-                    setModalPerson(null);
-                    showToast('🚫 משתמש זה חסם אותך — לא ניתן לצפות בכרטיס', 'info');
-                    return;
-                }
                 setModalPerson({ ...data, full_name: data.full_name || item.full_name });
+            } else {
+                setModalPerson(null);
+                showToast(data.message || 'הכרטיס אינו זמין כרגע', 'info');
             }
         } catch { }
     };
@@ -133,15 +132,21 @@ export default function Requests() {
         } catch { showToast('שגיאה', 'error'); }
     };
 
-    const handleRejectConn = async (connectionId) => {
-        if (!window.confirm('לדחות את הפנייה?')) return;
+    const handleRejectConn = async (connectionId, alsoBlock = false, userId = null) => {
         try {
             await fetch(`${API_BASE}/reject-request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ connectionId })
             });
-            showToast('הפנייה נדחתה', 'info');
+            if (alsoBlock && userId) {
+                await fetch(`${API_BASE}/block-user/${userId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+            }
+            showToast(alsoBlock ? 'הפנייה נדחתה ולא תקבל/י פניות נוספות ממשתמש זה' : 'הפנייה נדחתה', 'info');
+            setRejectConnModal(null);
             fetchAll();
             window.dispatchEvent(new CustomEvent('requestsUpdated'));
         } catch { showToast('שגיאה', 'error'); }
@@ -238,6 +243,37 @@ export default function Requests() {
         <div style={S.page}>
             {modalPerson && <MatchCardModal person={modalPerson} onClose={() => setModalPerson(null)} token={localStorage.getItem('token')} />}
 
+            {/* ── מודל דחיית פנייה ── */}
+            {rejectConnModal && (
+                <div style={S.overlay}>
+                    <div style={S.modal}>
+                        <h3 style={S.modalTitle}>דחיית פנייה</h3>
+                        <p style={S.modalSub}>האם לדחות את הפנייה מ<strong>{rejectConnModal.name}</strong>?</p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
+                            <button
+                                onClick={() => handleRejectConn(rejectConnModal.connectionId, false)}
+                                style={{ ...S.reasonBtn, background: '#f0fdf4', borderColor: '#86efac', color: '#166534' }}
+                            >
+                                דחה פנייה זו (ניתן לשלוח שוב בעתיד)
+                            </button>
+                            <button
+                                onClick={() => handleRejectConn(rejectConnModal.connectionId, true, rejectConnModal.userId)}
+                                style={{ ...S.reasonBtn, background: '#fef2f2', borderColor: '#fca5a5', color: '#991b1b' }}
+                            >
+                                דחה ומנע פניות נוספות מאדם זה
+                            </button>
+                        </div>
+
+                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', marginTop: '12px', lineHeight: '1.5' }}>
+                            האפשרות השנייה תמנע פניות ובקשות נוספות ממשתמש זה. הצד השני לא יקבל הודעה על כך.
+                        </p>
+
+                        <button onClick={() => setRejectConnModal(null)} style={S.cancelModalBtn}>ביטול</button>
+                    </div>
+                </div>
+            )}
+
             {/* ── מודל דחיית בקשת תמונות ── */}
             {rejectPhotoModal && (
                 <div style={S.overlay}>
@@ -306,9 +342,8 @@ export default function Requests() {
                                                     onViewCard={handleViewCard}
                                                     onAction={() => (
                                                         <div style={{ display: 'flex', gap: 6 }}>
-                                                            <button onClick={() => handleRejectConn(item.connection_id)} style={S.rejectBtn}>❌</button>
+                                                            <button onClick={() => setRejectConnModal({ connectionId: item.connection_id, userId: item.user_id, name: item.full_name })} style={S.rejectBtn}>❌</button>
                                                             <button onClick={() => handleApproveConn(item.connection_id)} style={S.approveBtn}>✅ אשר</button>
-                                                            <button onClick={() => handleBlockUser(item.user_id, item.full_name)} style={S.blockBtn} title="חסום משתמש">🚫</button>
                                                         </div>
                                                     )}
                                                 />
@@ -366,9 +401,18 @@ export default function Requests() {
                                                     type="conn"
                                                     onViewCard={handleViewCard}
                                                     onAction={() => (
-                                                        <button onClick={() => handleCancelConn(item.connection_id)} style={S.cancelBtn}>
-                                                            ✕ בטל
-                                                        </button>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                                                            {item.receiver_first_viewed_at ? (
+                                                                <span style={{ fontSize: '0.72rem', color: '#22c55e', fontWeight: 600 }}>
+                                                                    👁️ נצפה {new Date(item.receiver_first_viewed_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>⏳ טרם נצפה</span>
+                                                            )}
+                                                            <button onClick={() => handleCancelConn(item.connection_id)} style={S.cancelBtn}>
+                                                                ✕ בטל
+                                                            </button>
+                                                        </div>
                                                     )}
                                                 />
                                             ))}

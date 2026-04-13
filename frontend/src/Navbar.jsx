@@ -91,16 +91,22 @@ function Navbar() {
     return () => window.removeEventListener('adminStatsUpdated', fetchAdminStats);
   }, [fetchAdminStats]);
 
-  // badge אדום לשידוכים פעילים
+  // badge אדום לשידוכים פעילים — מתרענן כל 2 דקות
   useEffect(() => {
     if (!user || user.is_admin) return;
-    const token = localStorage.getItem('token');
-    fetch(`${API_BASE}/my-connections?userId=${user.id}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setActiveConnCount(data.length); })
-      .catch(() => {});
+    const fetchActive = () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      fetch(`${API_BASE}/my-connections?userId=${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(r => r.json())
+        .then(data => { if (Array.isArray(data)) setActiveConnCount(data.length); })
+        .catch(() => {});
+    };
+    fetchActive();
+    const id = setInterval(fetchActive, 2 * 60 * 1000);
+    return () => clearInterval(id);
   }, [user]);
 
   // מנקה badge כשנכנסים לדף שידוכים פעילים

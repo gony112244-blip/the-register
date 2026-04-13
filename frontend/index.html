@@ -9,10 +9,33 @@
   <link rel="manifest" href="/manifest.json?v=3" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>הפנקס - שידוכים</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Heebo', 'Segoe UI', Arial, sans-serif; }
+    html, body { direction: rtl; }
+  </style>
 </head>
 
 <body>
   <div id="root"></div>
+  <script>
+    // ניקוי Service Workers ישנים שגורמים לשגיאות payload
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        var swVer = 'v3';
+        if (!localStorage.getItem('sw_cleared_' + swVer)) {
+          regs.forEach(function(r) { r.unregister(); });
+          caches.keys().then(function(names) {
+            names.forEach(function(n) { caches.delete(n); });
+          });
+          localStorage.setItem('sw_cleared_' + swVer, '1');
+          if (regs.length > 0) location.reload();
+        }
+      });
+    }
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

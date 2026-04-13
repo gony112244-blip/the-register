@@ -30,6 +30,8 @@ const T = {
         fixed_times: 'לקבוע עיתים', work_only: 'רק לעבוד'
     },
     home_style: { quiet: 'שקטה ורגועה', active: 'פעילה וחברותית', flexible: 'גמיש' },
+    country_of_birth: { israel: 'ישראל', abroad: 'חו"ל' },
+    favorite_study: { iyun: 'עיון', bekiut: 'בקיאות', none: 'ללא העדפה' },
 };
 const tr = (field, val) => T[field]?.[val] || val || null;
 const show = (val) => val !== null && val !== undefined && val !== '' && val !== '0' && val !== 0 && val !== 'null' && val !== 'undefined';
@@ -259,13 +261,13 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             <Section title="👨‍👩‍👧‍👦 רקע משפחתי" color="#f0fdf4" border="#86efac">
                                 <Row label="רקע דתי" val={tr('family_background', p.family_background)} />
                                 <Row label="מגזר עדתי" val={tr('heritage_sector', p.heritage_sector)} />
-                                <Row label="עדת האב" val={p.father_heritage} />
-                                <Row label="עדת האם" val={p.mother_heritage} />
+                                <Row label="עדת האב" val={tr('heritage_sector', p.father_heritage)} />
+                                <Row label="עדת האם" val={tr('heritage_sector', p.mother_heritage)} />
                                 <Row label="עיסוק האב" val={p.father_occupation} />
                                 <Row label="עיסוק האם" val={p.mother_occupation} />
                                 <Row label="מספר אחים" val={p.siblings_count} />
                                 <Row label="מיקום בין האחים" val={p.sibling_position} />
-                                <Row label="ארץ לידה" val={p.country_of_birth} />
+                                <Row label="ארץ לידה" val={tr('country_of_birth', p.country_of_birth)} />
                                 {isAdmin && addressStr && <Row label="כתובת" val={addressStr} fullWidth />}
                             </Section>
 
@@ -308,7 +310,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             <Row label="ישיבה קטנה" val={p.yeshiva_ketana_name} />
                             <Row label="סמינר/מוסד" val={p.study_place} />
                             <Row label="תחום לימוד" val={p.study_field} />
-                            <Row label="נושא לימוד אהוב" val={p.favorite_study} />
+                            <Row label="נושא לימוד אהוב" val={tr('favorite_study', p.favorite_study)} />
                         </Section>
                     )}
                 </div>

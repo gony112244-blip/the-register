@@ -264,6 +264,63 @@ function Home() {
         </div>
       </section>
 
+      {/* Support / Contact Section */}
+      <section style={{
+        background: 'linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%)',
+        padding: '60px 20px',
+        textAlign: 'center',
+        color: '#fff',
+        direction: 'rtl'
+      }}>
+        <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '14px' }}>🛠️</div>
+          <h2 style={{ fontSize: '1.6rem', fontWeight: '700', margin: '0 0 10px', color: '#FFD700' }}>
+            תמיכה טכנית
+          </h2>
+          <p style={{ fontSize: '1.05rem', color: '#cbd5e1', lineHeight: '1.8', marginBottom: '28px' }}>
+            נתקלת בתקלה באתר? יש שאלה על השימוש? רוצה להציע רעיון לשיפור?<br />
+            אנחנו כאן — השאר פנייה ונחזור אליך בהקדם.
+          </p>
+
+          <div style={{
+            display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap',
+            marginBottom: '30px'
+          }}>
+            {[
+              { icon: '🔧', title: 'תקלה טכנית', desc: 'משהו לא עובד? דווח לנו ונטפל מיד.' },
+              { icon: '❓', title: 'שאלה על האתר', desc: 'לא ברור איך משהו עובד? נשמח להסביר.' },
+              { icon: '💡', title: 'רעיון / שיפור', desc: 'יש לך הצעה שתשפר את חוויית המשתמשים?' },
+            ].map((item, i) => (
+              <div key={i} style={{
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '14px', padding: '18px 22px',
+                flex: '1', minWidth: '180px', maxWidth: '200px'
+              }}>
+                <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>{item.icon}</div>
+                <div style={{ fontWeight: '700', marginBottom: '5px', color: '#FFD700' }}>{item.title}</div>
+                <div style={{ fontSize: '0.85rem', color: '#94a3b8', lineHeight: '1.5' }}>{item.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <Link to="/contact" style={{
+            display: 'inline-block',
+            background: 'linear-gradient(135deg, #c9a227, #f59e0b)',
+            color: '#1a1a1a',
+            padding: '15px 40px',
+            borderRadius: '30px',
+            fontWeight: '800',
+            fontSize: '1.1rem',
+            textDecoration: 'none',
+            boxShadow: '0 6px 20px rgba(201,162,39,0.4)',
+            transition: 'transform 0.2s'
+          }}>
+            ✉️ פנה אלינו עכשיו
+          </Link>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="home-footer">
         <div className="footer-content">

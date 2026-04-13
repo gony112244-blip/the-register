@@ -292,7 +292,8 @@ const loginFooterRowStyle = {
     alignItems: 'center',
     gap: '12px',
     flexWrap: 'wrap',
-    margin: '0 0 10px 0'
+    margin: '0 0 10px 0',
+    direction: 'rtl'
 };
 
 const linkStyle = {

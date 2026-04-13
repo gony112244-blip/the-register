@@ -1568,6 +1568,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         'full_address', 'father_full_name', 'mother_full_name',
         'reference_1_name', 'reference_1_phone', 'reference_2_name', 'reference_2_phone',
         'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
+        'search_body_types', 'search_appearances',
         'search_statuses', 'search_backgrounds', 'search_heritage_sectors',
         'search_occupations', 'search_life_aspirations',
     ];
@@ -1580,6 +1581,12 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
     if (payload.gender === 'male' && isMissing(payload.yeshiva_name)) {
         missingFields.push('yeshiva_name');
+    }
+    if (payload.gender === 'male' && isMissing(payload.search_head_covering)) {
+        missingFields.push('search_head_covering');
+    }
+    if (payload.gender === 'female' && isMissing(payload.head_covering)) {
+        missingFields.push('head_covering');
     }
     if (['working', 'both', 'fixed_times'].includes(payload.current_occupation) && isMissing(payload.work_field)) {
         missingFields.push('work_field');
@@ -1742,12 +1749,16 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
             'height', 'body_type', 'skin_tone', 'appearance',
             'current_occupation',
             'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
+            'search_body_types', 'search_appearances',
             'search_statuses', 'search_backgrounds', 'search_heritage_sectors',
             'search_occupations', 'search_life_aspirations',
         ];
         const missingFields = requiredForMatching.filter((field) => isMissing(mergedProfile[field]));
         if (mergedProfile.gender === 'male' && isMissing(mergedProfile.yeshiva_name)) {
             missingFields.push('yeshiva_name');
+        }
+        if (mergedProfile.gender === 'male' && isMissing(mergedProfile.search_head_covering)) {
+            missingFields.push('search_head_covering');
         }
         if (mergedProfile.gender === 'female' && isMissing(mergedProfile.head_covering)) {
             missingFields.push('head_covering');
@@ -2217,7 +2228,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
         const query = `
             SELECT id, full_name, last_name, age, height, gender, phone,
                    family_background, heritage_sector, body_type, appearance, skin_tone,
-                   current_occupation, about_me, profile_images_count, life_aspiration, study_place, work_field
+                   current_occupation, about_me, profile_images_count, life_aspiration, study_place, work_field,
+                   head_covering, city, status, has_children, children_count
             FROM users
             WHERE ${conditions.join(' AND ')}
             ORDER BY id DESC
@@ -2474,7 +2486,7 @@ app.post('/connect', authenticateToken, async (req, res) => {
             [targetId, myId]
         );
         if (isBlocked.rows.length > 0) {
-            return res.status(403).json({ message: "לא ניתן לשלוח פנייה למשתמש זה" });
+            return res.status(400).json({ message: "ההצעה אינה זמינה כרגע" });
         }
 
         // בדיקה אם כבר יש בקשה פעילה/ממתינה בין השניים (ביטול ודחייה מאפשרים פנייה מחדש)
@@ -2504,12 +2516,19 @@ app.post('/connect', authenticateToken, async (req, res) => {
 app.get('/my-requests', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     try {
+        // סמן כל פנייה שנפתחת בפעם הראשונה
+        await pool.query(
+            `UPDATE connections SET receiver_first_viewed_at = NOW()
+             WHERE receiver_id = $1 AND status = 'pending' AND receiver_first_viewed_at IS NULL`,
+            [userId]
+        );
         const result = await pool.query(
             `SELECT c.id AS connection_id, c.created_at,
                     u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
                     u.family_background, u.body_type, u.appearance, u.current_occupation,
                     u.about_me, u.city, u.profile_images_count, u.life_aspiration,
-                    u.study_place, u.work_field, u.gender, u.skin_tone
+                    u.study_place, u.work_field, u.gender, u.skin_tone,
+                    u.head_covering, u.status, u.has_children, u.children_count
              FROM connections c
              JOIN users u ON c.sender_id = u.id
              WHERE c.receiver_id = $1 AND c.status = 'pending'
@@ -2528,10 +2547,12 @@ app.get('/my-sent-requests', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT c.id AS connection_id, c.created_at, c.status,
+                    c.receiver_first_viewed_at,
                     u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
                     u.family_background, u.body_type, u.appearance, u.current_occupation,
                     u.about_me, u.city, u.profile_images_count, u.life_aspiration,
-                    u.study_place, u.work_field, u.gender, u.skin_tone
+                    u.study_place, u.work_field, u.gender, u.skin_tone,
+                    u.head_covering, u.status, u.has_children, u.children_count
              FROM connections c
              JOIN users u ON c.receiver_id = u.id
              WHERE c.sender_id = $1 AND c.status = 'pending'
@@ -2553,7 +2574,8 @@ app.get('/my-sent-photo-requests', authenticateToken, async (req, res) => {
                     u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
                     u.family_background, u.body_type, u.appearance, u.current_occupation,
                     u.about_me, u.city, u.profile_images_count, u.life_aspiration,
-                    u.study_place, u.work_field, u.gender, u.skin_tone
+                    u.study_place, u.work_field, u.gender, u.skin_tone,
+                    u.head_covering, u.status, u.has_children, u.children_count
              FROM photo_approvals pa
              JOIN users u ON pa.target_id = u.id
              WHERE pa.requester_id = $1 AND pa.status = 'pending'
@@ -2588,11 +2610,15 @@ app.get('/match-card/:userId', authenticateToken, async (req, res) => {
         );
         if (result.rows.length === 0) return res.status(404).json({ message: "לא נמצא" });
 
-        // בדיקה אם המשתמש חסם אותי (אני מנסה לראות כרטיס שלו)
+        // בדיקה אם המשתמש חסם אותי — מחזיר 404 גנרי כדי לא לחשוף שחסמו
         const blockedByTarget = await pool.query(
             'SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
             [targetId, myId]
         );
+        if (blockedByTarget.rows.length > 0) {
+            return res.status(404).json({ message: "הכרטיס אינו זמין כרגע" });
+        }
+
         // בדיקה אם אני חסמתי אותו
         const blockedByMe = await pool.query(
             'SELECT 1 FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
@@ -2600,7 +2626,6 @@ app.get('/match-card/:userId', authenticateToken, async (req, res) => {
         );
 
         const card = result.rows[0];
-        card.is_blocked_by_target = blockedByTarget.rows.length > 0;
         card.i_blocked_them = blockedByMe.rows.length > 0;
         res.json(card);
     } catch (err) {
@@ -2759,8 +2784,8 @@ app.post('/cancel-active-connection', authenticateToken, async (req, res) => {
 
         // הודעה לצד השני
         const msgContent = reason
-            ? `💔 ${myName} ביטל/ה את השידוך.\nסיבה: ${reason}`
-            : `💔 ${myName} ביטל/ה את השידוך.`;
+            ? `${myName} ביטל/ה את הצעת השידוך.\nסיבה: ${reason}`
+            : `${myName} ביטל/ה את הצעת השידוך.`;
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES ($1, $2, $3, 'system')`,
             [userId, otherUserId, msgContent]
@@ -2783,7 +2808,7 @@ app.get('/my-connections', authenticateToken, async (req, res) => {
             `SELECT c.id, c.status, c.sender_id, c.receiver_id, c.sender_final_approve, c.receiver_final_approve,
                 u.full_name, u.phone, u.reference_1_name, u.reference_1_phone,
                 u.reference_2_name, u.reference_2_phone, u.rabbi_name, u.rabbi_phone,
-                u.full_address
+                u.full_address, u.father_full_name, u.mother_full_name
              FROM connections c
              JOIN users u ON (CASE WHEN c.sender_id = $1 THEN c.receiver_id ELSE c.sender_id END) = u.id
              WHERE (c.sender_id = $1 OR c.receiver_id = $1) 
@@ -3048,12 +3073,30 @@ app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req,
                 u1.rabbi_name AS sender_rabbi, u1.rabbi_phone AS sender_rabbi_phone,
                 u1.contact_person_name AS sender_contact, u1.contact_phone_1 AS sender_contact_phone,
                 u1.gender AS sender_gender, u1.profile_images AS sender_images,
+                u1.height AS sender_height, u1.body_type AS sender_body_type,
+                u1.father_heritage AS sender_father_heritage, u1.mother_heritage AS sender_mother_heritage,
+                u1.siblings_count AS sender_siblings, u1.sibling_position AS sender_sibling_position,
+                u1.current_occupation AS sender_occupation, u1.yeshiva_name AS sender_yeshiva,
+                u1.work_field AS sender_work_field,
+                u1.father_full_name AS sender_father_name, u1.mother_full_name AS sender_mother_name,
+                u1.reference_1_name AS sender_ref1_name, u1.reference_1_phone AS sender_ref1_phone,
+                u1.reference_2_name AS sender_ref2_name, u1.reference_2_phone AS sender_ref2_phone,
+                u1.about_me AS sender_about, u1.partner_description AS sender_partner_desc,
                 u2.full_name AS receiver_name, u2.last_name AS receiver_last, u2.age AS receiver_age,
                 u2.phone AS receiver_phone, u2.email AS receiver_email,
                 u2.city AS receiver_city, u2.heritage_sector AS receiver_sector,
                 u2.rabbi_name AS receiver_rabbi, u2.rabbi_phone AS receiver_rabbi_phone,
                 u2.contact_person_name AS receiver_contact, u2.contact_phone_1 AS receiver_contact_phone,
                 u2.gender AS receiver_gender, u2.profile_images AS receiver_images,
+                u2.height AS receiver_height, u2.body_type AS receiver_body_type,
+                u2.father_heritage AS receiver_father_heritage, u2.mother_heritage AS receiver_mother_heritage,
+                u2.siblings_count AS receiver_siblings, u2.sibling_position AS receiver_sibling_position,
+                u2.current_occupation AS receiver_occupation, u2.yeshiva_name AS receiver_yeshiva,
+                u2.work_field AS receiver_work_field,
+                u2.father_full_name AS receiver_father_name, u2.mother_full_name AS receiver_mother_name,
+                u2.reference_1_name AS receiver_ref1_name, u2.reference_1_phone AS receiver_ref1_phone,
+                u2.reference_2_name AS receiver_ref2_name, u2.reference_2_phone AS receiver_ref2_phone,
+                u2.about_me AS receiver_about, u2.partner_description AS receiver_partner_desc,
                 s.name AS shadchanit_name, s.email AS shadchanit_email
             FROM connections c
             JOIN users u1 ON c.sender_id = u1.id
@@ -3073,16 +3116,28 @@ app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req,
         };
 
         const cardHTML = (side, data) => `
-            <div style="background:#f8f9fa;padding:16px;border-radius:10px;margin-bottom:16px;border-right:4px solid #c9a227">
-                <h3 style="color:#1e3a5f;margin:0 0 10px">${side}</h3>
-                <p><strong>שם:</strong> ${data.name} ${data.last || ''}</p>
-                <p><strong>גיל:</strong> ${data.age}</p>
-                <p><strong>עיר:</strong> ${data.city || 'לא צוין'}</p>
-                <p><strong>מגזר:</strong> ${sectorLabels[data.sector] || data.sector || 'לא צוין'}</p>
-                <p><strong>טלפון:</strong> ${data.phone || 'לא צוין'}</p>
-                <p><strong>מייל:</strong> ${data.email || 'לא צוין'}</p>
-                <p><strong>רב/ממליץ:</strong> ${data.rabbi || 'לא צוין'} ${data.rabbiPhone ? `(${data.rabbiPhone})` : ''}</p>
-                <p><strong>איש קשר:</strong> ${data.contact || 'לא צוין'} ${data.contactPhone ? `(${data.contactPhone})` : ''}</p>
+            <div style="background:#f8f9fa;padding:16px;border-radius:10px;margin-bottom:20px;border-right:4px solid #c9a227;direction:rtl">
+                <h3 style="color:#1e3a5f;margin:0 0 12px;font-size:1.1rem;border-bottom:1px solid #e5e7eb;padding-bottom:8px">${side}: ${data.name} ${data.last || ''}</h3>
+                <table style="width:100%;border-collapse:collapse;font-size:0.92rem">
+                    <tr><td style="padding:3px 0;color:#374151;width:38%"><strong>גיל:</strong></td><td style="padding:3px 0;color:#1f2937">${data.age || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>עיר:</strong></td><td style="padding:3px 0;color:#1f2937">${data.city || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>גובה:</strong></td><td style="padding:3px 0;color:#1f2937">${data.height ? data.height + ' ס"מ' : '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>מגזר:</strong></td><td style="padding:3px 0;color:#1f2937">${sectorLabels[data.sector] || data.sector || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>עדת אב:</strong></td><td style="padding:3px 0;color:#1f2937">${data.fatherHeritage || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>עדת אם:</strong></td><td style="padding:3px 0;color:#1f2937">${data.motherHeritage || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>טלפון:</strong></td><td style="padding:3px 0;color:#1f2937">${data.phone || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>מייל:</strong></td><td style="padding:3px 0;color:#1f2937">${data.email || '—'}</td></tr>
+                    ${data.occupation ? `<tr><td style="padding:3px 0;color:#374151"><strong>עיסוק/ישיבה:</strong></td><td style="padding:3px 0;color:#1f2937">${data.occupation}${data.yeshiva ? ' — ' + data.yeshiva : ''}</td></tr>` : ''}
+                    <tr><td style="padding:3px 0;color:#374151"><strong>אחים/אחיות:</strong></td><td style="padding:3px 0;color:#1f2937">${data.siblings != null ? data.siblings + ' (מקום ' + (data.siblingPos || '—') + ')' : '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>שם האב:</strong></td><td style="padding:3px 0;color:#1f2937">${data.fatherName || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>שם האם:</strong></td><td style="padding:3px 0;color:#1f2937">${data.motherName || '—'}</td></tr>
+                    <tr><td style="padding:3px 0;color:#374151"><strong>רב/ממליץ:</strong></td><td style="padding:3px 0;color:#1f2937">${data.rabbi || '—'}${data.rabbiPhone ? ' · ' + data.rabbiPhone : ''}</td></tr>
+                    ${data.ref1Name ? `<tr><td style="padding:3px 0;color:#374151"><strong>ממליץ 1:</strong></td><td style="padding:3px 0;color:#1f2937">${data.ref1Name}${data.ref1Phone ? ' · ' + data.ref1Phone : ''}</td></tr>` : ''}
+                    ${data.ref2Name ? `<tr><td style="padding:3px 0;color:#374151"><strong>ממליץ 2:</strong></td><td style="padding:3px 0;color:#1f2937">${data.ref2Name}${data.ref2Phone ? ' · ' + data.ref2Phone : ''}</td></tr>` : ''}
+                    <tr><td style="padding:3px 0;color:#374151"><strong>איש קשר:</strong></td><td style="padding:3px 0;color:#1f2937">${data.contact || '—'}${data.contactPhone ? ' · ' + data.contactPhone : ''}</td></tr>
+                </table>
+                ${data.about ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb"><strong style="color:#374151">על עצמי:</strong><p style="color:#4b5563;margin:4px 0 0;font-size:0.9rem">${data.about}</p></div>` : ''}
+                ${data.partnerDesc ? `<div style="margin-top:8px"><strong style="color:#374151">מה מחפש/ת:</strong><p style="color:#4b5563;margin:4px 0 0;font-size:0.9rem">${data.partnerDesc}</p></div>` : ''}
             </div>
         `;
 
@@ -3095,13 +3150,29 @@ app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req,
                     name: m.sender_name, last: m.sender_last, age: m.sender_age,
                     city: m.sender_city, sector: m.sender_sector, phone: m.sender_phone,
                     email: m.sender_email, rabbi: m.sender_rabbi, rabbiPhone: m.sender_rabbi_phone,
-                    contact: m.sender_contact, contactPhone: m.sender_contact_phone
+                    contact: m.sender_contact, contactPhone: m.sender_contact_phone,
+                    height: m.sender_height, fatherHeritage: m.sender_father_heritage,
+                    motherHeritage: m.sender_mother_heritage, siblings: m.sender_siblings,
+                    siblingPos: m.sender_sibling_position, occupation: m.sender_occupation,
+                    yeshiva: m.sender_yeshiva, fatherName: m.sender_father_name,
+                    motherName: m.sender_mother_name, ref1Name: m.sender_ref1_name,
+                    ref1Phone: m.sender_ref1_phone, ref2Name: m.sender_ref2_name,
+                    ref2Phone: m.sender_ref2_phone, about: m.sender_about,
+                    partnerDesc: m.sender_partner_desc
                 })}
                 ${cardHTML('צד ב׳', {
                     name: m.receiver_name, last: m.receiver_last, age: m.receiver_age,
                     city: m.receiver_city, sector: m.receiver_sector, phone: m.receiver_phone,
                     email: m.receiver_email, rabbi: m.receiver_rabbi, rabbiPhone: m.receiver_rabbi_phone,
-                    contact: m.receiver_contact, contactPhone: m.receiver_contact_phone
+                    contact: m.receiver_contact, contactPhone: m.receiver_contact_phone,
+                    height: m.receiver_height, fatherHeritage: m.receiver_father_heritage,
+                    motherHeritage: m.receiver_mother_heritage, siblings: m.receiver_siblings,
+                    siblingPos: m.receiver_sibling_position, occupation: m.receiver_occupation,
+                    yeshiva: m.receiver_yeshiva, fatherName: m.receiver_father_name,
+                    motherName: m.receiver_mother_name, ref1Name: m.receiver_ref1_name,
+                    ref1Phone: m.receiver_ref1_phone, ref2Name: m.receiver_ref2_name,
+                    ref2Phone: m.receiver_ref2_phone, about: m.receiver_about,
+                    partnerDesc: m.receiver_partner_desc
                 })}
                 <p style="color:#666;font-size:0.85rem;margin-top:20px">נשלח ממערכת השידוכים האדמיניסטרטיבית</p>
             </div>
@@ -3181,6 +3252,29 @@ app.get('/admin/successful-matches', authenticateToken, async (req, res) => {
             JOIN users u2 ON c.receiver_id = u2.id
             LEFT JOIN shadchaniot s ON c.shadchanit_id = s.id
             WHERE c.match_succeeded = true
+            ORDER BY c.closed_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
+// היסטוריית כל השידוכים הסגורים
+app.get('/admin/closed-connections', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
+    try {
+        const result = await pool.query(`
+            SELECT c.id, c.status, c.closed_at, c.match_succeeded, c.fail_reason, c.close_summary,
+                c.created_at,
+                u1.full_name AS sender_name, u1.age AS sender_age,
+                u2.full_name AS receiver_name, u2.age AS receiver_age,
+                s.name AS shadchanit_name
+            FROM connections c
+            JOIN users u1 ON c.sender_id = u1.id
+            JOIN users u2 ON c.receiver_id = u2.id
+            LEFT JOIN shadchaniot s ON c.shadchanit_id = s.id
+            WHERE c.closed_at IS NOT NULL
             ORDER BY c.closed_at DESC
         `);
         res.json(result.rows);
@@ -4121,6 +4215,7 @@ async function updateDbSchema() {
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS fail_reason TEXT`);
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS close_summary TEXT`);
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`);
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS receiver_first_viewed_at TIMESTAMP`);
 
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(255)');
         // 7. הוספת עמודות לוויזארד החדש (אם חסרות)
@@ -4759,8 +4854,20 @@ updateDbSchema().then(() => {
     // הגשת frontend בפרודקשן — חייב להיות אחרי כל ה-API routes
     const distPath = path.join(__dirname, 'frontend', 'dist');
     if (require('fs').existsSync(distPath)) {
-        app.use(express.static(distPath));
+        app.use('/assets', express.static(path.join(distPath, 'assets'), {
+            maxAge: '1y',
+            immutable: true
+        }));
+        app.use(express.static(distPath, {
+            maxAge: 0,
+            setHeaders: (res, filePath) => {
+                if (filePath.endsWith('.html') || filePath.endsWith('.js')) {
+                    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                }
+            }
+        }));
         app.get('/{*splat}', (req, res) => {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
             res.sendFile(path.join(distPath, 'index.html'));
         });
         console.log('📦 Frontend served from dist/');

@@ -440,20 +440,23 @@ const newConnectionEmail = (senderName) => baseTemplate(`
 // 10. הבקשה שלך אושרה (הצד השני הסכים)
 // ============================================================
 const connectionAcceptedEmail = (acceptorName) => baseTemplate(`
-    <p class="greeting">🎉 הבקשה שלך אושרה!</p>
-    <p><strong>${acceptorName}</strong> אישר/ה את בקשת הקשר שלך. כעת ניתן להתחיל שיחה!</p>
+    <p class="greeting">מזל טוב!</p>
+    <p><strong>${acceptorName}</strong> אישר/ה את הצעת השידוך. כעת ניתן להתקדם בבירורים.</p>
 
     <div class="success-box">
         <p>
-            💬 תוכל לשלוח הודעה ראשונה דרך תיבת הדואר.<br>
+            ניתן לשלוח הודעה ראשונה דרך תיבת הדואר.<br>
             🙏 בהצלחה!
+        </p>
+        <p style="margin-top:10px;font-size:0.9rem;color:#92400e;">
+            ⏰ <strong>שים/י לב:</strong> תמונת הפרופיל של הצד השני זמינה לצפייה ל-48 שעות בלבד.
         </p>
     </div>
 
     <div class="btn-wrapper">
-        <a href="${APP_URL}/connections" class="btn-primary">💬 התחל שיחה עכשיו</a>
+        <a href="${APP_URL}/connections" class="btn-primary">כנס/י לשידוכים הפעילים</a>
     </div>
-`, `${acceptorName} אישר/ה את בקשתך!`);
+`, `${acceptorName} אישר/ה את הצעת השידוך`);
 
 
 // ============================================================
@@ -591,7 +594,7 @@ function getEmailTemplate(type, data) {
             };
         case 'connection_accepted':
             return {
-                subject: `🎉 ${data.acceptorName} אישר/ה את בקשתך!`,
+                subject: `${data.acceptorName} אישר/ה את הצעת השידוך`,
                 html: connectionAcceptedEmail(data.acceptorName)
             };
         case 'reset_password':
