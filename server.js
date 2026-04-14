@@ -67,8 +67,10 @@ app.use(express.json());
 
 
 // הגדרת תיקיות סטטיות
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// תמונות רגישות (פרופיל + ת.ז.) — מוגשות רק דרך /secure-file עם JWT
+// קבצים לא רגישים (אודיו IVR) — נשארים ציבוריים
 app.use('/ivr-audio', express.static(path.join(__dirname, 'ivr-audio')));
+
 
 // ==========================================
 // 📞 IVR — מערכת טלפונית (ימות משיח)
@@ -305,6 +307,35 @@ const authenticateToken = (req, res, next) => {
         next(); // ממשיכים הלאה
     });
 };
+
+// ==========================================
+// 🔒 הגשת קבצים מאובטחת (תמונות פרופיל + ת.ז.)
+// ==========================================
+app.get('/secure-file/:filename', (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = (authHeader && authHeader.split(' ')[1]) || req.query.token;
+
+    if (!token) return res.status(401).json({ message: 'נא להתחבר למערכת' });
+
+    jwt.verify(token, process.env.JWT_SECRET, (err) => {
+        if (err) return res.status(403).json({ message: 'החיבור פג תוקף' });
+
+        const filename = path.basename(req.params.filename);
+        const filePath = path.join(__dirname, 'uploads', filename);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ message: 'קובץ לא נמצא' });
+        }
+
+        const ext = path.extname(filename).toLowerCase();
+        const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+        const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        res.sendFile(filePath);
+    });
+});
 
 // ==========================================
 // 📡 נתיבי מערכת כלליים (ללא אימות)

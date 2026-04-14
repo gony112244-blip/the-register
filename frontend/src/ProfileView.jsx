@@ -1,4 +1,4 @@
-import { API_BASE, FILE_BASE_URL } from './config';
+import { API_BASE, getSecureUrl } from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -89,15 +89,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
 
     const images = normalizeProfileImages(user.profile_images);
 
-    /** כתובת קובץ תמונה — תומך בנתיב יחסי או URL מלא */
-    const mediaUrl = (path) => {
-        if (path == null || path === '') return '';
-        const s = String(path).trim();
-        if (/^https?:\/\//i.test(s)) return s;
-        const base = FILE_BASE_URL || '';
-        const p = s.startsWith('/') ? s : `/${s}`;
-        return `${base}${p}`;
-    };
+    const mediaUrl = (p) => getSecureUrl(p);
 
     const tabs = [
         { id: 1, label: '📝 פרטים' },

@@ -1,4 +1,4 @@
-import { API_BASE, FILE_BASE_URL } from './config';
+import { API_BASE, getSecureUrl } from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
@@ -1652,7 +1652,7 @@ function Profile() {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
                                         <div style={{ position: 'relative' }}>
                                             <img
-                                                src={`${FILE_BASE_URL}${user.id_card_image_url}`}
+                                                src={getSecureUrl(user.id_card_image_url)}
                                                 alt="תצוגת ת.ז"
                                                 style={{
                                                     maxWidth: '220px',
@@ -1727,7 +1727,7 @@ function Profile() {
                                 {(user.profile_images || []).map((imgUrl, idx) => (
                                     <div key={idx} style={{ position: 'relative' }}>
                                         <img
-                                            src={`${FILE_BASE_URL}${imgUrl}`}
+                                            src={getSecureUrl(imgUrl)}
                                             alt={`תמונה ${idx + 1}`}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '10px', border: '3px solid #c9a227' }}
                                         />
