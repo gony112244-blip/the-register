@@ -13,6 +13,7 @@ const dns = require('dns');
 
 // IPv6 is supported and works better in some environments
 
+const sharp = require('sharp');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
@@ -311,30 +312,70 @@ const authenticateToken = (req, res, next) => {
 // ==========================================
 // 🔒 הגשת קבצים מאובטחת (תמונות פרופיל + ת.ז.)
 // ==========================================
-app.get('/secure-file/:filename', (req, res) => {
+app.get('/secure-file/:filename', async (req, res) => {
     const authHeader = req.headers['authorization'];
     const token = (authHeader && authHeader.split(' ')[1]) || req.query.token;
 
     if (!token) return res.status(401).json({ message: 'נא להתחבר למערכת' });
 
-    jwt.verify(token, process.env.JWT_SECRET, (err) => {
-        if (err) return res.status(403).json({ message: 'החיבור פג תוקף' });
+    let decoded;
+    try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (e) {
+        return res.status(403).json({ message: 'החיבור פג תוקף' });
+    }
 
-        const filename = path.basename(req.params.filename);
-        const filePath = path.join(__dirname, 'uploads', filename);
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(__dirname, 'uploads', filename);
 
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ message: 'קובץ לא נמצא' });
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ message: 'קובץ לא נמצא' });
+    }
+
+    const ext = path.extname(filename).toLowerCase();
+    const imageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+
+    // Watermark: only for image files, skipped for admins
+    if (imageExts.has(ext) && !decoded.is_admin) {
+        try {
+            const userRow = await pool.query('SELECT full_name FROM users WHERE id = $1', [decoded.id]);
+            const viewerName = userRow.rows[0]?.full_name || `user-${decoded.id}`;
+            const meta = await sharp(filePath).metadata();
+            const w = meta.width || 400;
+            const h = meta.height || 400;
+            const fontSize = Math.max(14, Math.round(w * 0.04));
+
+            const svgOverlay = Buffer.from(`
+                <svg width="${w}" height="${h}">
+                    <defs>
+                        <style>
+                            .wm { fill: rgba(255,255,255,0.35); font-size: ${fontSize}px; font-family: Arial, sans-serif; font-weight: bold; }
+                        </style>
+                    </defs>
+                    <text x="${Math.round(w * 0.5)}" y="${Math.round(h * 0.92)}" text-anchor="middle" class="wm">${viewerName}</text>
+                    <text x="${Math.round(w * 0.5)}" y="${Math.round(h * 0.35)}" text-anchor="middle" class="wm" transform="rotate(-30, ${Math.round(w * 0.5)}, ${Math.round(h * 0.35)})">${viewerName}</text>
+                </svg>
+            `);
+
+            const outputFormat = (ext === '.png') ? 'png' : 'jpeg';
+            const result = await sharp(filePath)
+                .composite([{ input: svgOverlay, top: 0, left: 0 }])
+                .toFormat(outputFormat, { quality: 85 })
+                .toBuffer();
+
+            res.setHeader('Content-Type', outputFormat === 'png' ? 'image/png' : 'image/jpeg');
+            res.setHeader('Cache-Control', 'private, no-store');
+            return res.send(result);
+        } catch (sharpErr) {
+            console.error('Watermark failed, serving original:', sharpErr.message);
         }
+    }
 
-        const ext = path.extname(filename).toLowerCase();
-        const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
-        const contentType = mimeTypes[ext] || 'application/octet-stream';
-
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'private, max-age=300');
-        res.sendFile(filePath);
-    });
+    // Fallback: serve original file (non-image, admin, or watermark failure)
+    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    res.setHeader('Content-Type', mimeTypes[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.sendFile(filePath);
 });
 
 // ==========================================
@@ -2812,6 +2853,14 @@ app.post('/cancel-active-connection', authenticateToken, async (req, res) => {
 
         // איפוס אישורים סופיים
         await pool.query(`UPDATE connections SET sender_final_approve = false, receiver_final_approve = false WHERE id = $1`, [connectionId]);
+
+        // ביטול הרשאות צפייה בתמונות — השידוך ירד, אין סיבה שהצדדים ימשיכו לראות תמונות
+        await pool.query(
+            `DELETE FROM photo_approvals
+             WHERE (requester_id = $1 AND target_id = $2)
+                OR (requester_id = $2 AND target_id = $1)`,
+            [conn.sender_id, conn.receiver_id]
+        );
 
         // הודעה לצד השני
         const msgContent = reason
