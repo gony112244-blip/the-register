@@ -115,12 +115,20 @@ function Connections() {
     };
 
     const handleFinalApproveClick = (connectionId) => {
-        setPaymentModal(connectionId);
+        const STORAGE_KEY = 'payment_terms_seen_at';
+        const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
+        const lastSeen = localStorage.getItem(STORAGE_KEY);
+        const shouldShow = !lastSeen || (Date.now() - parseInt(lastSeen)) > THREE_MONTHS_MS;
+
+        if (shouldShow) {
+            setPaymentModal(connectionId);
+        } else {
+            // כבר ראה לאחרונה — עובר ישירות לאישור
+            handleFinalApproveDirectly(connectionId);
+        }
     };
 
-    const handleFinalApproveConfirm = async () => {
-        const connectionId = paymentModal;
-        setPaymentModal(null);
+    const submitFinalApprove = async (connectionId) => {
         try {
             const res = await fetch(`${API_BASE}/finalize-connection`, {
                 method: 'POST',
@@ -140,6 +148,17 @@ function Connections() {
         } catch (err) {
             showToast("שגיאה בשליחת האישור", 'error');
         }
+    };
+
+    const handleFinalApproveConfirm = async () => {
+        const connectionId = paymentModal;
+        setPaymentModal(null);
+        localStorage.setItem('payment_terms_seen_at', Date.now().toString());
+        await submitFinalApprove(connectionId);
+    };
+
+    const handleFinalApproveDirectly = async (connectionId) => {
+        await submitFinalApprove(connectionId);
     };
 
     if (loading) return (
@@ -187,7 +206,7 @@ function Connections() {
                                 יש לשלם <strong style={{ color: '#c9a227' }}>4,000 ש"ח</strong> לשדכנית שליוותה את התהליך.
                                 <br /><br />
                                 <span style={{ fontSize: '0.85rem', color: '#7a756d' }}>
-                                    מי שמצבו הכלכלי קשה — מוזמן לפנות אלינו ונמצא פתרון הולם.
+                                    יש שאלות בנושא התשלום? מוזמנים לפנות אלינו בכל עת.
                                 </span>
                             </p>
                         </div>
