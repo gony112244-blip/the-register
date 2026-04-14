@@ -2917,6 +2917,12 @@ app.post('/finalize-connection', authenticateToken, async (req, res) => {
 
         await pool.query(`UPDATE connections SET ${updateField} = TRUE WHERE id = $1`, [connectionId]);
 
+        const otherUserId = conn.sender_id === userId ? conn.receiver_id : conn.sender_id;
+        setImmediate(() => logActivity(userId, 'payment_terms_accepted', {
+            targetUserId: otherUserId,
+            note: `אישר תנאי תשלום (4000 ש"ח לשדכנית במקרה של הצלחה) — חיבור #${connectionId}`
+        }));
+
         // בדיקה אם שני הצדדים אישרו
         const checkBoth = await pool.query(`SELECT sender_final_approve, receiver_final_approve FROM connections WHERE id = $1`, [connectionId]);
         const { sender_final_approve, receiver_final_approve } = checkBoth.rows[0];
