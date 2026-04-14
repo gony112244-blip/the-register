@@ -6,6 +6,7 @@ import './Home.css';
 function Home() {
   const [userCount, setUserCount] = useState(0);
   const [openFaq, setOpenFaq] = useState(null);
+  const [activeFaqCat, setActiveFaqCat] = useState('general');
 
   useEffect(() => {
     fetch(`${API_BASE}/api/stats`)
@@ -14,11 +15,120 @@ function Home() {
       .catch(err => console.error("Error fetching stats:", err));
   }, []);
 
-  const toggleFaq = (index) => {
-    setOpenFaq(openFaq === index ? null : index);
+  const toggleFaq = (key) => {
+    setOpenFaq(openFaq === key ? null : key);
   };
 
   const sitePhoneNumber = "072-XXX-XXXX";
+
+  const faqCategories = [
+    { id: 'general', label: '📌 כללי', icon: '📌' },
+    { id: 'howItWorks', label: '⚙️ איך זה עובד', icon: '⚙️' },
+    { id: 'privacy', label: '🔒 פרטיות ואבטחה', icon: '🔒' },
+    { id: 'cost', label: '💰 עלויות', icon: '💰' },
+    { id: 'phone', label: '📞 שימוש בטלפון', icon: '📞' },
+  ];
+
+  const faqData = {
+    general: [
+      {
+        q: 'למי מיועד הפנקס?',
+        a: 'הפנקס מיועד לבני תורה ובנות סמינר המחפשים שידוך בדרך מכובדת וצנועה. המערכת בנויה מתוך הבנה עמוקה של הצרכים, הרגישויות והמנהגים של הציבור החרדי — ומטרתנו שכל שלב בתהליך ייעשה בדרך ארץ ובכבוד.'
+      },
+      {
+        q: 'מה ההבדל בינכם לבין אתרי שידוכים אחרים?',
+        a: 'בניגוד ל"לוח מודעות" שבו כולם רואים את כולם — אצלנו הפרופיל שלך מוצג רק למועמדים שמתאימים לקריטריונים שהגדרת, ושגם הקריטריונים שלהם מתאימים לך. אינך "מוצר על מדף". בנוסף, יש שדכנית מלווה שמנהלת את התהליך מרגע שהשידוך מתקדם — ולא משאירים אותך לבד.'
+      },
+      {
+        q: 'האם האתר מיועד רק לרווקים, או גם לגרושים ואלמנים?',
+        a: 'האתר פתוח לכל מי שמחפש שידוך ברצינות — רווקים, גרושים ואלמנים כאחד. ניתן לציין את המצב המשפחתי בפרופיל, והמערכת תתאים הצעות בהתאם להעדפות שלך ושל הצד השני.'
+      },
+      {
+        q: 'איך מוחקים את הכרטיס שלי מהמערכת?',
+        a: 'ניתן למחוק את החשבון ישירות מהאתר: לאחר ההתחברות, פתח את עריכת הפרופיל, גלול לתחתית הדף, ושם תמצא את הכפתור "מחיקת החשבון שלי לצמיתות". לחיצה עליו תבקש ממך אישור כפול לפני המחיקה. שים לב: המחיקה סופית ובלתי הפיכה — כל הנתונים, ההודעות והתמונות יימחקו לצמיתות.'
+      },
+      {
+        q: 'נתקלתי בקושי או שיש לי שאלה, איך יוצרים קשר?',
+        a: 'הדרך הנוחה ביותר היא דרך טופס יצירת קשר באתר — השדות מתמלאים אוטומטית למשתמש מחובר. לחלופין ניתן לשלוח מייל ל-hapinkas.contact@gmail.com. אנחנו משתדלים לחזור בהקדם.'
+      },
+    ],
+    howItWorks: [
+      {
+        q: 'איך מתחילים?',
+        a: 'נכנסים לאתר, ממלאים טופס רישום קצר עם פרטים בסיסיים, מעלים צילום תעודת זהות (לצורך אימות בלבד), וממתינים לאישור. לאחר שהמנהלת מאשרת את הפרופיל — מתחילים לקבל הצעות.'
+      },
+      {
+        q: 'מה קורה אחרי שאני נרשם?',
+        a: 'המנהלת בודקת את הפרטים ומאשרת את הפרופיל. מרגע האישור, המערכת מתחילה להציג לך הצעות שמתאימות לקריטריונים שהגדרת — גיל, מגזר, מוצא, סוג לימוד ועוד.'
+      },
+      {
+        q: 'מה זה "שלב הבירורים"?',
+        a: 'כאשר שני הצדדים מביעים עניין הדדי — נפתח שלב הבירורים. בשלב זה תקבלו פרטים מורחבים האחד על השני: גבאים, רבנים, כתובות ופרטי קשר להתקשר ולברר. רק לאחר ששניכם מאשרים שסיימתם בירורים ומעוניינים — הפרטים עוברים לשדכנית.'
+      },
+      {
+        q: 'מה תפקיד השדכנית?',
+        a: 'השדכנית מלווה את השידוך מהרגע ששני הצדדים סיימו בירורים ואישרו עניין. היא יוצרת קשר עם שני הצדדים, מתאמת ומסייעת להוביל את התהליך עד סופו בסייעתא דשמיא.'
+      },
+      {
+        q: 'האם אני מחויב להצעה שקיבלתי?',
+        a: 'חלילה. ניתן לדחות כל הצעה בכל שלב — בין אם לפני שלב הבירורים ובין אם תוך כדי. אנחנו מבינים שלא כל הצעה מתאימה, והמערכת מכבדת את ההחלטה שלך.'
+      },
+    ],
+    privacy: [
+      {
+        q: 'האם מישהו יכול לראות את התמונה שלי בלי רשותי?',
+        a: 'לא. התמונות שלך נעולות לחלוטין. גם אם מישהו ינסה להגיע ישירות לתמונה דרך הכתובת שלה בדפדפן — הוא יקבל הודעת שגיאה. רק מי שאת/ה אישרת לראות את התמונות שלך, ורק בזמן שהוא מחובר למערכת עם החשבון שלו, יוכל לראות אותן.'
+      },
+      {
+        q: 'מה קורה אם מישהו שמר את הכתובת של התמונה שלי ורוצה לפתוח אותה אחר כך?',
+        a: 'זה לא יעבוד. כל כניסה לתמונה דורשת שהמשתמש יהיה מחובר ומזוהה במערכת ברגע הצפייה. הכתובת לבדה — ללא כניסה פעילה למערכת — אינה מאפשרת שום צפייה.'
+      },
+      {
+        q: 'מה זה "סימן מים" שמוסיפים לתמונה?',
+        a: 'כל פעם שמישהו רואה תמונה שלך, שמו האישי מודפס על גבי התמונה באופן קבוע. כך, גם אם צילם את המסך — ניתן לדעת בדיוק מי עשה זאת. זו הרתעה חזקה שגורמת לאנשים לנהוג בכבוד.'
+      },
+      {
+        q: 'האם אפשר להוריד את התמונה שלי ישירות דרך הדפדפן?',
+        a: 'לא בקלות. המערכת חוסמת לחיצה על "שמור תמונה", מניעה גרירה ואינה מאפשרת פתיחת התמונה בלשונית חדשה. אין מאה אחוז הגנה מפני צילום מסך ידני — אבל סימן המים מבטיח שגם אם מישהו עשה זאת, שמו רשום עליה.'
+      },
+      {
+        q: 'מה קורה אם השידוך לא המשיך?',
+        a: 'ברגע שאחד הצדדים מבטל את ההתקדמות — ההרשאה לראות תמונות מתבטלת מיד ואוטומטית. הצד השני לא יוכל עוד לצפות בתמונות, גם אם קיבל אישור קודם. אין צורך לבקש להסיר הרשאה — זה קורה לבד.'
+      },
+      {
+        q: 'כמה זמן מישהו יכול לראות את התמונות שלי לאחר שנתתי אישור?',
+        a: '48 שעות בלבד מרגע האישור. לאחר מכן, ההרשאה פוקעת מאליה וצריך לחדש אותה. כך לא נוצר מצב שמישהו ראה תמונות לפני שנה ועדיין "מורשה" לראות אותן היום.'
+      },
+      {
+        q: 'האם צילום תעודת הזהות שמועלה לצורך אימות מוגן גם הוא?',
+        a: 'כן, בדיוק באותו אופן כמו תמונות הפרופיל. רק המנהלת יכולה לצפות בה לצורך האימות, ואף משתמש רגיל לא יכול לגשת אליה בשום דרך.'
+      },
+      {
+        q: 'מי רואה את הפרטים שלי?',
+        a: 'רק מועמדים שמתאימים לקריטריונים שהגדרת, ושגם קריטריוני החיפוש שלהם מתאימים לפרופיל שלך. בנוסף, צוות המערכת (לצורך אישור ותמיכה). אנחנו שומרים על פרטיותך.'
+      },
+    ],
+    cost: [
+      {
+        q: 'כמה עולה להשתמש באתר?',
+        a: 'השימוש באתר חינם לחלוטין — הרישום, הגדרת ההעדפות, קבלת הצעות, בירורים ושלב ההתאמה — הכל ללא עלות.'
+      },
+      {
+        q: 'אז מתי יש תשלום?',
+        a: 'רק אם שידוך יוצא לפועל בסייעתא דשמיא — יש לשלם 4,000 ש"ח לשדכנית שליוותה את התהליך. התשלום הוא עבור העבודה של השדכנית ולא עבור השימוש באתר. למי שמצבו הכלכלי קשה, ניתן לפנות אלינו ונמצא פתרון הולם.'
+      },
+      {
+        q: 'למה לשלם אם האתר עצמו חינם?',
+        a: 'האתר מספק כלי חיפוש ובירורים. אך ברגע שהשידוך מתקדם לשלב רציני, שדכנית מקצועית נכנסת לתמונה, מלווה את שני הצדדים, מתאמת ועוזרת להוביל את התהליך. התשלום מגיע רק על תוצאה — שידוך שנגמר בהצלחה.'
+      },
+    ],
+    phone: [
+      {
+        q: 'בקרוב...',
+        a: 'מידע על השירות הטלפוני יתווסף כאן בקרוב בעזרת ה\'.'
+      }
+    ]
+  };
 
   return (
     <div className="home-page">
@@ -64,11 +174,12 @@ function Home() {
             {[
               { label: '✨ למה אנחנו?', selector: '.features-section' },
               { label: '⚙️ איך זה עובד?', selector: '.how-it-works' },
+              { label: '💰 עלויות', selector: '.pricing-section' },
               { label: '❓ שאלות נפוצות', selector: '.faq-section' }
             ].map((item, idx) => (
               <button
                 key={idx}
-                onClick={() => document.querySelector(item.selector).scrollIntoView({ behavior: 'smooth' })}
+                onClick={() => document.querySelector(item.selector)?.scrollIntoView({ behavior: 'smooth' })}
                 style={{
                   background: 'linear-gradient(135deg, #FFD700 0%, #daa520 100%)',
                   color: '#3e2723',
@@ -96,7 +207,7 @@ function Home() {
 
       {/* Features Section */}
       <section className="features-section">
-        <h2 className="section-title">למה אנחנו?</h2>
+        <h2 className="section-title">למה הפנקס?</h2>
         <div className="features-grid">
 
           <div className="feature-card">
@@ -104,7 +215,7 @@ function Home() {
             <h3 className="feature-title">פרטיות מוחלטת</h3>
             <p className="feature-desc">
               הפרופיל שלך לא מוצג לכולם. רק מועמדים שמתאימים לקריטריונים שלך — רואים אותך.
-              אינך "מוצר על מדף".
+              אינך "מוצר על מדף". והתמונות? נעולות ומוגנות, לא ניתן להגיע אליהן ללא אישורך.
             </p>
           </div>
 
@@ -112,17 +223,44 @@ function Home() {
             <div className="feature-icon">🎯</div>
             <h3 className="feature-title">התאמות מדויקות</h3>
             <p className="feature-desc">
-              המערכת מציגה לך רק מועמדים שמתאימים להעדפות שהגדרת — גיל, מגזר ועוד.
-              ללא בזבוז זמן.
+              המערכת מציגה לך רק מועמדים שמתאימים להעדפות שהגדרת — גיל, מגזר, מוצא, תחום עיסוק ועוד.
+              ללא בזבוז זמן על הצעות שאינן רלוונטיות.
+            </p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon">👩‍💼</div>
+            <h3 className="feature-title">שדכנית מלווה</h3>
+            <p className="feature-desc">
+              אנחנו לא משאירים אותך לבד. כשהשידוך מתקדם — שדכנית מקצועית נכנסת לתמונה,
+              מלווה את שני הצדדים ועוזרת להוביל את התהליך עד סופו.
             </p>
           </div>
 
           <div className="feature-card">
             <div className="feature-icon">📞</div>
-            <h3 className="feature-title">שירות טלפוני מלא</h3>
+            <h3 className="feature-title">שירות גם בטלפון</h3>
             <p className="feature-desc">
               הרישום מתבצע באתר בצורה מאובטחת.
               לאחר מכן — עדכון פרטים, בירורים וקבלת הצעות זמינות גם בשיחה טלפונית.
+            </p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon">🛡️</div>
+            <h3 className="feature-title">הגנה על תמונות</h3>
+            <p className="feature-desc">
+              כל תמונה שנצפית מוטבע עליה שם הצופה. לא ניתן להוריד, לגרור או לשמור תמונות.
+              ההרשאה פוקעת אחרי 48 שעות, ואם השידוך יורד — הגישה נחסמת מיד.
+            </p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon">💸</div>
+            <h3 className="feature-title">חינם לשימוש</h3>
+            <p className="feature-desc">
+              כל השימוש באתר — רישום, חיפוש, הצעות ובירורים — ללא עלות כלל.
+              תשלום נדרש רק לשדכנית, ורק אם שידוך יצא לפועל בהצלחה.
             </p>
           </div>
 
@@ -146,7 +284,7 @@ function Home() {
             <div className="step-number">2</div>
             <div className="step-content">
               <h3>מגדירים את ההעדפות</h3>
-              <p>איזה גיל מחפשים? מאיזה מגזר? הגדרות פשוטות שעוזרות למערכת למצוא התאמות מדויקות.</p>
+              <p>איזה גיל מחפשים? מאיזה מגזר? מוצא? תחום עיסוק? הגדרות פשוטות שעוזרות למערכת למצוא התאמות מדויקות.</p>
             </div>
           </div>
 
@@ -154,113 +292,121 @@ function Home() {
             <div className="step-number">3</div>
             <div className="step-content">
               <h3>מקבלים הצעות מותאמות</h3>
-              <p>המערכת מציגה לך רק מועמדים שמתאימים להגדרות החיפוש שלך, ושגם הגדרות החיפוש שלהם מתאימות לך.</p>
+              <p>המערכת מציגה לך רק מועמדים שמתאימים להגדרות החיפוש שלך, ושגם הגדרות החיפוש שלהם מתאימות לך. התאמה דו-כיוונית.</p>
             </div>
           </div>
 
           <div className="step-item">
             <div className="step-number">4</div>
             <div className="step-content">
-              <h3>מתקדמים בזהירות</h3>
-              <p>מצאתם עניין הדדי? תקבלו פרטים מורחבים לצורך בירורים מעמיקים. רק לאחר ששני הצדדים מאשרים שוב, פרטי הקשר עוברים לשדכנית להמשך התהליך.</p>
+              <h3>בירורים מעמיקים</h3>
+              <p>מצאתם עניין הדדי? תקבלו פרטים מורחבים — גבאים, רבנים, כתובות ופרטי קשר. תברררו בנחת ובמקצועיות.</p>
+            </div>
+          </div>
+
+          <div className="step-item">
+            <div className="step-number">5</div>
+            <div className="step-content">
+              <h3>שדכנית נכנסת לתמונה</h3>
+              <p>כששני הצדדים מסיימים בירורים ומאשרים עניין — שדכנית מקצועית מקבלת את הפרטים ומלווה את ההמשך עד בסייעתא דשמיא.</p>
             </div>
           </div>
 
         </div>
       </section>
 
-      {/* FAQ Section */}
+      {/* Pricing Section */}
+      <section className="pricing-section" style={{
+        padding: '80px 20px',
+        background: 'linear-gradient(180deg, #fff 0%, #f8f5f0 100%)',
+        textAlign: 'center',
+        direction: 'rtl'
+      }}>
+        <h2 className="section-title">עלויות</h2>
+        <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+
+          <div style={{
+            background: '#fff',
+            borderRadius: '24px',
+            padding: '50px 35px',
+            border: '2px solid #c9a227',
+            boxShadow: '0 8px 40px rgba(201,162,39,0.15)',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, height: '5px',
+              background: 'linear-gradient(90deg, #8b6914, #e8d48a, #8b6914)'
+            }}/>
+
+            <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>💸</div>
+            <h3 style={{ fontSize: '1.6rem', color: '#1a1612', marginBottom: '20px', fontWeight: '700' }}>
+              השימוש באתר — חינם לגמרי
+            </h3>
+            <p style={{ color: '#4a4540', lineHeight: '2', fontSize: '1.1rem', marginBottom: '30px' }}>
+              הרישום, החיפוש, ההצעות, הבירורים — הכל ללא עלות.
+              <br />
+              אנחנו לא גובים דמי שימוש, דמי מנוי או עמלות.
+            </p>
+
+            <div style={{
+              background: '#fefdfb',
+              borderRadius: '16px',
+              padding: '30px',
+              border: '1px solid #e8e4db'
+            }}>
+              <div style={{ fontSize: '1.2rem', fontWeight: '700', color: '#1a1612', marginBottom: '10px' }}>
+                ואם שידוך יוצא לפועל?
+              </div>
+              <p style={{ color: '#4a4540', lineHeight: '2', fontSize: '1.05rem', margin: 0 }}>
+                רק במקרה שהשידוך נגמר בהצלחה בסייעתא דשמיא — יש לשלם
+                {' '}<strong style={{ color: '#c9a227', fontSize: '1.2rem' }}>4,000 ש"ח</strong>{' '}
+                לשדכנית שליוותה את התהליך.
+                <br /><br />
+                <span style={{ fontSize: '0.95rem', color: '#7a756d' }}>
+                  מי שמצבו הכלכלי קשה — מוזמן לפנות אלינו ונמצא פתרון הולם בעזרת ה'.
+                </span>
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* FAQ Section - Categories */}
       <section className="faq-section">
         <h2 className="section-title">שאלות ותשובות</h2>
+
+        {/* Category Tabs */}
+        <div className="faq-tabs">
+          {faqCategories.map(cat => (
+            <button
+              key={cat.id}
+              className={`faq-tab ${activeFaqCat === cat.id ? 'active' : ''}`}
+              onClick={() => { setActiveFaqCat(cat.id); setOpenFaq(null); }}
+            >
+              <span className="faq-tab-icon">{cat.icon}</span>
+              <span className="faq-tab-label">{cat.label.replace(/^[^\s]+\s/, '')}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="faq-container">
-
-          <div className={`faq-item ${openFaq === 0 ? 'open' : ''}`}>
-            <div className="faq-question" onClick={() => toggleFaq(0)}>
-              <span className="question-text">
-                <span className="question-icon">?</span>
-                למי מיועד הפנקס?
-              </span>
-              <span className="arrow">▼</span>
-            </div>
-            <p className="faq-answer">
-              הפנקס מיועד לבני תורה ובנות סמינר, המחפשים שידוך בדרך מכובדת וצנועה. המערכת בנויה תוך הבנה עמוקה של הצרכים והרגישויות של הציבור החרדי.
-            </p>
-          </div>
-
-          <div className={`faq-item ${openFaq === 1 ? 'open' : ''}`}>
-            <div className="faq-question" onClick={() => toggleFaq(1)}>
-              <span className="question-text">
-                <span className="question-icon">?</span>
-                מה ההבדל בינכם לבין אתרי שידוכים אחרים?
-              </span>
-              <span className="arrow">▼</span>
-            </div>
-            <p className="faq-answer">
-              בניגוד ל"לוח מודעות" שבו כולם רואים את כולם — אצלנו הפרופיל שלך מוצג רק למועמדים מתאימים. אינך "מוצר על מדף". זו גישה שמכבדת את האדם ושומרת על הצניעות.
-            </p>
-          </div>
-
-          <div className={`faq-item ${openFaq === 2 ? 'open' : ''}`}>
-            <div className="faq-question" onClick={() => toggleFaq(2)}>
-              <span className="question-text">
-                <span className="question-icon">?</span>
-                אפשר להירשם גם דרך הטלפון?
-              </span>
-              <span className="arrow">▼</span>
-            </div>
-            <p className="faq-answer">
-              הרישום הראשוני מתבצע דרך האתר בלבד (כדי שנוכל לאמת נתונים בצורה בטוחה). לאחר מכן, ניתן לבצע את כל שאר הפעולות (עדכונים, בירורים וקבלת הצעות) בשיחת טלפון.
-            </p>
-          </div>
-
-          <div className={`faq-item ${openFaq === 3 ? 'open' : ''}`}>
-            <div className="faq-question" onClick={() => toggleFaq(3)}>
-              <span className="question-text">
-                <span className="question-icon">?</span>
-                מי רואה את הפרטים שלי?
-              </span>
-              <span className="arrow">▼</span>
-            </div>
-            <p className="faq-answer">
-              רק מועמדים שמתאימים לקריטריונים שהגדרת, ושגם קריטריוני החיפוש שלהם מתאימים לפרופיל שלך. בנוסף, צוות המערכת (לצורך אישור ותמיכה). אנחנו שומרים על פרטיותך.
-            </p>
-          </div>
-
-          <div className={`faq-item ${openFaq === 4 ? 'open' : ''}`}>
-            <div className="faq-question" onClick={() => toggleFaq(4)}>
-              <span className="question-text">
-                <span className="question-icon">?</span>
-                נתקלתי בקושי או שיש לי שאלה, איך יוצרים קשר?
-              </span>
-              <span className="arrow">▼</span>
-            </div>
-            <p className="faq-answer">
-              הדרך המועדפת:{' '}
-              <Link to="/contact" style={{ color: 'inherit', fontWeight: 'bold' }}>טופס יצירת קשר</Link>
-              {' '}באתר — הפרטים נשמרים במערכת (למשתמש מחובר חלק מהשדות מתמלאים אוטומטית).
-              <br /><br />
-              לחלופין: מייל ל־{' '}
-              <a href="mailto:hapinkas.contact@gmail.com" style={{ color: 'inherit', fontWeight: 'bold' }}>
-                hapinkas.contact@gmail.com
-              </a>
-            </p>
-          </div>
-
-          <div className={`faq-item ${openFaq === 5 ? 'open' : ''}`}>
-            <div className="faq-question" onClick={() => toggleFaq(5)}>
-              <span className="question-text">
-                <span className="question-icon">?</span>
-                איך מוחקים את הכרטיס שלי מהמערכת?
-              </span>
-              <span className="arrow">▼</span>
-            </div>
-            <p className="faq-answer">
-              ניתן למחוק את החשבון ישירות מהאתר: לאחר ההתחברות, פתח את <strong>עריכת הפרופיל</strong>, גלול לתחתית הדף, ושם תמצא את הכפתור "מחיקת החשבון שלי לצמיתות". לחיצה על הכפתור תבקש ממך אישור כפול לפני המחיקה.
-              <br /><br />
-              <strong>שים לב:</strong> המחיקה סופית ובלתי הפיכה — כל הנתונים שלך במערכת (הצעות, הודעות, תמונות ופרטי הפרופיל) יימחקו לצמיתות, ולא ניתן יהיה לשחזר אותם.
-            </p>
-          </div>
-
+          {(faqData[activeFaqCat] || []).map((item, idx) => {
+            const key = `${activeFaqCat}-${idx}`;
+            return (
+              <div key={key} className={`faq-item ${openFaq === key ? 'open' : ''}`}>
+                <div className="faq-question" onClick={() => toggleFaq(key)}>
+                  <span className="question-text">
+                    <span className="question-icon">?</span>
+                    {item.q}
+                  </span>
+                  <span className="arrow">▼</span>
+                </div>
+                <p className="faq-answer">{item.a}</p>
+              </div>
+            );
+          })}
         </div>
       </section>
 

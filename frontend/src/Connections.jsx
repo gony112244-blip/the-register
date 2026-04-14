@@ -33,6 +33,7 @@ function Connections() {
     const [refReason, setRefReason] = useState('');
     const [refCount, setRefCount] = useState(1);
     const [refSending, setRefSending] = useState(false);
+    const [paymentModal, setPaymentModal] = useState(null);
     const navigate = useNavigate();
     const { showToast } = useToast();
 
@@ -113,7 +114,13 @@ function Connections() {
         setRefSending(false);
     };
 
-    const handleFinalApprove = async (connectionId) => {
+    const handleFinalApproveClick = (connectionId) => {
+        setPaymentModal(connectionId);
+    };
+
+    const handleFinalApproveConfirm = async () => {
+        const connectionId = paymentModal;
+        setPaymentModal(null);
         try {
             const res = await fetch(`${API_BASE}/finalize-connection`, {
                 method: 'POST',
@@ -124,7 +131,6 @@ function Connections() {
                 body: JSON.stringify({ connectionId, userId: user.id })
             });
             const result = await res.json();
-            // החליפת הודעות בהתאם לסטטוס
             if (result.status === 'completed') {
                 showToast('🎉 שניכם אישרתם! הפרטים עברו לשדכנית', 'success');
             } else {
@@ -151,6 +157,76 @@ function Connections() {
                     onClose={() => setModalPerson(null)}
                     token={token}
                 />
+            )}
+
+            {/* מודל תנאי תשלום לשדכנית */}
+            {paymentModal && (
+                <div style={styles.overlay}>
+                    <div style={{
+                        ...styles.cancelModalBox,
+                        maxWidth: '480px',
+                        textAlign: 'center'
+                    }}>
+                        <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>👩‍💼</div>
+                        <h3 style={{ color: '#1e3a5f', fontSize: '1.3rem', marginBottom: '15px' }}>
+                            רגע לפני שממשיכים...
+                        </h3>
+                        <p style={{ color: '#4a4540', lineHeight: '2', fontSize: '1rem', marginBottom: '15px' }}>
+                            ברגע ששני הצדדים מאשרים סיום בירורים,
+                            <strong> שדכנית מקצועית</strong> תיכנס לתמונה ותלווה את התהליך.
+                        </p>
+                        <div style={{
+                            background: '#fefdfb',
+                            borderRadius: '12px',
+                            padding: '18px',
+                            border: '1px solid #e8e4db',
+                            marginBottom: '20px'
+                        }}>
+                            <p style={{ color: '#4a4540', lineHeight: '1.9', fontSize: '0.95rem', margin: 0 }}>
+                                אם השידוך יצא לפועל בסייעתא דשמיא,
+                                יש לשלם <strong style={{ color: '#c9a227' }}>4,000 ש"ח</strong> לשדכנית שליוותה את התהליך.
+                                <br /><br />
+                                <span style={{ fontSize: '0.85rem', color: '#7a756d' }}>
+                                    מי שמצבו הכלכלי קשה — מוזמן לפנות אלינו ונמצא פתרון הולם.
+                                </span>
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={handleFinalApproveConfirm}
+                                style={{
+                                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    padding: '14px 35px',
+                                    borderRadius: '30px',
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit'
+                                }}
+                            >
+                                מקובל עליי, אני ממשיך/ה ✅
+                            </button>
+                            <button
+                                onClick={() => setPaymentModal(null)}
+                                style={{
+                                    background: '#f1f5f9',
+                                    color: '#64748b',
+                                    border: '1px solid #e2e8f0',
+                                    padding: '14px 30px',
+                                    borderRadius: '30px',
+                                    fontWeight: '600',
+                                    fontSize: '0.95rem',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit'
+                                }}
+                            >
+                                חזרה
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* מודל בקשת ממליץ נוסף */}
@@ -360,7 +436,7 @@ function Connections() {
                                                 )}
 
                                                 <button
-                                                    onClick={() => handleFinalApprove(conn.id)}
+                                                    onClick={() => handleFinalApproveClick(conn.id)}
                                                     disabled={alreadyApproved}
                                                     style={alreadyApproved ? styles.doneBtn : styles.approveBtn}
                                                 >
