@@ -3,12 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
-  <!-- אייקון טאב: ICO/PNG — לא logo.svg (הסמל הישן) -->
-  <link rel="icon" href="/favicon.ico?v=4" sizes="any" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=4" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png?v=4" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=4" />
-  <link rel="manifest" href="/manifest.json?v=4" />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg?v=5" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png?v=5" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=5" />
+  <link rel="manifest" href="/manifest.json?v=5" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>הפנקס - שידוכים</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,7 +24,7 @@
     // ניקוי Service Workers ישנים שגורמים לשגיאות payload
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(regs) {
-        var swVer = 'v4';
+        var swVer = 'v5';
         if (!localStorage.getItem('sw_cleared_' + swVer)) {
           regs.forEach(function(r) { r.unregister(); });
           caches.keys().then(function(names) {
