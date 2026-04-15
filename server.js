@@ -4673,13 +4673,21 @@ async function updateDbSchema() {
             `CREATE INDEX IF NOT EXISTS idx_connections_sender_id ON connections(sender_id)`,
             `CREATE INDEX IF NOT EXISTS idx_connections_receiver_id ON connections(receiver_id)`,
             `CREATE INDEX IF NOT EXISTS idx_connections_status ON connections(status)`,
+            `CREATE INDEX IF NOT EXISTS idx_connections_sender_status ON connections(sender_id, status)`,
+            `CREATE INDEX IF NOT EXISTS idx_connections_receiver_status ON connections(receiver_id, status)`,
+            `CREATE INDEX IF NOT EXISTS idx_connections_status_updated ON connections(status, updated_at DESC)`,
             `CREATE INDEX IF NOT EXISTS idx_hidden_profiles_user_id ON hidden_profiles(user_id)`,
             `CREATE INDEX IF NOT EXISTS idx_hidden_profiles_hidden_user_id ON hidden_profiles(hidden_user_id)`,
             `CREATE INDEX IF NOT EXISTS idx_user_blocks_blocker_id ON user_blocks(blocker_id)`,
             `CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked_id ON user_blocks(blocked_id)`,
             `CREATE INDEX IF NOT EXISTS idx_photo_approvals_requester ON photo_approvals(requester_id)`,
             `CREATE INDEX IF NOT EXISTS idx_photo_approvals_target ON photo_approvals(target_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_photo_approvals_pair ON photo_approvals(requester_id, target_id, status)`,
             `CREATE INDEX IF NOT EXISTS idx_users_gender_approved_blocked ON users(gender, is_approved, is_blocked)`,
+            `CREATE INDEX IF NOT EXISTS idx_users_approved_blocked ON users(is_approved, is_blocked)`,
+            `CREATE INDEX IF NOT EXISTS idx_user_images_user_id ON user_images(user_id)`,
+            `CREATE INDEX IF NOT EXISTS idx_messages_to_user ON messages(to_user_id, created_at DESC)`,
+            `CREATE INDEX IF NOT EXISTS idx_messages_to_read ON messages(to_user_id, is_read)`,
         ];
         for (const q of perfIndexes) {
             await pool.query(q).catch((e) => console.warn('[schema index]', e.message));
