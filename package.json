@@ -19,6 +19,7 @@
     "@google-cloud/text-to-speech": "^6.4.0",
     "axios": "^1.15.0",
     "bcrypt": "^6.0.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",

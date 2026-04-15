@@ -16,6 +16,7 @@ const dns = require('dns');
 const sharp = require('sharp');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 const { body, validationResult } = require('express-validator');
 
 
@@ -75,8 +76,7 @@ const imageLimiter = rateLimit({
 });
 
 app.use(express.json({ limit: '2mb' }));
-
-
+app.use(compression());
 
 // הגדרת תיקיות סטטיות
 // תמונות רגישות (פרופיל + ת.ז.) — מוגשות רק דרך /secure-file עם JWT
