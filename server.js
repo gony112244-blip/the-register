@@ -691,6 +691,8 @@ app.post('/login', loginLimiter, async (req, res) => {
         // 5. עדכון זמן התחברות אחרון
         await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
 
+        setImmediate(() => logActivity(user.id, 'login_success'));
+
         res.json({
             token,
             user: {
@@ -820,6 +822,7 @@ app.post('/update-email-and-send-code', authenticateToken, async (req, res) => {
 
         await sendTemplateEmail(email, 'verification', { fullName: userRes.rows[0].full_name, code: verificationCode, userId }, userId);
         
+        setImmediate(() => logActivity(userId, 'email_updated'));
         res.json({ message: "המייל עודכן וקוד אימות נשלח" });
     } catch (err) {
         console.error('[update-email-and-send-code] Error:', err);
@@ -896,6 +899,7 @@ app.post('/update-phone', authenticateToken, async (req, res) => {
             return res.status(409).json({ message: "מספר טלפון זה כבר רשום במערכת" });
         }
         await pool.query('UPDATE users SET phone = $1 WHERE id = $2', [cleanPhone, userId]);
+        setImmediate(() => logActivity(userId, 'phone_updated'));
         res.json({ message: "מספר הטלפון עודכן בהצלחה", phone: cleanPhone });
     } catch (err) {
         console.error('[update-phone] Error:', err.message);
@@ -1201,6 +1205,9 @@ app.post('/reset-password', async (req, res) => {
 
         resetCodes.delete(cleanPhone);
 
+        const pwUser = await pool.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
+        if (pwUser.rows[0]) setImmediate(() => logActivity(pwUser.rows[0].id, 'password_reset_completed'));
+
         res.json({ message: "הסיסמה שונתה בהצלחה!" });
     } catch (err) {
         console.error("Reset password error:", err);
@@ -1323,6 +1330,7 @@ app.post('/upload-id-card', authenticateToken, upload.single('idCard'), async (r
         }
 
         console.log("[Upload] Success!");
+        setImmediate(() => logActivity(userId, 'id_card_uploaded', { note: `owner: ${idOwner}` }));
         res.json({
             message: "תעודת הזהות הועלתה בהצלחה! ✅",
             info: "המנהל יבדוק ויאשר בהקדם.",
@@ -1364,6 +1372,7 @@ app.post('/upload-profile-image', authenticateToken, upload.single('profileImage
             [imageUrl, userId]
         );
 
+        setImmediate(() => logActivity(userId, 'profile_image_uploaded'));
         res.json({ message: "התמונה הועלתה!", imageUrl });
 
     } catch (err) {
@@ -1386,6 +1395,7 @@ app.post('/delete-profile-image', authenticateToken, async (req, res) => {
             [imageUrl, userId]
         );
 
+        setImmediate(() => logActivity(userId, 'profile_image_deleted'));
         res.json({ message: "התמונה נמחקה" });
 
     } catch (err) {
@@ -1863,6 +1873,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         const updatedUser = result.rows[0];
         delete updatedUser.password; // לא מחזירים סיסמה!
 
+        setImmediate(() => logActivity(userId, 'profile_updated'));
         res.json({ message: "הפרופיל עודכן בהצלחה! ✅", user: updatedUser });
 
         // יצירת אודיו IVR ברקע (fire & forget)
@@ -1975,6 +1986,8 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
         const updated = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
         const user = updated.rows[0];
         delete user.password;
+        const changedKeys = safeEntries.map(([k]) => k).join(', ');
+        setImmediate(() => logActivity(userId, 'profile_safe_fields_updated', { note: changedKeys }));
         res.json({ message: "נשמר!", user });
 
         // יצירת אודיו IVR ברקע
@@ -2041,6 +2054,7 @@ app.post('/api/ivr-settings', authenticateToken, async (req, res) => {
                 [req.user.id]
             );
         }
+        setImmediate(() => logActivity(req.user.id, 'ivr_settings_updated', { note: `no_pass=${!!allow_ivr_no_pass}, pin_changed=${!!new_pin}` }));
         res.json({ success: true, message: 'ההגדרות נשמרו בהצלחה' });
     } catch (err) {
         console.error('[IVR Settings POST]', err.message);
@@ -2084,6 +2098,7 @@ app.post('/request-profile-update', authenticateToken, async (req, res) => {
             [userId, `📝 ${currentUser.full_name} מבקש לשנות את הפרופיל שלו.\nשדות ששונו: ${changedFields}\nזו בקשת העריכה מספר ${(currentUser.profile_edit_count || 0) + 1} שלו.`]
         );
 
+        setImmediate(() => logActivity(userId, 'profile_change_requested', { note: changedFields }));
         res.json({
             message: "הבקשה נשלחה למנהל! ⏳",
             info: "השינויים יאושרו תוך 28 שעות לכל היותר."
@@ -2634,6 +2649,7 @@ app.post('/admin/user-note', authenticateToken, async (req, res) => {
             `UPDATE users SET admin_notes = $1 WHERE id = $2`,
             [note, userId]
         );
+        setImmediate(() => logActivity(userId, 'admin_user_note_saved', { actorId: req.user.id }));
         res.json({ message: "ההערה נשמרה" });
     } catch (err) {
         console.error("Save note error:", err);
@@ -2706,6 +2722,7 @@ app.post('/admin/send-message', authenticateToken, async (req, res) => {
         // שליחת מייל למשתמש (אם יש לו אימייל ומופעלת קבלת התראות)
         await sendNewMessageEmail(userId, 'מנהל המערכת', finalContent);
 
+        setImmediate(() => logActivity(userId, 'admin_message_sent', { actorId: req.user.id }));
         res.json({ message: "ההודעה נשלחה" });
     } catch (err) {
         console.error("Send admin message error:", err);
@@ -2922,6 +2939,7 @@ app.post('/cancel-photo-request', authenticateToken, async (req, res) => {
             "DELETE FROM photo_approvals WHERE requester_id = $1 AND target_id = $2 AND status = 'pending'",
             [userId, targetId]
         );
+        setImmediate(() => logActivity(userId, 'photo_request_cancelled', { targetUserId: targetId }));
         res.json({ message: "הבקשה בוטלה" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה בביטול" });
@@ -3130,6 +3148,7 @@ app.post('/api/upload-image', authenticateToken, async (req, res) => {
             'INSERT INTO user_images (user_id, image_url) VALUES ($1, $2) RETURNING *',
             [userId, imageUrl]
         );
+        setImmediate(() => logActivity(userId, 'user_image_added'));
         res.json({ message: "התמונה נשמרה בהצלחה", image: result.rows[0] });
     } catch (err) {
         console.error(err);
@@ -3145,6 +3164,7 @@ app.delete('/api/delete-image/:imageId', authenticateToken, async (req, res) => 
         const row = await pool.query('SELECT id FROM user_images WHERE id = $1 AND user_id = $2', [imageId, userId]);
         if (row.rows.length === 0) return res.status(403).json({ message: "אין הרשאה" });
         await pool.query('DELETE FROM user_images WHERE id = $1', [imageId]);
+        setImmediate(() => logActivity(userId, 'user_image_deleted', { note: `imageId=${imageId}` }));
         res.json({ message: "התמונה נמחקה" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה במחיקה" });
@@ -3238,6 +3258,7 @@ app.put('/admin/mark-handled/:connectionId', authenticateToken, async (req, res)
     const { connectionId } = req.params;
     try {
         await pool.query(`UPDATE connections SET status = 'handled' WHERE id = $1`, [connectionId]);
+        setImmediate(() => logActivity(req.user.id, 'admin_match_marked_handled', { note: `connection #${connectionId}` }));
         res.json({ message: "התיק סומן כטופל" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
@@ -3273,6 +3294,7 @@ app.post('/admin/shadchaniot', authenticateToken, async (req, res) => {
             `INSERT INTO shadchaniot (name, phone, email) VALUES ($1, $2, $3) RETURNING *`,
             [name, phone, email]
         );
+        setImmediate(() => logActivity(req.user.id, 'shadchanit_created', { note: name }));
         res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
@@ -3288,6 +3310,7 @@ app.put('/admin/shadchaniot/:id', authenticateToken, async (req, res) => {
             `UPDATE shadchaniot SET name=$1, phone=$2, email=$3 WHERE id=$4 RETURNING *`,
             [name, phone, email, req.params.id]
         );
+        setImmediate(() => logActivity(req.user.id, 'shadchanit_updated', { note: `id=${req.params.id}` }));
         res.json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
@@ -3300,6 +3323,7 @@ app.delete('/admin/shadchaniot/:id', authenticateToken, async (req, res) => {
     try {
         await pool.query(`UPDATE connections SET shadchanit_id = NULL WHERE shadchanit_id = $1`, [req.params.id]);
         await pool.query(`DELETE FROM shadchaniot WHERE id = $1`, [req.params.id]);
+        setImmediate(() => logActivity(req.user.id, 'shadchanit_deleted', { note: `id=${req.params.id}` }));
         res.json({ message: "נמחקה" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
@@ -3312,6 +3336,7 @@ app.put('/admin/match-shadchanit/:connectionId', authenticateToken, async (req, 
     const { shadchanitId } = req.body;
     try {
         await pool.query(`UPDATE connections SET shadchanit_id = $1 WHERE id = $2`, [shadchanitId || null, req.params.connectionId]);
+        setImmediate(() => logActivity(req.user.id, 'shadchanit_assigned_to_match', { note: `connection #${req.params.connectionId}, shadchanit=${shadchanitId}` }));
         res.json({ message: "שדכנית עודכנה" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
@@ -3883,6 +3908,7 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
             }, parseInt(userId)));
         }
 
+        setImmediate(() => logActivity(parseInt(userId), 'admin_profile_changes_approved', { actorId: req.user.id }));
         res.json({ message: "השינויים אושרו בהצלחה" });
 
         // יצירת אודיו IVR ברקע אחרי אישור שינויים
@@ -3932,6 +3958,7 @@ app.post('/admin/reject-profile-changes/:userId', authenticateToken, async (req,
             }, parseInt(userId)));
         }
 
+        setImmediate(() => logActivity(parseInt(userId), 'admin_profile_changes_rejected', { actorId: req.user.id, note: reason || '' }));
         res.json({ message: "השינויים נדחו" });
     } catch (err) {
         console.error("Error rejecting profile changes:", err);
@@ -4205,6 +4232,7 @@ app.post('/support/submit', async (req, res) => {
             </div>`
         ));
 
+        if (userId) setImmediate(() => logActivity(userId, 'support_ticket_created', { note: `ticket #${ticketId}` }));
         res.json({ message: 'הפנייה נשלחה בהצלחה.', ticketId });
     } catch (err) {
         console.error('[support/submit]', err);
@@ -4330,6 +4358,7 @@ app.post('/admin/support/reply/:ticketId', authenticateToken, async (req, res) =
             }
         });
 
+        setImmediate(() => logActivity(req.user.id, 'support_ticket_replied', { note: `ticket #${ticketId}` }));
         res.json({ message: 'התשובה נשלחה!' });
     } catch (err) {
         console.error('[admin/support/reply]', err);
@@ -4344,6 +4373,7 @@ app.put('/admin/support/tickets/:id/status', authenticateToken, async (req, res)
     const { status } = req.body; // open | read | replied | closed
     try {
         await pool.query('UPDATE support_tickets SET status = $1, updated_at = NOW() WHERE id = $2', [status, id]);
+        setImmediate(() => logActivity(req.user.id, 'support_ticket_status_changed', { note: `ticket #${id} → ${status}` }));
         res.json({ message: 'סטטוס עודכן' });
     } catch (err) {
         res.status(500).json({ message: 'שגיאה' });
@@ -5099,7 +5129,13 @@ app.delete('/user/delete-account', authenticateToken, async (req, res) => {
             // 4. מחיקת התראות
             await client.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
 
-            // 5. מחיקת המשתמש עצמו
+            // 5. תיעוד לפני מחיקה
+            await client.query(
+                `INSERT INTO activity_log (user_id, action, note) VALUES ($1, 'account_self_deleted', 'המשתמש מחק את החשבון שלו')`,
+                [userId]
+            );
+
+            // 6. מחיקת המשתמש עצמו
             await client.query('DELETE FROM users WHERE id = $1', [userId]);
 
             await client.query('COMMIT');
