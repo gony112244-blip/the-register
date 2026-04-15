@@ -50,17 +50,17 @@ function buildStatusText(gender, { matches, requests, photos }) {
     const parts = [];
 
     if (matches > 0) {
-        const n = numberToHebrew(matches);
+        const n = numberToHebrew(matches, true);
         const noun = matches === 1 ? 'הצעה חדשה' : 'הצעות חדשות';
         parts.push(`${n} ${noun}`);
     }
     if (requests > 0) {
-        const n = numberToHebrew(requests);
+        const n = numberToHebrew(requests, true);
         const noun = requests === 1 ? 'בדיקת התאמה ממתינה לתשובתך' : 'בדיקות התאמה ממתינות לתשובתך';
         parts.push(`${n} ${noun}`);
     }
     if (photos > 0) {
-        const n = numberToHebrew(photos);
+        const n = numberToHebrew(photos, true);
         const noun = photos === 1 ? 'בקשת תמונה' : 'בקשות תמונה';
         parts.push(`${n} ${noun}`);
     }
@@ -97,7 +97,7 @@ function buildMenuText(gender, counts = {}) {
 
     // 4 — בקשות שיצאו ממני שטרם נענו (תמיד, עם ספירה אם יש)
     if (pendingSent > 0) {
-        const n   = numberToHebrew(pendingSent);
+        const n   = numberToHebrew(pendingSent, true);
         const noun = pendingSent === 1 ? 'בקשה ששלחת שטרם נענתה' : 'בקשות ששלחת שטרם נענו';
         parts.push(`ל${n} ${noun}, ${hk} ארבע.`);
     } else {
@@ -106,7 +106,7 @@ function buildMenuText(gender, counts = {}) {
 
     // 5 — שידוכים פעילים (תמיד, עם ספירה אם יש)
     if (activeSent > 0) {
-        const n    = numberToHebrew(activeSent);
+        const n    = numberToHebrew(activeSent, true);
         const noun = activeSent === 1 ? 'שידוך פעיל' : 'שידוכים פעילים';
         parts.push(`ל${n} ${noun}, ${hk} חמש.`);
     } else {
