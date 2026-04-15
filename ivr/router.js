@@ -880,9 +880,8 @@ router.get('/call', async (req, res) => {
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
-            // מקש 8 — הודעה הבאה (סמן כנקראה)
+            // מקש 8 — הודעה הבאה (ההודעה כבר סומנה כנקראה בטעינה)
             if (key === '8') {
-                await markMessageReadFromIvr(msgId, user.id).catch(() => {});
                 offset++;
                 await updateSession(enterId, 'messages', { page: offset });
                 const file = await textToYemot('עוברים להודעה הבאה.');
@@ -923,6 +922,9 @@ router.get('/call', async (req, res) => {
             currentMessageId:   msg.id,
             currentMessageText: cleanContent
         });
+
+        // סמן כנקראה ברגע שהוקראה — לא מחכים ללחיצת 8
+        markMessageReadFromIvr(msg.id, user.id).catch(() => {});
 
         const actionsText = g(user.gender,
             'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',

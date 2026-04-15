@@ -3623,6 +3623,19 @@ app.post('/mark-message-read/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// סימון כל ההודעות כנקראות — נקרא בפתיחת עמוד ההודעות
+app.post('/mark-all-messages-read', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(
+            'UPDATE messages SET is_read = TRUE WHERE to_user_id = $1 AND is_read = FALSE',
+            [req.user.id]
+        );
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ message: 'שגיאה' });
+    }
+});
+
 // ספירת הודעות שלא נקראו (לתפריט)
 app.get('/unread-count', authenticateToken, async (req, res) => {
     const userId = req.user.id;

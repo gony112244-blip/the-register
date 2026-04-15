@@ -32,7 +32,17 @@ function Inbox() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const msgData = await msgRes.json();
-            setMessages(Array.isArray(msgData) ? msgData : []);
+            const msgs = Array.isArray(msgData) ? msgData : [];
+            setMessages(msgs);
+
+            // סמן כל ההודעות כנקראות ברגע שהמשתמש רואה אותן
+            if (msgs.some(m => !m.is_read)) {
+                fetch(`${API_BASE}/mark-all-messages-read`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(() => {});
+                setMessages(msgs.map(m => ({ ...m, is_read: true })));
+            }
 
             // 2. בקשות שידוך
             if (user && user.id) { // וודא שיש מזהה משתמש
