@@ -1555,6 +1555,56 @@ app.get('/check-photo-access/:targetId', authenticateToken, async (req, res) => 
     }
 });
 
+// בדיקת גישה מרוכזת למספר משתמשים בבת אחת (פותר N+1)
+app.post('/batch-photo-access', authenticateToken, async (req, res) => {
+    const requesterId = req.user.id;
+    const { targetIds } = req.body;
+    if (!Array.isArray(targetIds) || targetIds.length === 0) {
+        return res.json({});
+    }
+    const ids = targetIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id)).slice(0, 50);
+    if (ids.length === 0) return res.json({});
+
+    try {
+        const result = await pool.query(
+            `SELECT requester_id, target_id, status, updated_at FROM photo_approvals
+             WHERE status = 'approved'
+               AND (updated_at IS NULL OR updated_at > NOW() - INTERVAL '48 hours')
+               AND (
+                   (requester_id = $1 AND target_id = ANY($2))
+                   OR (target_id = $1 AND requester_id = ANY($2))
+               )`,
+            [requesterId, ids]
+        );
+
+        const pendingResult = await pool.query(
+            `SELECT requester_id, target_id FROM photo_approvals
+             WHERE status = 'pending'
+               AND (
+                   (requester_id = $1 AND target_id = ANY($2))
+                   OR (target_id = $1 AND requester_id = ANY($2))
+               )`,
+            [requesterId, ids]
+        );
+
+        const statusMap = {};
+        for (const id of ids) { statusMap[id] = 'none'; }
+        for (const row of pendingResult.rows) {
+            const otherId = row.requester_id === requesterId ? row.target_id : row.requester_id;
+            if (statusMap[otherId] === 'none') statusMap[otherId] = 'pending';
+        }
+        for (const row of result.rows) {
+            const otherId = row.requester_id === requesterId ? row.target_id : row.requester_id;
+            statusMap[otherId] = 'approved';
+        }
+
+        res.json(statusMap);
+    } catch (err) {
+        console.error('batch-photo-access error:', err.message);
+        res.status(500).json({ message: "שגיאה" });
+    }
+});
+
 // קבלת תמונות של מישהו (רק אם יש הרשאה — דו-כיוונית ל-48 שעות)
 app.get('/get-user-photos/:targetId', authenticateToken, async (req, res) => {
     const requesterId = req.user.id;

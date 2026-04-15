@@ -57,7 +57,9 @@ function Matches() {
             const data = await res.json();
             if (res.ok) {
                 setMatches(data);
-                data.forEach(m => checkPhotoStatus(m.id));
+                if (data.length > 0) {
+                    batchCheckPhotoStatus(data.map(m => m.id));
+                }
             } else {
                 showToast("שגיאה בטעינת שידוכים", "error");
             }
@@ -81,6 +83,20 @@ function Matches() {
             }
         } catch { /* לא קריטי */ }
     }, [token]);
+
+    const batchCheckPhotoStatus = async (targetIds) => {
+        try {
+            const res = await fetch(`${API_BASE}/batch-photo-access`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetIds })
+            });
+            const statusMap = await res.json();
+            if (res.ok) {
+                setPhotoStatuses(prev => ({ ...prev, ...statusMap }));
+            }
+        } catch { }
+    };
 
     const checkPhotoStatus = async (targetId) => {
         try {
