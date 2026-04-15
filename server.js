@@ -2072,11 +2072,6 @@ app.get('/matches', authenticateToken, async (req, res) => {
             return res.json([]);
         }
 
-        // מחפשים את המגדר ההפוך
-        const targetGender = currentUser.gender === 'male' ? 'female' : 'male';
-
-        // שלב 2: בניית תנאי הסינון (מתחיל כאן)
-
         // שלב 2: בניית תנאי הסינון
         let params = [userId];
         let paramIndex = 2; // כי הפרמטר הראשון הוא userId
@@ -2212,7 +2207,20 @@ app.get('/matches', authenticateToken, async (req, res) => {
             paramIndex++;
         }
 
-        // הסבר: בדיקה שגם הצד השני מחפש אותי!
+        // סינון לפי גוון עור — NULL מותר (לא מפסלים מי שלא מילא)
+        if (currentUser.search_skin_tones && currentUser.search_skin_tones !== '') {
+            const skinTones = currentUser.search_skin_tones.split(',').map(t => t.trim()).filter(Boolean);
+            if (skinTones.length > 0) {
+                const placeholders = skinTones.map((_, i) => `$${paramIndex + i}`).join(',');
+                conditions.push(`(skin_tone IS NULL OR skin_tone IN (${placeholders}))`);
+                params.push(...skinTones);
+                paramIndex += skinTones.length;
+            }
+        }
+
+        // =========================================
+        // בדיקה שגם הצד השני מחפש אותי! (דו-כיווני)
+        // =========================================
         // המועמד צריך לרצות את הגיל שלי
         if (currentUser.age) {
             const myAge = Math.round(Number(currentUser.age));
@@ -2296,7 +2304,32 @@ app.get('/matches', authenticateToken, async (req, res) => {
             paramIndex++;
         }
 
+        // המועמד צריך לקבל את כיסוי הראש שלי (דו-כיווני)
+        if (currentUser.head_covering && currentUser.head_covering !== 'not_relevant') {
+            if (currentUser.head_covering === 'flexible') {
+                // אני גמישה — כל העדפה של הצד השני מתאימה לי
+            } else {
+                conditions.push(
+                    `(search_head_covering IS NULL OR search_head_covering = 'not_relevant' OR search_head_covering = 'flexible' OR search_head_covering = $${paramIndex})`
+                );
+                params.push(currentUser.head_covering);
+                paramIndex++;
+            }
+        }
+
+        // המועמד צריך לקבל את גוון העור שלי (דו-כיווני)
+        if (currentUser.skin_tone) {
+            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_skin_tones,'')), E'\\\\s*,\\\\s*')`;
+            conditions.push(`(search_skin_tones IS NULL OR trim(coalesce(search_skin_tones,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
+            params.push(currentUser.skin_tone);
+            paramIndex++;
+        }
+
         // שלב 3: הרצת השאילתה הסופית
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const pageSize = 30;
+        const offset = (page - 1) * pageSize;
+
         const query = `
             SELECT id, full_name, last_name, age, height, gender, phone,
                    family_background, heritage_sector, body_type, appearance, skin_tone,
@@ -2305,7 +2338,7 @@ app.get('/matches', authenticateToken, async (req, res) => {
             FROM users
             WHERE ${conditions.join(' AND ')}
             ORDER BY id DESC
-            LIMIT 30
+            LIMIT ${pageSize} OFFSET ${offset}
         `;
 
         // Debug log (יש להסיר בפרודקשן)
