@@ -97,17 +97,37 @@ async function countUnreadMessages(userId) {
     return result.rows[0].count;
 }
 
+async function countPendingSent(userId) {
+    const result = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM connections
+         WHERE sender_id = $1 AND status = 'pending'`,
+        [userId]
+    );
+    return result.rows[0].count;
+}
+
+async function countActiveSent(userId) {
+    const result = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM connections
+         WHERE sender_id = $1 AND status IN ('active', 'waiting_for_shadchan')`,
+        [userId]
+    );
+    return result.rows[0].count;
+}
+
 /**
- * כל הספירות בקריאה אחת (מקבילית) — כולל הודעות
+ * כל הספירות בקריאה אחת (מקבילית) — כולל הודעות ופניות יוצאות
  */
 async function getMenuCounts(userId) {
-    const [matches, requests, photos, messages] = await Promise.all([
+    const [matches, requests, photos, messages, pendingSent, activeSent] = await Promise.all([
         countNewMatches(userId).catch(() => 0),
         countIncomingRequests(userId).catch(() => 0),
         countPhotoRequests(userId).catch(() => 0),
-        countUnreadMessages(userId).catch(() => 0)
+        countUnreadMessages(userId).catch(() => 0),
+        countPendingSent(userId).catch(() => 0),
+        countActiveSent(userId).catch(() => 0)
     ]);
-    return { matches, requests, photos, messages };
+    return { matches, requests, photos, messages, pendingSent, activeSent };
 }
 
 // ==========================================

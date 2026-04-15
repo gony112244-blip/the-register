@@ -76,9 +76,11 @@ function buildStatusText(gender, { matches, requests, photos }) {
 // counts = { matches, requests, photos, messages }
 // ==========================================
 function buildMenuText(gender, counts = {}) {
-    const r   = counts.requests || 0;
-    const p   = counts.photos   || 0;
-    const msg = counts.messages || 0;
+    const r           = counts.requests    || 0;
+    const p           = counts.photos      || 0;
+    const msg         = counts.messages    || 0;
+    const pendingSent = counts.pendingSent || 0;
+    const activeSent  = counts.activeSent  || 0;
     const isMale = gender !== 'female';
     const hk = isMale ? 'הקש' : 'הקשי';
 
@@ -87,23 +89,34 @@ function buildMenuText(gender, counts = {}) {
     // 1 — הצעות חדשות (תמיד)
     parts.push(`להצעות חדשות, ${hk} אחת.`);
 
-    // 2 — תמונות ממתינות (רק אם יש) — מיד אחרי הצעות לפי בקשה
+    // 2 — תמונות ממתינות (רק אם יש)
     if (p > 0) parts.push(`לתמונות הממתינות לאישורך, ${hk} שתיים.`);
 
     // 3 — בדיקות התאמה שהגיעו אליי (רק אם יש)
     if (r > 0) parts.push(`לבדיקות התאמה שהגיעו אליך, ${hk} שלוש.`);
 
-    // 4 — בקשות שיצאו ממני שטרם נענו (תמיד — חשוב לדעת)
-    parts.push(`לבקשות שביקשת שטרם נענו, ${hk} ארבע.`);
+    // 4 — בקשות שיצאו ממני שטרם נענו (תמיד, עם ספירה אם יש)
+    if (pendingSent > 0) {
+        const n   = numberToHebrew(pendingSent);
+        const noun = pendingSent === 1 ? 'בקשה ששלחת שטרם נענתה' : 'בקשות ששלחת שטרם נענו';
+        parts.push(`ל${n} ${noun}, ${hk} ארבע.`);
+    } else {
+        parts.push(`לבקשות ששלחת, ${hk} ארבע.`);
+    }
 
-    // 5 — שידוכים פעילים (תמיד)
-    const shelcha5 = isMale ? 'שֶׁלְּךָ' : 'שֶׁלָּך';
-    parts.push(`לשידוכים הפעילים ${shelcha5}, ${hk} חמש.`);
+    // 5 — שידוכים פעילים (תמיד, עם ספירה אם יש)
+    if (activeSent > 0) {
+        const n    = numberToHebrew(activeSent);
+        const noun = activeSent === 1 ? 'שידוך פעיל' : 'שידוכים פעילים';
+        parts.push(`ל${n} ${noun}, ${hk} חמש.`);
+    } else {
+        parts.push(`לשידוכים הפעילים שלך, ${hk} חמש.`);
+    }
 
     // 6 — הודעות חשובות (רק אם יש)
     if (msg > 0) parts.push(`להודעות חשובות, ${hk} שש.`);
 
-    // 7 — כל ההצעות כולל ישנות (תמיד — גישת ארכיון)
+    // 7 — כל ההצעות כולל ישנות (תמיד)
     parts.push(`לכל ההצעות כולל ישנות, ${hk} שבע.`);
 
     // חזרה על התפריט — תמיד בסוף
