@@ -36,6 +36,14 @@ const T = {
 const tr = (field, val) => T[field]?.[val] || val || null;
 const show = (val) => val !== null && val !== undefined && val !== '' && val !== '0' && val !== 0 && val !== 'null' && val !== 'undefined';
 
+/** אותיות לאווטר בלבד. תמונות פרופיל אמיתיות נטענות בנפרד אחרי אישור גישה */
+function avatarInitials(firstName, lastName) {
+    const a = (firstName && String(firstName).trim()[0]) || '';
+    const b = (lastName && String(lastName).trim()[0]) || '';
+    const s = `${a}${b}`.trim();
+    return s || '?';
+}
+
 // ── רכיבי עזר ──
 function Section({ title, color, border, children }) {
     const hasContent = Array.isArray(children)
@@ -191,12 +199,15 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                     <button onClick={onClose} style={S.closeBtn}>✕</button>
                     <div style={S.heroInner}>
                         <img
-                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(p.full_name || 'מ פ')}&background=c9a227&color=fff&size=120&bold=true&font-size=0.35`}
+                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(avatarInitials(p.full_name, p.last_name))}&background=c9a227&color=fff&size=120&bold=true&font-size=0.4`}
                             alt={p.full_name}
                             style={S.avatar}
                         />
                         <div style={S.heroInfo}>
-                            <h2 style={S.heroName}>{p.full_name} {p.last_name || ''}</h2>
+                            <h2 style={S.heroName}>{p.full_name}</h2>
+                            {p.last_name && (
+                                <p style={S.heroNameHint}>{p.last_name} {p.full_name?.[0]}.</p>
+                            )}
                             <div style={S.heroTags}>
                                 {show(p.age) && <span style={S.tag}>🎂 {p.age} שנים</span>}
                                 {show(p.height) && <span style={S.tag}>📏 {p.height} ס"מ</span>}
@@ -348,7 +359,8 @@ const S = {
     heroInner: { display: 'flex', gap: 18, alignItems: 'flex-start' },
     avatar: { width: 80, height: 80, borderRadius: '50%', border: '3px solid #c9a227', objectFit: 'cover', flexShrink: 0 },
     heroInfo: { flex: 1 },
-    heroName: { color: '#fff', margin: '0 0 10px', fontSize: '1.4rem', fontWeight: 800 },
+    heroName: { color: '#fff', margin: '0 2px', fontSize: '1.2rem', fontWeight: 700 },
+    heroNameHint: { color: 'rgba(255,255,255,0.55)', margin: '0 0 10px', fontSize: '0.8rem', fontWeight: 400 },
     heroTags: { display: 'flex', flexWrap: 'wrap', gap: 6 },
     tag: {
         background: 'rgba(255,255,255,0.18)', color: '#fff',

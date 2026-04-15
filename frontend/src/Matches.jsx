@@ -14,6 +14,14 @@ const T = {
 };
 const tr = (field, val) => T[field]?.[val] || val || '—';
 
+/** אותיות לאווטר בלבד — לא מציג שם מלא; לא משפיע על תמונות פרופיל אמיתיות */
+function avatarInitials(firstName, lastName) {
+    const a = (firstName && String(firstName).trim()[0]) || '';
+    const b = (lastName && String(lastName).trim()[0]) || '';
+    const s = `${a}${b}`.trim();
+    return s || '?';
+}
+
 // ── סיבות להעברה לסל מיחזור ──
 const HIDE_REASONS = [
     { id: 1, text: 'לא הסגנון שלי' },
@@ -27,9 +35,10 @@ function Matches() {
     const { showToast } = useToast();
     const token = localStorage.getItem('token');
 
-    let user = null;
-    try { user = JSON.parse(localStorage.getItem('user')); } catch (e) { }
+    let storedUser = null;
+    try { storedUser = JSON.parse(localStorage.getItem('user')); } catch (e) { }
 
+    const [user, setUser] = useState(storedUser);
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
@@ -42,16 +51,42 @@ function Matches() {
     const itemsPerPage = 6;
 
     useEffect(() => {
-        if (!token || !user) { navigate('/login'); return; }
-        if (!user.is_approved) { setLoading(false); return; }
-        fetchMatches();
-        fetchSentRequests();
+        if (!token || !storedUser) { navigate('/login'); return; }
+
+        // רענון נתוני משתמש מהשרת — מבטיח שסטטוס is_approved עדכני
+        fetch(`${API_BASE}/my-profile`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(r => r.ok ? r.json() : null)
+            .then(fresh => {
+                if (!fresh) return;
+                const updated = { ...storedUser, ...fresh };
+                setUser(updated);
+                localStorage.setItem('user', JSON.stringify(updated));
+                window.dispatchEvent(new CustomEvent('userUpdated', { detail: updated }));
+                if (updated.is_approved) {
+                    fetchMatches(updated);
+                    fetchSentRequests();
+                } else {
+                    setLoading(false);
+                }
+            })
+            .catch(() => {
+                // אם הרענון נכשל — נשתמש בנתונים הישנים
+                if (storedUser.is_approved) {
+                    fetchMatches(storedUser);
+                    fetchSentRequests();
+                } else {
+                    setLoading(false);
+                }
+            });
     }, []);
 
-    const fetchMatches = useCallback(async () => {
+    const fetchMatches = useCallback(async (currentUser) => {
+        const u = currentUser || user;
         try {
             setLoading(true);
-            const res = await fetch(`${API_BASE}/matches?userId=${user.id}`, {
+            const res = await fetch(`${API_BASE}/matches?userId=${u.id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -291,7 +326,7 @@ function Matches() {
                                         <div style={styles.cardHeader}>
                                             <div style={styles.imageWrap}>
                                                 <img
-                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(match.full_name)}&background=1e3a5f&color=c9a227&size=300&bold=true&font-size=0.35`}
+                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(avatarInitials(match.full_name, match.last_name))}&background=1e3a5f&color=c9a227&size=300&bold=true&font-size=0.4`}
                                                     alt={match.full_name}
                                                     style={styles.image}
                                                 />
@@ -318,6 +353,11 @@ function Matches() {
                                         {/* גוף הכרטיס */}
                                         <div style={styles.cardBody}>
                                             <h3 style={styles.name}>{match.full_name}{match.age ? `, ${match.age}` : ''}</h3>
+                                            {match.last_name && (
+                                                <p style={styles.nameHint}>
+                                                    {match.last_name} {match.full_name?.[0]}.
+                                                </p>
+                                            )}
                                             <p style={styles.detail}>📏 {match.height} ס"מ | {tr('current_occupation', match.current_occupation)}</p>
                                             <p style={styles.detail}>🛐 {tr('heritage_sector', match.heritage_sector)} | {tr('family_background', match.family_background)}</p>
                                             {match.city && <p style={styles.detail}>📍 {match.city}</p>}
@@ -438,7 +478,8 @@ const styles = {
         borderRadius: '20px', padding: '6px 16px', color: '#fff'
     },
     cardBody: { padding: '18px 20px', flex: 1 },
-    name: { margin: '0 0 8px', fontSize: '1.4rem', color: '#1e3a5f', fontWeight: '800' },
+    name: { margin: '0 2px', fontSize: '1.1rem', color: '#1e3a5f', fontWeight: '700' },
+    nameHint: { margin: '0 0 8px', fontSize: '0.78rem', color: '#94a3b8', fontWeight: '500', letterSpacing: '0.02em' },
     detail: { margin: '4px 0', color: '#64748b', fontSize: '0.9rem' },
     tags: { display: 'flex', flexWrap: 'wrap', gap: '7px', marginTop: '10px', marginBottom: '10px' },
     tag: { background: '#f1f5f9', color: '#475569', padding: '4px 12px', borderRadius: '15px', fontSize: '0.82rem', fontWeight: '600' },

@@ -47,6 +47,10 @@ app.use(helmet({
 // הגדרת חריגה ל-Helmet כדי לאפשר הצגת תמונות מקומית (Cross-Origin Resource Policy)
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 
+// הגדרת trust proxy — חיוני כשהשרת רץ מאחורי Nginx/reverse-proxy
+// בלעדיו express-rate-limit זורק ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // 2. Rate Limiting - הגבלת בקשות כללית
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -1873,7 +1877,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         const updatedUser = result.rows[0];
         delete updatedUser.password; // לא מחזירים סיסמה!
 
-        setImmediate(() => logActivity(userId, 'profile_updated'));
+        setImmediate(() => logActivity(id, 'profile_updated').catch(e => console.error('[logActivity] profile_updated:', e.message)));
         res.json({ message: "הפרופיל עודכן בהצלחה! ✅", user: updatedUser });
 
         // יצירת אודיו IVR ברקע (fire & forget)

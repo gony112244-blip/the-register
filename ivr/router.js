@@ -68,14 +68,44 @@ function buildStatusText({ matches, requests, photos }) {
 }
 
 // ==========================================
-// תפריט ראשי — טקסט קבוע עם ניקוד על "שלך"
-// key=1 → הצעות חדשות | key=6 → כל ההצעות | key=2 → בדיקות התאמה | ...
+// תפריט ראשי — דינמי: מסתיר אפשרויות שאין בהן תוכן
+// counts = { matches, requests, photos, messages }
 // ==========================================
-function buildMenuText(gender) {
-    return g(gender,
-        'להצעות חדשות, הקש אחת. לבדיקות התאמה שהגיעו אליך, הקש שתיים. לסטטוס הפניות שֶׁלְּךָ, הקש שלוש. לניהול תמונות, הקש ארבע. להודעות חשובות, הקש חמש. לכל ההצעות כולל ישנות, הקש שש. להגדרות, הקש תשע. לתמיכה, הקש אפס.',
-        'להצעות חדשות, הקשי אחת. לבדיקות התאמה שהגיעו אליך, הקשי שתיים. לסטטוס הפניות שֶׁלָּך, הקשי שלוש. לניהול תמונות, הקשי ארבע. להודעות חשובות, הקשי חמש. לכל ההצעות כולל ישנות, הקשי שש. להגדרות, הקשי תשע. לתמיכה, הקשי אפס.'
-    );
+function buildMenuText(gender, counts = {}) {
+    const m = counts.matches  || 0;
+    const r = counts.requests || 0;
+    const p = counts.photos   || 0;
+    const msg = counts.messages || 0;
+    const isMale = gender !== 'female';
+    const hk  = isMale ? 'הקש'  : 'הקשי';
+    const kol = isMale ? 'כולל' : 'כולל';
+
+    const parts = [];
+
+    // 1 — הצעות חדשות (תמיד מוצג)
+    parts.push(`להצעות חדשות, ${hk} אחת.`);
+
+    // 2 — בדיקות התאמה (רק אם יש)
+    if (r > 0) parts.push(`לבדיקות התאמה שהגיעו אליך, ${hk} שתיים.`);
+
+    // 3 — סטטוס פניות יוצאות (תמיד — המשתמש רוצה לדעת סטטוס)
+    const shelcha = isMale ? 'שֶׁלְּךָ' : 'שֶׁלָּך';
+    parts.push(`לסטטוס הפניות ${shelcha}, ${hk} שלוש.`);
+
+    // 4 — תמונות (רק אם יש בקשות ממתינות)
+    if (p > 0) parts.push(`לניהול תמונות, ${hk} ארבע.`);
+
+    // 5 — הודעות (רק אם יש)
+    if (msg > 0) parts.push(`להודעות חשובות, ${hk} חמש.`);
+
+    // 6 — כל ההצעות (תמיד — גישת ארכיון)
+    parts.push(`לכל ההצעות ${kol} ישנות, ${hk} שש.`);
+
+    // 9 — הגדרות, 0 — תמיכה (תמיד)
+    parts.push(`להגדרות, ${hk} תשע.`);
+    parts.push(`לתמיכה, ${hk} אפס.`);
+
+    return parts.join(' ');
 }
 
 // ==========================================
@@ -83,11 +113,11 @@ function buildMenuText(gender) {
 // מוחלף בכל נקודות החזרה (# ומצבים ריקים)
 // ==========================================
 async function goToMenu(enterId, userId, gender, res, prefix = '') {
-    await updateSession(enterId, 'menu');
-    let counts = { matches: 0, requests: 0, photos: 0 };
+    await updateSession(enterId, 'menu', { timeoutCount: 0 });
+    let counts = { matches: 0, requests: 0, photos: 0, messages: 0 };
     try { counts = await getMenuCounts(userId); } catch {}
     const statusText = buildStatusText(counts);
-    const menuText   = buildMenuText(gender);
+    const menuText   = buildMenuText(gender, counts);
     const fullText   = prefix
         ? `${prefix} ${statusText} ${menuText}`
         : `${statusText} ${menuText}`;
@@ -149,11 +179,15 @@ function buildMatchText(match) {
 }
 
 // ==========================================
-// הצעה — שכבה 2 (מקש 4): מוצא, רקע, עיסוק, גובה
+// הצעה — כל הפרטים (מקש 4): שכבה 2+3 ברצף
+// מוצא, רקע, עיסוק, גובה, מראה, שאיפה, תיאור עצמי
 // ==========================================
+const ABOUT_ME_MAX = 120; // תווים מקסימום לפני הפניה לאפליקציה
+
 function buildMatchDetailText(match) {
     const parts = [];
 
+    // שכבה 2: זהות ורקע
     if (match.heritage_sector) {
         const sector = pm.heritage_sector?.[match.heritage_sector] || match.heritage_sector;
         parts.push(`מוצא ${sector}`);
@@ -167,22 +201,12 @@ function buildMatchDetailText(match) {
         parts.push(occ);
     }
     if (match.height) parts.push(`גובה ${numberToHebrew(match.height)} סנטימטר`);
-
-    // כיסוי ראש (רלוונטי לנשים)
     if (match.gender === 'female' && match.head_covering) {
         const hc = pm.head_covering?.[match.head_covering] || match.head_covering;
         parts.push(`כיסוי ראש: ${hc}`);
     }
 
-    return parts.length > 0 ? parts.join(', ') + '.' : 'אין פרטים נוספים.';
-}
-
-// ==========================================
-// הצעה — שכבה 3 (מקש 5): מראה, מבנה גוף, שאיפה, תיאור — כמו באתר
-// ==========================================
-function buildMatchFullText(match) {
-    const parts = [];
-
+    // שכבה 3: מראה ושאיפות
     if (match.body_type) {
         const bt = pm.body_type?.[match.body_type] || match.body_type;
         parts.push(`מבנה גוף ${bt}`);
@@ -200,9 +224,23 @@ function buildMatchFullText(match) {
         parts.push(`שאיפה: ${la}`);
     }
     if (match.work_field) parts.push(`תחום עבודה: ${match.work_field}`);
-    if (match.about_me) parts.push(match.about_me);
 
-    return parts.length > 0 ? parts.join('. ') + '.' : 'אין תיאור נוסף.';
+    // תיאור עצמי — אם ארוך, מקצרים ומפנים לאפליקציה
+    if (match.about_me) {
+        if (match.about_me.length <= ABOUT_ME_MAX) {
+            parts.push(match.about_me);
+        } else {
+            parts.push(match.about_me.substring(0, ABOUT_ME_MAX) + '...');
+            parts.push('לתיאור המלא, היכנס לאזור האישי באפליקציה');
+        }
+    }
+
+    return parts.length > 0 ? parts.join('. ') + '.' : 'אין פרטים נוספים.';
+}
+
+// buildMatchFullText נשמר לתאימות אחורה אך כבר לא בשימוש
+function buildMatchFullText(match) {
+    return buildMatchDetailText(match);
 }
 
 // ==========================================
@@ -215,7 +253,8 @@ function yemotPlayback(res, audioSeg) {
 }
 function yemotRead(res, audioSeg, varName = 'digits', maxDigits = 1, minDigits = 1, timeout = 8) {
     console.log(`[IVR] ← read(${varName},${minDigits}-${maxDigits}): ${audioSeg.substring(0, 80)}...`);
-    res.type('text').send(`read=${audioSeg}=${varName},,${maxDigits},${minDigits},${timeout},NO,no,yes`);
+    // confirmation=no — הקשה מתקבלת מיד, ללא צורך ב-# לאישור
+    res.type('text').send(`read=${audioSeg}=${varName},,${maxDigits},${minDigits},${timeout},NO,no,no`);
 }
 function yemotHangup(res) {
     console.log('[IVR] ← hangup');
@@ -379,6 +418,23 @@ router.get('/call', async (req, res) => {
     // --- מצב: menu — תפריט ראשי ---
     if (session.state === 'menu') {
 
+        // timeout: אם אין הקשה — ספירה; אחרי 3 פעמים ניתוק מנומס
+        if (!key) {
+            const tc = parseInt(session.data?.timeoutCount || 0, 10) + 1;
+            if (tc >= 3) {
+                const byeFile = await textToYemot('לא נקלטה הקשה. נשמח לראותך שוב. להתראות.');
+                return yemotPlayback(res, byeFile);
+            }
+            // שומרים count ומחזירים תפריט (goToMenu מאפס ל-0, לכן עדכן לאחר מכן)
+            let counts = { matches: 0, requests: 0, photos: 0, messages: 0 };
+            try { counts = await getMenuCounts(user.id); } catch {}
+            await updateSession(enterId, 'menu', { timeoutCount: tc });
+            const statusText = buildStatusText(counts);
+            const menuText   = buildMenuText(user.gender, counts);
+            const file = await textToYemot(`${statusText} ${menuText}`);
+            return yemotRead(res, file, 'digits', 1, 1, 8);
+        }
+
         // key=1 → הצעות חדשות — טוען ישר
         if (key === '1') {
             let newMatches = [];
@@ -391,8 +447,8 @@ router.get('/call', async (req, res) => {
             updateTtsLastPlayed(m.id);
             const mText = buildMatchText(m);
             const aText = g(user.gender,
-                'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש אפס לתפריט הראשי.',
-                'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי אפס לתפריט הראשי.'
+                'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש אפס לתפריט הראשי.',
+                'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי אפס לתפריט הראשי.'
             );
             const file = await textToYemot(`${mText} ${aText}`);
             return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -410,8 +466,8 @@ router.get('/call', async (req, res) => {
             updateTtsLastPlayed(m.id);
             const mText = buildMatchText(m);
             const aText = g(user.gender,
-                'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש אפס לתפריט הראשי.',
-                'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי אפס לתפריט הראשי.'
+                'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש אפס לתפריט הראשי.',
+                'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי אפס לתפריט הראשי.'
             );
             const file = await textToYemot(`${mText} ${aText}`);
             return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -429,8 +485,8 @@ router.get('/call', async (req, res) => {
             updateTtsLastPlayed(req.id);
             const reqText     = buildMatchText(req);
             const actionsText = g(user.gender,
-                'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש אפס לתפריט הראשי.',
-                'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי אפס לתפריט הראשי.'
+                'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר. הקש ארבע לפרטים נוספים. הקש אפס לתפריט הראשי.',
+                'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים נוספים. הקשי אפס לתפריט הראשי.'
             );
             const file = await textToYemot(`בדיקת התאמה שהגיעה אליך. ${reqText} ${actionsText}`);
             return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -460,7 +516,7 @@ router.get('/call', async (req, res) => {
                 connText = `הפנייה עם ${name}${ageStr}${cityStr} פעילה — שניכם הביעו עניין ראשוני.`;
                 actText  = g(user.gender, 'הקש שמונה להמשך. הקש אפס לתפריט הראשי.', 'הקשי שמונה להמשך. הקשי אפס לתפריט הראשי.');
             } else if (conn.status === 'waiting_for_shadchan') {
-                connText = `הפנייה עם ${name}${ageStr}${cityStr} בטיפול השדכנית.`;
+                connText = `הפנייה עם ${name}${ageStr}${cityStr} בטיפול השדכנית, וצפויה להתעדכן בימים הקרובים.`;
                 actText  = g(user.gender, 'הקש שמונה להמשך. הקש אפס לתפריט הראשי.', 'הקשי שמונה להמשך. הקשי אפס לתפריט הראשי.');
             } else {
                 connText = `פנייה ל${name} — ${conn.status}.`;
@@ -555,8 +611,8 @@ router.get('/call', async (req, res) => {
         updateTtsLastPlayed(m.id);
         const mText   = buildMatchText(m);
         const aText   = g(user.gender,
-            'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש חמש לתיאור מלא. הקש אפס לתפריט הראשי.',
-            'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי חמש לתיאור מלא. הקשי אפס לתפריט הראשי.'
+            'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש אפס לתפריט הראשי.',
+            'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי אפס לתפריט הראשי.'
         );
         const fullText = prefix ? `${prefix} ${mText} ${aText}` : `${mText} ${aText}`;
         const file = await textToYemot(fullText);
@@ -577,8 +633,8 @@ router.get('/call', async (req, res) => {
         updateTtsLastPlayed(r.id);
         const rText = buildMatchText(r);
         const aText = g(user.gender,
-            'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר. הקש ארבע לפרטים. הקש חמש לתיאור מלא. הקש אפס לתפריט הראשי.',
-            'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים. הקשי חמש לתיאור מלא. הקשי אפס לתפריט הראשי.'
+            'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר. הקש ארבע לפרטים. הקש אפס לתפריט הראשי.',
+            'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים. הקשי אפס לתפריט הראשי.'
         );
         const fullText = prefix ? `${prefix} ${rText} ${aText}` : `בדיקת התאמה שהגיעה אליך. ${rText} ${aText}`;
         const file = await textToYemot(fullText);
@@ -603,24 +659,14 @@ router.get('/call', async (req, res) => {
             }
 
             if (key === '4') {
+                // מקש 4 = כל הפרטים (שכבה 2+3 מאוחדת)
                 const more = await getMatchesForIvr(user.id, offset, 1);
                 const detailText = more.length > 0 ? buildMatchDetailText(more[0]) : 'אין פרטים נוספים.';
-                const actionsText = g(user.gender,
-                    'הקש חמש לתיאור מלא. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש אפס לתפריט.',
-                    'הקשי חמש לתיאור מלא. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי אפס לתפריט.'
-                );
-                const file = await textToYemot(`${detailText} ${actionsText}`);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
-            }
-
-            if (key === '5') {
-                const more = await getMatchesForIvr(user.id, offset, 1);
-                const fullText = more.length > 0 ? buildMatchFullText(more[0]) : 'אין תיאור נוסף.';
                 const actionsText = g(user.gender,
                     'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש אפס לתפריט.',
                     'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי אפס לתפריט.'
                 );
-                const file = await textToYemot(`${fullText} ${actionsText}`);
+                const file = await textToYemot(`${detailText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
@@ -647,8 +693,8 @@ router.get('/call', async (req, res) => {
 
             // מקש לא מוכר
             const actionsText = g(user.gender,
-                'מקש לא מוכר. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש אפס לתפריט.',
-                'מקש לא מוכר. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי אפס לתפריט.'
+                'מקש לא מוכר. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים. הקש אפס לתפריט.',
+                'מקש לא מוכר. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים. הקשי אפס לתפריט.'
             );
             const file = await textToYemot(actionsText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -679,23 +725,14 @@ router.get('/call', async (req, res) => {
                 return await goToMenu(enterId, user.id, user.gender, res);
             }
             if (key === '4') {
+                // מקש 4 = כל הפרטים (שכבה 2+3 מאוחדת)
                 const more = await getAllMatchesForIvr(user.id, offset, 1);
                 const detailText = more.length > 0 ? buildMatchDetailText(more[0]) : 'אין פרטים נוספים.';
                 const actionsText = g(user.gender,
-                    'הקש חמש לתיאור מלא. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
-                    'הקשי חמש לתיאור מלא. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
+                    'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש אפס לתפריט.',
+                    'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי אפס לתפריט.'
                 );
                 const file = await textToYemot(`${detailText} ${actionsText}`);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
-            }
-            if (key === '5') {
-                const more = await getAllMatchesForIvr(user.id, offset, 1);
-                const fullText = more.length > 0 ? buildMatchFullText(more[0]) : 'אין תיאור נוסף.';
-                const actionsText = g(user.gender,
-                    'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג.',
-                    'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי.'
-                );
-                const file = await textToYemot(`${fullText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
@@ -745,24 +782,14 @@ router.get('/call', async (req, res) => {
             }
 
             if (key === '4') {
+                // מקש 4 = כל הפרטים (שכבה 2+3 מאוחדת)
                 const reqs = await getIncomingRequestsForIvr(user.id, offset, 1);
                 const detailText = reqs.length > 0 ? buildMatchDetailText(reqs[0]) : 'אין פרטים נוספים.';
-                const actionsText = g(user.gender,
-                    'הקש חמש לתיאור מלא. הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה. הקש אפס לתפריט.',
-                    'הקשי חמש לתיאור מלא. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי. הקשי אפס לתפריט.'
-                );
-                const file = await textToYemot(`${detailText} ${actionsText}`);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
-            }
-
-            if (key === '5') {
-                const reqs = await getIncomingRequestsForIvr(user.id, offset, 1);
-                const fullText = reqs.length > 0 ? buildMatchFullText(reqs[0]) : 'אין תיאור נוסף.';
                 const actionsText = g(user.gender,
                     'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה. הקש אפס לתפריט.',
                     'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי. הקשי אפס לתפריט.'
                 );
-                const file = await textToYemot(`${fullText} ${actionsText}`);
+                const file = await textToYemot(`${detailText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 

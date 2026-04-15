@@ -78,15 +78,36 @@ async function countNewMatches(userId) {
 }
 
 /**
- * כל הספירות בקריאה אחת (מקבילית)
+ * ספירת הודעות לא-נקראות רלוונטיות לתפריט
+ */
+async function countUnreadMessages(userId) {
+    const result = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM messages
+         WHERE to_user_id = $1
+           AND is_read = FALSE
+           AND (
+               type = 'admin_message'
+               OR (type = 'photo_request')
+               OR (type = 'photo_response')
+               OR (type = 'system' AND from_user_id != 1)
+           )`,
+        [userId]
+    );
+    return result.rows[0].count;
+}
+
+/**
+ * כל הספירות בקריאה אחת (מקבילית) — כולל הודעות
  */
 async function getMenuCounts(userId) {
-    const [matches, requests, photos] = await Promise.all([
+    const [matches, requests, photos, messages] = await Promise.all([
         countNewMatches(userId).catch(() => 0),
         countIncomingRequests(userId).catch(() => 0),
-        countPhotoRequests(userId).catch(() => 0)
+        countPhotoRequests(userId).catch(() => 0),
+        countUnreadMessages(userId).catch(() => 0)
     ]);
-    return { matches, requests, photos };
+    return { matches, requests, photos, messages };
 }
 
 // ==========================================
