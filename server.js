@@ -1718,7 +1718,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         apartment_help, current_occupation, yeshiva_name, work_field,
         life_aspiration, favorite_study, study_place, study_field, occupation_details,
         // על עצמי
-        about_me, home_style, partner_description, important_in_life,
+        about_me, ivr_about, home_style, partner_description, important_in_life,
         // ת.ז.
         id_card_image_url,
 
@@ -1821,24 +1821,24 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 height = $23, body_type = $24, skin_tone = $25, appearance = $26,
                 apartment_help = $27, current_occupation = $28, yeshiva_name = $29, work_field = $30,
                 life_aspiration = $31, favorite_study = $32, study_place = $33, study_field = $34, occupation_details = $35,
-                about_me = $36, home_style = $37, partner_description = $38, important_in_life = $39,
-                id_card_image_url = $40,
-                full_address = $41, father_full_name = $42, mother_full_name = $43, siblings_details = $44,
-                reference_1_name = $45, reference_1_phone = $46,
-                reference_2_name = $47, reference_2_phone = $48,
-                reference_3_name = $49, reference_3_phone = $50,
-                family_reference_name = $51, family_reference_phone = $52,
-                rabbi_name = $53, rabbi_phone = $54,
-                mechutanim_name = $55, mechutanim_phone = $56,
-                search_min_age = $57, search_max_age = $58,
-                search_height_min = $59, search_height_max = $60,
-                search_body_types = $61, search_appearances = $62,
-                search_statuses = $63, search_backgrounds = $64,
-                search_heritage_sectors = $65, mixed_heritage_ok = $66, search_financial_min = $67, search_financial_discuss = $68,
-                search_occupations = $69, search_life_aspirations = $70,
-                city = $71,
+                about_me = $36, ivr_about = $37, home_style = $38, partner_description = $39, important_in_life = $40,
+                id_card_image_url = $41,
+                full_address = $42, father_full_name = $43, mother_full_name = $44, siblings_details = $45,
+                reference_1_name = $46, reference_1_phone = $47,
+                reference_2_name = $48, reference_2_phone = $49,
+                reference_3_name = $50, reference_3_phone = $51,
+                family_reference_name = $52, family_reference_phone = $53,
+                rabbi_name = $54, rabbi_phone = $55,
+                mechutanim_name = $56, mechutanim_phone = $57,
+                search_min_age = $58, search_max_age = $59,
+                search_height_min = $60, search_height_max = $61,
+                search_body_types = $62, search_appearances = $63,
+                search_statuses = $64, search_backgrounds = $65,
+                search_heritage_sectors = $66, mixed_heritage_ok = $67, search_financial_min = $68, search_financial_discuss = $69,
+                search_occupations = $70, search_life_aspirations = $71,
+                city = $72,
                 is_profile_pending = TRUE
-             WHERE id = $72 RETURNING *`,
+             WHERE id = $73 RETURNING *`,
             [
                 full_name, last_name, cleanAge, gender, phone,
                 birth_date || null, country_of_birth || null,
@@ -1849,7 +1849,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 cleanHeight, body_type, skin_tone, appearance,
                 apartment_help, current_occupation, yeshiva_name, work_field,
                 life_aspiration, favorite_study, study_place, study_field, occupation_details,
-                about_me, home_style, partner_description, important_in_life,
+                about_me, ivr_about, home_style, partner_description, important_in_life,
                 id_card_image_url,
                 full_address, father_full_name, mother_full_name, siblings_details,
                 reference_1_name, reference_1_phone,
@@ -1905,7 +1905,7 @@ const SAFE_FIELDS = new Set([
     'apartment_help',
     'current_occupation', 'life_aspiration', 'work_field', 'occupation_details',
     'yeshiva_name', 'yeshiva_ketana_name', 'study_place', 'study_field', 'favorite_study',
-    'about_me', 'home_style', 'partner_description', 'important_in_life',
+    'about_me', 'ivr_about', 'home_style', 'partner_description', 'important_in_life',
     'contact_person_type', 'contact_person_name', 'contact_phone_1', 'contact_phone_2',
     'has_children', 'children_count',
     'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
@@ -4407,6 +4407,10 @@ async function updateDbSchema() {
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS head_covering VARCHAR(20)`).catch(() => {});
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS search_head_covering VARCHAR(20)`).catch(() => {});
 
+        // תיאור קצר למערכת הטלפונית (IVR)
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ivr_about VARCHAR(150)`).catch(() => {});
+        await pool.query(`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='ivr_about' AND character_maximum_length > 150) THEN ALTER TABLE users ALTER COLUMN ivr_about TYPE VARCHAR(150); END IF; END $$`).catch(() => {});
+
         // עמודת meta בהודעות (לשמירת requestId וכו')
         await pool.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS meta JSONB`).catch(() => {});
 
@@ -5125,21 +5129,24 @@ app.delete('/user/delete-account', authenticateToken, async (req, res) => {
             await client.query('DELETE FROM connections WHERE sender_id = $1 OR receiver_id = $1', [userId]);
 
             // 2. מחיקת הודעות
-            await client.query('DELETE FROM messages WHERE sender_id = $1 OR receiver_id = $1', [userId]);
+            await client.query('DELETE FROM messages WHERE from_user_id = $1 OR to_user_id = $1', [userId]);
 
             // 3. מחיקת בקשות תמונה
-            await client.query('DELETE FROM photo_view_requests WHERE requester_id = $1 OR target_id = $1', [userId]);
+            await client.query('DELETE FROM photo_approvals WHERE requester_id = $1 OR target_id = $1', [userId]).catch(() => {});
 
-            // 4. מחיקת התראות
-            await client.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+            // 4. מחיקת פרופילים מוסתרים
+            await client.query('DELETE FROM hidden_profiles WHERE user_id = $1 OR hidden_user_id = $1', [userId]).catch(() => {});
 
-            // 5. תיעוד לפני מחיקה
+            // 5. מחיקת סשנים IVR
+            await client.query('DELETE FROM ivr_sessions WHERE user_id = $1', [userId]).catch(() => {});
+
+            // 6. תיעוד לפני מחיקה
             await client.query(
                 `INSERT INTO activity_log (user_id, action, note) VALUES ($1, 'account_self_deleted', 'המשתמש מחק את החשבון שלו')`,
                 [userId]
             );
 
-            // 6. מחיקת המשתמש עצמו
+            // 7. מחיקת המשתמש עצמו
             await client.query('DELETE FROM users WHERE id = $1', [userId]);
 
             await client.query('COMMIT');

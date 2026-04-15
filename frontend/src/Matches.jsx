@@ -91,10 +91,20 @@ function Matches() {
             });
             const data = await res.json();
             if (res.ok) {
-                setMatches(data);
+                // מציגים 3 ראשונות מיד, שאר ברקע אחרי רגע קצר
+                const INITIAL = 3;
+                setMatches(data.slice(0, INITIAL));
+                setLoading(false);
                 if (data.length > 0) {
-                    batchCheckPhotoStatus(data.map(m => m.id));
+                    batchCheckPhotoStatus(data.slice(0, INITIAL).map(m => m.id));
                 }
+                if (data.length > INITIAL) {
+                    setTimeout(() => {
+                        setMatches(data);
+                        batchCheckPhotoStatus(data.slice(INITIAL).map(m => m.id));
+                    }, 600);
+                }
+                return; // כבר עשינו setLoading(false)
             } else {
                 showToast("שגיאה בטעינת שידוכים", "error");
             }

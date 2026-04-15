@@ -65,7 +65,7 @@ function Profile() {
         occupation_details: '',
 
         // על עצמי
-        about_me: '', home_style: '', partner_description: '', important_in_life: '',
+        about_me: '', ivr_about: '', home_style: '', partner_description: '', important_in_life: '',
 
         // חלק ב - פרטים נסתרים
         email: '', full_address: '', street: '', house_number: '', father_full_name: '', mother_full_name: '', siblings_details: '',
@@ -380,7 +380,7 @@ function Profile() {
         'apartment_help',
         'current_occupation', 'life_aspiration', 'work_field', 'occupation_details',
         'yeshiva_name', 'study_place', 'study_field', 'favorite_study',
-        'about_me', 'home_style', 'partner_description', 'important_in_life',
+        'about_me', 'ivr_about', 'home_style', 'partner_description', 'important_in_life',
         'contact_person_type', 'contact_person_name', 'contact_phone_1', 'contact_phone_2',
         'has_children', 'children_count',
         'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max',
@@ -1044,7 +1044,24 @@ function Profile() {
                             <div style={styles.grid}>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>מעט על עצמי (מי שמתבייש יבקש מאחר שיכתוב)</label>
-                                    <textarea name="about_me" value={user.about_me || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={200} placeholder="(עד 200 תווים)" />
+                                    <textarea name="about_me" value={user.about_me || ''} onChange={handleChange} style={{ ...styles.input, minHeight: '80px' }} maxLength={400} placeholder="(עד 400 תווים)" />
+                                </div>
+                                <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        📞 תיאור קצר למערכת הטלפונית
+                                        <span style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 400 }}>אופציונלי</span>
+                                    </label>
+                                    <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '2px 0 6px', lineHeight: 1.5 }}>
+                                        משתמשים שמתקשרים דרך טלפון כשר ישמעו <strong>רק שדה זה</strong> — כתוב 2–3 משפטים תמציתיים שמתארים אותך.
+                                    </p>
+                                    <textarea
+                                        name="ivr_about"
+                                        value={user.ivr_about || ''}
+                                        onChange={handleChange}
+                                        style={{ ...styles.input, minHeight: '70px', borderColor: '#c9a227', background: '#fffbf0' }}
+                                        maxLength={150}
+                                        placeholder="למשל: בחור רציני ושמח, לומד בישיבה, אוהב חברותיות. מחפש מישהי עם ערכים ואמביציה. (עד 150 תווים — 2-3 משפטים)"
+                                    />
                                 </div>
                                 <div style={{ ...styles.field, gridColumn: '1 / -1' }}>
                                     <label>סגנון הבית שאני רוצה</label>

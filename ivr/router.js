@@ -182,8 +182,6 @@ function buildMatchText(match) {
 // הצעה — כל הפרטים (מקש 4): שכבה 2+3 ברצף
 // מוצא, רקע, עיסוק, גובה, מראה, שאיפה, תיאור עצמי
 // ==========================================
-const ABOUT_ME_MAX = 120; // תווים מקסימום לפני הפניה לאפליקציה
-
 function buildMatchDetailText(match) {
     const parts = [];
 
@@ -225,14 +223,10 @@ function buildMatchDetailText(match) {
     }
     if (match.work_field) parts.push(`תחום עבודה: ${match.work_field}`);
 
-    // תיאור עצמי — אם ארוך, מקצרים ומפנים לאפליקציה
-    if (match.about_me) {
-        if (match.about_me.length <= ABOUT_ME_MAX) {
-            parts.push(match.about_me);
-        } else {
-            parts.push(match.about_me.substring(0, ABOUT_ME_MAX) + '...');
-            parts.push('לתיאור המלא, היכנס לאזור האישי באפליקציה');
-        }
+    // תיאור עצמי — ivr_about מכיל טקסט קצר שנכתב במיוחד לטלפון.
+    // אם לא מולא — מדלגים (לא מקריאים את about_me הארוך).
+    if (match.ivr_about && match.ivr_about.trim()) {
+        parts.push(match.ivr_about.trim());
     }
 
     return parts.length > 0 ? parts.join('. ') + '.' : 'אין פרטים נוספים.';
@@ -253,8 +247,11 @@ function yemotPlayback(res, audioSeg) {
 }
 function yemotRead(res, audioSeg, varName = 'digits', maxDigits = 1, minDigits = 1, timeout = 8) {
     console.log(`[IVR] ← read(${varName},${minDigits}-${maxDigits}): ${audioSeg.substring(0, 80)}...`);
-    // confirmation=no — הקשה מתקבלת מיד, ללא צורך ב-# לאישור
-    res.type('text').send(`read=${audioSeg}=${varName},,${maxDigits},${minDigits},${timeout},NO,no,no`);
+    // פורמט ימות (מתוך yemot-router2 — makeTapModeRead):
+    // read=<audio>=<valName>,<re_enter_if_exists>,<max>,<min>,<sec_wait>,<playback_mode>,<block_asterisk>,<block_zero>
+    // playback_mode='No' = ללא השמעת הלחיצה חזרה (ולא מבקש אישור)
+    const opts = [varName, 'no', maxDigits, minDigits, timeout, 'No', 'no', 'no'].join(',');
+    res.type('text').send(`read=${audioSeg}=${opts}`);
 }
 function yemotHangup(res) {
     console.log('[IVR] ← hangup');

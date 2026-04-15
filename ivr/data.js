@@ -132,7 +132,7 @@ async function getMatchesForIvr(userId, offset = 0, limit = 1) {
         `SELECT id, full_name, age, city, study_place, height,
                 family_background, heritage_sector, current_occupation,
                 body_type, appearance, skin_tone, life_aspiration,
-                work_field, about_me, gender, status, head_covering
+                work_field, about_me, ivr_about, gender, status, head_covering
          FROM users
          WHERE gender       = $1
            AND is_approved  = TRUE
@@ -180,7 +180,7 @@ async function getAllMatchesForIvr(userId, offset = 0, limit = 1) {
         `SELECT id, full_name, age, city, study_place, height,
                 family_background, heritage_sector, current_occupation,
                 body_type, appearance, skin_tone, life_aspiration,
-                work_field, about_me, gender, status, head_covering
+                work_field, about_me, ivr_about, gender, status, head_covering
          FROM users
          WHERE gender       = $1
            AND is_approved  = TRUE
@@ -247,7 +247,7 @@ async function getIncomingRequestsForIvr(userId, offset = 0, limit = 1) {
                 u.id, u.full_name, u.age, u.city, u.study_place, u.height,
                 u.family_background, u.heritage_sector, u.current_occupation,
                 u.body_type, u.appearance, u.skin_tone, u.life_aspiration,
-                u.work_field, u.about_me, u.gender, u.status, u.head_covering
+                u.work_field, u.about_me, u.ivr_about, u.gender, u.status, u.head_covering
          FROM connections c
          JOIN users u ON c.sender_id = u.id
          WHERE c.receiver_id = $1 AND c.status = 'pending'
