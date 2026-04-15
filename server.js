@@ -2549,13 +2549,37 @@ app.get('/admin/all-users', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
 
     try {
-        const result = await pool.query(
-            `SELECT *
-             FROM users 
-             WHERE is_admin != TRUE
-             ORDER BY created_at DESC`
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const pageSize = parseInt(req.query.pageSize) || 50;
+        const search = (req.query.search || '').trim();
+        const offset = (page - 1) * pageSize;
+
+        let whereClause = 'WHERE is_admin != TRUE';
+        const params = [];
+        let paramIdx = 1;
+
+        if (search) {
+            whereClause += ` AND (full_name ILIKE $${paramIdx} OR last_name ILIKE $${paramIdx} OR phone ILIKE $${paramIdx} OR email ILIKE $${paramIdx})`;
+            params.push(`%${search}%`);
+            paramIdx++;
+        }
+
+        const countResult = await pool.query(
+            `SELECT COUNT(*) FROM users ${whereClause}`, params
         );
-        res.json(result.rows);
+        const total = parseInt(countResult.rows[0].count);
+
+        const result = await pool.query(
+            `SELECT id, full_name, last_name, phone, email, gender, age, city, status,
+                    heritage_sector, family_background, is_approved, is_blocked, created_at,
+                    profile_images_count, pending_changes, is_email_verified
+             FROM users ${whereClause}
+             ORDER BY created_at DESC
+             LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+            [...params, pageSize, offset]
+        );
+
+        res.json({ users: result.rows, total, page, pageSize, totalPages: Math.ceil(total / pageSize) });
     } catch (err) {
         console.error("Get all users error:", err);
         res.status(500).json({ message: "שגיאה בשליפת משתמשים" });

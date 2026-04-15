@@ -49,11 +49,11 @@ function AdminUsers() {
 
     const fetchUsers = async () => {
         try {
-            const res = await fetch(`${API_BASE}/admin/all-users`, {
+            const res = await fetch(`${API_BASE}/admin/all-users?pageSize=2000`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
-            setUsers(Array.isArray(data) ? data : []);
+            setUsers(Array.isArray(data) ? data : (data.users || []));
         } catch (err) {
             console.error(err);
         }
