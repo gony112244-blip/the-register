@@ -106,6 +106,9 @@ function buildMenuText(gender, counts = {}) {
     // 7 — כל ההצעות כולל ישנות (תמיד — גישת ארכיון)
     parts.push(`לכל ההצעות כולל ישנות, ${hk} שבע.`);
 
+    // חזרה על התפריט — תמיד בסוף
+    parts.push(`לשמיעה חוזרת של התפריט, ${hk} אפס.`);
+
     return parts.join(' ');
 }
 
@@ -356,10 +359,10 @@ router.get('/call', async (req, res) => {
         // אין PIN → עבור ישר לתפריט עם ברכה + סטטוס + אפשרויות (ללא round-trip)
         if (!user.ivr_pin || user.allow_ivr_no_pass) {
             await updateSession(enterId, 'menu');
-            let counts = { matches: 0, requests: 0, photos: 0 };
+            let counts = { matches: 0, requests: 0, photos: 0, messages: 0 };
             try { counts = await getMenuCounts(user.id); } catch {}
-            const statusText = buildStatusText(counts);
-            const menuOptions = buildMenuText(user.gender);
+            const statusText = buildStatusText(user.gender, counts);
+            const menuOptions = buildMenuText(user.gender, counts);
             const welcomePrefix = g(user.gender,
                 `שלום ${firstName}, ברוך הבא לפנקס.`,
                 `שלום ${firstName}, ברוכה הבאת לפנקס.`
