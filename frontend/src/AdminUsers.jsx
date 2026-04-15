@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileView from './ProfileView';
 import AdminUserHistory from './AdminUserHistory';
+import { useToast } from './components/ToastProvider';
 
 const STATUS_MAP = {
     active: 'פעיל',
@@ -20,6 +21,7 @@ const SECTOR_LABELS = {
 
 function AdminUsers() {
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const token = localStorage.getItem('token');
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -95,21 +97,20 @@ function AdminUsers() {
     };
 
     const handleApprove = async (userId) => {
-        if (!window.confirm('האם לאשר את המשתמש?')) return;
         try {
             const res = await fetch(`${API_BASE}/admin/approve/${userId}`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                alert('המשתמש אושר בהצלחה');
+                showToast('✅ המשתמש אושר בהצלחה', 'success');
                 fetchUsers();
                 if (selectedUser?.id === userId) setSelectedUser({ ...selectedUser, is_approved: true });
             } else {
-                alert('שגיאה באישור המשתמש');
+                showToast('שגיאה באישור המשתמש', 'error');
             }
         } catch (err) {
-            alert('שגיאה בתקשורת עם השרת');
+            showToast('שגיאה בתקשורת עם השרת', 'error');
         }
     };
 
@@ -124,12 +125,12 @@ function AdminUsers() {
             });
             if (res.ok) {
                 fetchUsers();
-                alert(block ? 'המשתמש נחסם בהצלחה' : 'המשתמש שוחרר בהצלחה');
+                showToast(block ? '🔒 המשתמש נחסם בהצלחה' : '🔓 המשתמש שוחרר בהצלחה', 'success');
             } else {
-                alert('שגיאה בחסימה/שחרור');
+                showToast('שגיאה בחסימה/שחרור', 'error');
             }
         } catch (err) {
-            alert('שגיאה');
+            showToast('שגיאה', 'error');
         }
     };
 
@@ -141,32 +142,32 @@ function AdminUsers() {
                 body: JSON.stringify({ userId: selectedUser.id, note: noteText })
             });
             if (res.ok) {
-                alert('ההערה נשמרה');
+                showToast('📝 ההערה נשמרה', 'success');
                 fetchUsers();
             } else {
-                alert('שגיאה בשמירה');
+                showToast('שגיאה בשמירה', 'error');
             }
         } catch (err) {
-            alert('שגיאה');
+            showToast('שגיאה', 'error');
         }
     };
 
     const handleDelete = async (userId) => {
-        if (!window.confirm('⚠️ האם למחוק את המשתמש לצמיתות? פעולה זו אינה ניתנת לביטול!')) return;
+        if (!window.confirm('⚠️ למחוק את המשתמש לצמיתות? פעולה זו אינה ניתנת לביטול!')) return;
         try {
             const res = await fetch(`${API_BASE}/admin/delete-user/${userId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                alert('המשתמש נמחק בהצלחה');
+                showToast('🗑️ המשתמש נמחק', 'success');
                 setSelectedUser(null);
                 fetchUsers();
             } else {
-                alert('שגיאה במחיקת המשתמש');
+                showToast('שגיאה במחיקת המשתמש', 'error');
             }
         } catch (err) {
-            alert('שגיאה בתקשורת עם השרת');
+            showToast('שגיאה בתקשורת עם השרת', 'error');
         }
     };
 
@@ -179,13 +180,13 @@ function AdminUsers() {
                 body: JSON.stringify({ userId: selectedUser.id, message: messageText })
             });
             if (res.ok) {
-                alert('ההודעה נשלחה בהצלחה');
+                showToast('✉️ ההודעה נשלחה', 'success');
                 setMessageText('');
             } else {
-                alert('שגיאה בשליחת הודעה');
+                showToast('שגיאה בשליחת הודעה', 'error');
             }
         } catch (err) {
-            alert('שגיאה');
+            showToast('שגיאה', 'error');
         }
     };
 

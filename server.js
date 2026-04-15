@@ -4027,7 +4027,7 @@ app.post('/support/submit', async (req, res) => {
             '✅ פנייתך התקבלה — הפנקס',
             `<div dir="rtl" style="font-family:Arial,sans-serif;padding:20px">
                 <h2 style="color:#1e3a5f">קיבלנו את פנייתך!</h2>
-                <p>שלום ${name}, פנייתך (מס' ${ticketId}) התקבלה ונשמרה במערכת.</p>
+                <p>שלום ${name}, פנייתך (מס' ${ticketId}) התקבלה ונשמרה במערכת ותטופל בהקדם.</p>
                 <p><strong>הודעתך:</strong><br>${message.replace(/\n/g,'<br>')}</p>
             </div>`
         ));

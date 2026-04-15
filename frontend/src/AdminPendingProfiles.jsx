@@ -2,9 +2,11 @@ import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileView from './ProfileView';
+import { useToast } from './components/ToastProvider';
 
 function AdminPendingProfiles() {
     const navigate = useNavigate();
+    const { showToast } = useToast();
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user'));
 
@@ -47,8 +49,6 @@ function AdminPendingProfiles() {
     };
 
     const handleApprove = async (id) => {
-        if (!window.confirm('לאשר את השינויים?')) return;
-
         try {
             const res = await fetch(`${API_BASE}/admin/approve-profile-changes/${id}`, {
                 method: 'POST',
@@ -56,19 +56,21 @@ function AdminPendingProfiles() {
             });
 
             if (res.ok) {
-                alert('✅ השינויים אושרו!');
+                showToast('✅ השינויים אושרו!', 'success');
                 fetchPending();
                 setSelectedUser(null);
                 window.dispatchEvent(new CustomEvent('adminStatsUpdated'));
+            } else {
+                showToast('שגיאה באישור', 'error');
             }
         } catch (err) {
-            alert('שגיאה באישור');
+            showToast('שגיאה באישור', 'error');
         }
     };
 
     const handleReject = async (id) => {
         if (!rejectReason.trim()) {
-            alert('נא להזין סיבת דחייה');
+            showToast('נא להזין סיבת דחייה', 'error');
             return;
         }
 
@@ -83,14 +85,16 @@ function AdminPendingProfiles() {
             });
 
             if (res.ok) {
-                alert('❌ השינויים נדחו והמשתמש קיבל הודעה');
+                showToast('❌ השינויים נדחו והמשתמש קיבל הודעה', 'success');
                 fetchPending();
                 setSelectedUser(null);
                 setRejectReason('');
                 window.dispatchEvent(new CustomEvent('adminStatsUpdated'));
+            } else {
+                showToast('שגיאה בדחייה', 'error');
             }
         } catch (err) {
-            alert('שגיאה בדחייה');
+            showToast('שגיאה בדחייה', 'error');
         }
     };
 

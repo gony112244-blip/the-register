@@ -471,7 +471,7 @@ function Home() {
       {/* Footer */}
       <footer className="home-footer">
         <div className="footer-content">
-          <p>© הפנקס — מערכת שידוכים לבני תורה | נבנה באהבה ובסייעתא דשמיא</p>
+          <p>© הפנקס — מערכת שידוכים לבני תורה | בסייעתא דשמיא ובאהבה</p>
           <div className="footer-links">
             <div className="footer-contact">
               <span>📞 {sitePhoneNumber}</span>
