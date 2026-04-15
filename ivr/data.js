@@ -310,6 +310,42 @@ async function getMySentRequestsForIvr(userId, offset = 0, limit = 1) {
 }
 
 /**
+ * שליפת הבקשות שיצאו ממני שטרם נענו (pending בלבד).
+ */
+async function getPendingSentForIvr(userId, offset = 0, limit = 1) {
+    const result = await pool.query(
+        `SELECT c.id AS connection_id, c.status, c.created_at,
+                u.id AS user_id, u.full_name, u.age, u.city, u.study_place
+         FROM connections c
+         JOIN users u ON c.receiver_id = u.id
+         WHERE c.sender_id = $1
+           AND c.status = 'pending'
+         ORDER BY c.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
+ * שליפת השידוכים הפעילים שלי (active + waiting_for_shadchan).
+ */
+async function getActiveSentForIvr(userId, offset = 0, limit = 1) {
+    const result = await pool.query(
+        `SELECT c.id AS connection_id, c.status, c.created_at,
+                u.id AS user_id, u.full_name, u.age, u.city, u.study_place
+         FROM connections c
+         JOIN users u ON c.receiver_id = u.id
+         WHERE c.sender_id = $1
+           AND c.status IN ('active', 'waiting_for_shadchan')
+         ORDER BY c.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
  * ביטול פנייה ממתינה — מחיקת שורת ה-connection.
  * מקביל ל-POST /cancel-request (ללא שליחת מייל — כרגע).
  */
@@ -453,6 +489,7 @@ module.exports = {
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
+    getPendingSentForIvr, getActiveSentForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed
