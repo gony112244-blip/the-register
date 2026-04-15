@@ -2091,26 +2091,26 @@ app.get('/matches', authenticateToken, async (req, res) => {
             `id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = $1)`
         ];
 
-        // סינון לפי גיל
+        // סינון לפי גיל — מי שלא מילא גיל לא מוצג (שדה חובה)
         if (currentUser.search_min_age) {
-            conditions.push(`age >= $${paramIndex}`);
+            conditions.push(`(age IS NOT NULL AND age >= $${paramIndex})`);
             params.push(currentUser.search_min_age);
             paramIndex++;
         }
         if (currentUser.search_max_age) {
-            conditions.push(`age <= $${paramIndex}`);
+            conditions.push(`(age IS NOT NULL AND age <= $${paramIndex})`);
             params.push(currentUser.search_max_age);
             paramIndex++;
         }
 
-        // סינון לפי גובה
+        // סינון לפי גובה — מי שלא מילא גובה לא מוצג (שדה חובה)
         if (currentUser.search_height_min) {
-            conditions.push(`height >= $${paramIndex}`);
+            conditions.push(`(height IS NOT NULL AND height >= $${paramIndex})`);
             params.push(Math.round(Number(currentUser.search_height_min)));
             paramIndex++;
         }
         if (currentUser.search_height_max) {
-            conditions.push(`height <= $${paramIndex}`);
+            conditions.push(`(height IS NOT NULL AND height <= $${paramIndex})`);
             params.push(Math.round(Number(currentUser.search_height_max)));
             paramIndex++;
         }
@@ -2230,9 +2230,12 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_max_age IS NULL OR search_max_age >= $${paramIndex})`);
             params.push(myAge);
             paramIndex++;
+        } else {
+            // אם אין לי גיל, לא מציגים מועמדים שהגדירו טווח גיל (הם לא יראו אותי)
+            conditions.push(`(search_min_age IS NULL AND search_max_age IS NULL)`);
         }
 
-        // הסבר: המועמד צריך לרצות את הגובה שלי
+        // המועמד צריך לרצות את הגובה שלי
         if (currentUser.height) {
             const myHeight = Math.round(Number(currentUser.height));
             conditions.push(`(search_height_min IS NULL OR search_height_min <= $${paramIndex})`);
@@ -2241,11 +2244,12 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_height_max IS NULL OR search_height_max >= $${paramIndex})`);
             params.push(myHeight);
             paramIndex++;
+        } else {
+            // אם אין לי גובה, לא מציגים מועמדים שהגדירו טווח גובה
+            conditions.push(`(search_height_min IS NULL AND search_height_max IS NULL)`);
         }
 
-        // הסבר: המועמד צריך לרצות את המגזר העדתי שלי
-        // שימוש ב-regexp_split_to_array עם trim — מטפל ברווחים אחרי פסיקים (ashkenazi, sephardi)
-        // mixed_heritage_ok: אם אני מעורב והמועמד מסמן "מתאים כלאיים" — מתקבל
+        // המועמד צריך לרצות את המגזר העדתי שלי
         if (currentUser.heritage_sector) {
             const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_heritage_sectors,'')), E'\\\\s*,\\\\s*')`;
             const mixedOk = currentUser.heritage_sector === 'mixed'
@@ -2254,6 +2258,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_heritage_sectors IS NULL OR trim(coalesce(search_heritage_sectors,'')) = '' OR $${paramIndex} = ANY(${arrExpr})${mixedOk})`);
             params.push(currentUser.heritage_sector);
             paramIndex++;
+        } else {
+            conditions.push(`(search_heritage_sectors IS NULL OR trim(coalesce(search_heritage_sectors,'')) = '')`);
         }
 
         // המועמד צריך לרצות את הסטטוס שלי (רווק/גרוש/אלמן)
@@ -2262,6 +2268,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_statuses IS NULL OR trim(coalesce(search_statuses,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.status);
             paramIndex++;
+        } else {
+            conditions.push(`(search_statuses IS NULL OR trim(coalesce(search_statuses,'')) = '')`);
         }
 
         // המועמד צריך לרצות את הרקע הדתי שלי
@@ -2270,6 +2278,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_backgrounds IS NULL OR trim(coalesce(search_backgrounds,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.family_background);
             paramIndex++;
+        } else {
+            conditions.push(`(search_backgrounds IS NULL OR trim(coalesce(search_backgrounds,'')) = '')`);
         }
 
         // המועמד צריך לרצות את מבנה הגוף שלי
@@ -2278,6 +2288,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_body_types IS NULL OR trim(coalesce(search_body_types,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.body_type);
             paramIndex++;
+        } else {
+            conditions.push(`(search_body_types IS NULL OR trim(coalesce(search_body_types,'')) = '')`);
         }
 
         // המועמד צריך לרצות את המראה שלי
@@ -2286,6 +2298,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_appearances IS NULL OR trim(coalesce(search_appearances,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.appearance);
             paramIndex++;
+        } else {
+            conditions.push(`(search_appearances IS NULL OR trim(coalesce(search_appearances,'')) = '')`);
         }
 
         // המועמד צריך לרצות את העיסוק שלי
@@ -2294,6 +2308,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_occupations IS NULL OR trim(coalesce(search_occupations,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.current_occupation);
             paramIndex++;
+        } else {
+            conditions.push(`(search_occupations IS NULL OR trim(coalesce(search_occupations,'')) = '')`);
         }
 
         // המועמד צריך לרצות את השאיפה שלי
@@ -2302,6 +2318,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             conditions.push(`(search_life_aspirations IS NULL OR trim(coalesce(search_life_aspirations,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
             params.push(currentUser.life_aspiration);
             paramIndex++;
+        } else {
+            conditions.push(`(search_life_aspirations IS NULL OR trim(coalesce(search_life_aspirations,'')) = '')`);
         }
 
         // המועמד צריך לקבל את כיסוי הראש שלי (דו-כיווני)
