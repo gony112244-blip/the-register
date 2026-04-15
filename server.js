@@ -47,23 +47,34 @@ app.use(helmet({
 app.use(helmet.crossOriginResourcePolicy({ policy: "cross-origin" }));
 
 // 2. Rate Limiting - הגבלת בקשות כללית
-/*
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 דקות
-    max: 300, // מקסימום 300 בקשות לכל IP (הוגדל מ-100)
-    message: "יותר מדי בקשות מכתובת זו, נא לנסות שוב מאוחר יותר."
+    windowMs: 15 * 60 * 1000,
+    max: 500,
+    message: { message: "יותר מדי בקשות מכתובת זו, נא לנסות שוב מאוחר יותר." },
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 app.use(limiter);
 
-// 3. הגבלה מחמירה לניסיונות התחברות (Brute Force Protection)
+// הגבלה מחמירה לניסיונות התחברות
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 5, // רק 5 ניסיונות כושלים
-    message: "יותר מדי ניסיונות התחברות, החשבון ננעל זמנית ל-15 דקות."
+    max: 10,
+    message: { message: "יותר מדי ניסיונות התחברות, נא לנסות שוב בעוד 15 דקות." },
+    standardHeaders: true,
+    legacyHeaders: false,
 });
-*/
 
-app.use(express.json());
+// הגבלה לתמונות (sharp כבד על ה-CPU)
+const imageLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000,
+    max: 60,
+    message: { message: "יותר מדי בקשות תמונה, נא לנסות שוב בעוד דקה." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use(express.json({ limit: '2mb' }));
 
 
 
@@ -323,7 +334,7 @@ setInterval(() => {
     for (const [k, v] of _nameCache) { if (now - v.ts > NAME_TTL) _nameCache.delete(k); }
 }, 5 * 60 * 1000);
 
-app.get('/secure-file/:filename', async (req, res) => {
+app.get('/secure-file/:filename', imageLimiter, async (req, res) => {
     const authHeader = req.headers['authorization'];
     const token = (authHeader && authHeader.split(' ')[1]) || req.query.token;
 
@@ -625,7 +636,7 @@ app.post('/register', async (req, res) => {
 
 
 // התחברות למערכת (תומך באימייל או טלפון)
-app.post('/login', async (req, res) => {
+app.post('/login', loginLimiter, async (req, res) => {
     // Frontend שולח לפעמים phone ולפעמים email, ולפעמים identifier
     const identifier = req.body.identifier || req.body.email || req.body.phone;
     const { password } = req.body;
