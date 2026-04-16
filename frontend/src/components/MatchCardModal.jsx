@@ -1,5 +1,6 @@
 import { API_BASE, getSecureUrl } from '../config';
 import { useState, useEffect } from 'react';
+import ImageLightbox from './ImageLightbox';
 
 // ── תרגומים ──
 const T = {
@@ -175,21 +176,11 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
         <>
         {/* lightbox לזום תמונה */}
         {zoomedPhoto && (
-            <div
-                style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}
-                onClick={() => setZoomedPhoto(null)}
-            >
-                <img
-                    src={getSecureUrl(zoomedPhoto)}
-                    alt="תמונה מוגדלת"
-                    style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, boxShadow: '0 0 40px rgba(0,0,0,0.8)' }}
-                    onClick={e => e.stopPropagation()}
-                />
-                <button
-                    onClick={() => setZoomedPhoto(null)}
-                    style={{ position: 'absolute', top: 20, left: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: 24, borderRadius: '50%', width: 44, height: 44, cursor: 'pointer' }}
-                >✕</button>
-            </div>
+            <ImageLightbox
+                src={getSecureUrl(zoomedPhoto)}
+                alt="תמונת פרופיל"
+                onClose={() => setZoomedPhoto(null)}
+            />
         )}
         <div style={S.overlay} onClick={onClose}>
             <div style={S.modal} onClick={e => e.stopPropagation()}>
@@ -239,7 +230,9 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                                         key={i}
                                         src={getSecureUrl(url)}
                                         alt={`תמונה ${i + 1}`}
-                                        style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, cursor: 'pointer', border: '2px solid #c9a227' }}
+                                        draggable={false}
+                                        onContextMenu={e => e.preventDefault()}
+                                        style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, cursor: 'zoom-in', border: '2px solid #c9a227' }}
                                         onClick={() => setZoomedPhoto(url)}
                                     />
                                 ))}

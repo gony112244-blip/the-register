@@ -1,6 +1,7 @@
 import { API_BASE, getSecureUrl } from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ImageLightbox from './components/ImageLightbox';
 
 function ProfileView({ externalUser, readOnly, isAdminView }) {
     const navigate = useNavigate();
@@ -8,6 +9,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
     const [user, setUser] = useState(externalUser || null);
     const [loading, setLoading] = useState(!externalUser);
     const [activeTab, setActiveTab] = useState(1);
+    const [lightboxSrc, setLightboxSrc] = useState(null);
 
     useEffect(() => {
         if (externalUser) {
@@ -100,6 +102,15 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
 
     return (
         <div style={readOnly ? {...S.page, minHeight: 'auto', padding: 0, background: 'none'} : S.page}>
+            {/* Lightbox */}
+            {lightboxSrc && (
+                <ImageLightbox
+                    src={lightboxSrc}
+                    alt="תמונת פרופיל"
+                    onClose={() => setLightboxSrc(null)}
+                />
+            )}
+
             {!readOnly && (
                 <div style={S.pageHeader}>
                     <h1 style={S.pageTitle}>📋 הכרטיס שלי</h1>
@@ -118,7 +129,10 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                     <img key={i}
                                         src={mediaUrl(img)}
                                         alt={`תמונה ${i + 1}`}
-                                        style={{ ...S.profilePhoto, ...(i === 0 ? S.photoPrimary : S.photoSecondary) }}
+                                        draggable={false}
+                                        onContextMenu={e => e.preventDefault()}
+                                        onClick={() => setLightboxSrc(mediaUrl(img))}
+                                        style={{ ...S.profilePhoto, ...(i === 0 ? S.photoPrimary : S.photoSecondary), cursor: 'zoom-in' }}
                                         onError={(e) => { e.target.style.display = 'none'; }}
                                     />
                                 ))}
