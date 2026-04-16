@@ -319,9 +319,10 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 <Row label="שאיפה" val={tr('life_aspiration', user.life_aspiration)} />
                                 <Row label="מקצוע" val={user.work_field} />
                                 <Row label="פרטי עיסוק" val={user.occupation_details} fullWidth />
-                                <Row label="ישיבה" val={user.yeshiva_name} />
-                                <Row label="ישיבה קטנה" val={user.yeshiva_ketana_name} />
-                                <Row label="סמינר/מוסד" val={user.study_place} />
+                                {user.gender === 'male' && <Row label="ישיבה גדולה" val={user.study_place} />}
+                                {user.gender === 'male' && <Row label="ישיבה" val={user.yeshiva_name} />}
+                                {user.gender === 'male' && <Row label="ישיבה קטנה" val={user.yeshiva_ketana_name} />}
+                                {user.gender === 'female' && <Row label="סמינר/מוסד" val={user.study_place} />}
                                 <Row label="תחום לימוד" val={user.study_field} />
                                 <Row label="נושא לימוד אהוב" val={tr('favorite_study', user.favorite_study)} />
                             </Section>
