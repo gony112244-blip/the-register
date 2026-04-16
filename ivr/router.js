@@ -91,8 +91,9 @@ function buildMenuText(gender, counts = {}) {
 
     const parts = [];
 
-    // 1 — הצעות חדשות (תמיד)
-    parts.push(`להצעות חדשות, ${hk} אחת.`);
+    // 1 — הצעות חדשות (רק אם יש — אבל מקש 1 תמיד פעיל)
+    // כשאין הצעות לא מכריזים בתפריט, אבל אם ילחץ 1 יקבל הודעה מתאימה
+    if (counts.matches > 0) parts.push(`להצעות חדשות, ${hk} אחת.`);
 
     // 2 — תמונות ממתינות (רק אם יש)
     if (p > 0) parts.push(`לתמונות הממתינות לאישורך, ${hk} שתיים.`);
@@ -100,22 +101,18 @@ function buildMenuText(gender, counts = {}) {
     // 3 — בדיקות התאמה שהגיעו אליי (רק אם יש)
     if (r > 0) parts.push(`לבדיקות התאמה שהגיעו אליך, ${hk} שלוש.`);
 
-    // 4 — בקשות שיצאו ממני שטרם נענו (תמיד, עם ספירה אם יש)
+    // 4 — בקשות שיצאו ממני שטרם נענו (רק אם יש)
     if (pendingSent > 0) {
-        const n   = numberToHebrew(pendingSent, true);
+        const n    = numberToHebrew(pendingSent, true);
         const noun = pendingSent === 1 ? 'בקשה ששלחת שטרם נענתה' : 'בקשות ששלחת שטרם נענו';
         parts.push(`ל${n} ${noun}, ${hk} ארבע.`);
-    } else {
-        parts.push(`לבקשות ששלחת, ${hk} ארבע.`);
     }
 
-    // 5 — שידוכים פעילים (תמיד, עם ספירה אם יש)
+    // 5 — שידוכים פעילים (רק אם יש)
     if (activeSent > 0) {
         const n    = numberToHebrew(activeSent, true);
         const noun = activeSent === 1 ? 'שידוך פעיל' : 'שידוכים פעילים';
         parts.push(`ל${n} ${noun}, ${hk} חמש.`);
-    } else {
-        parts.push(`לשידוכים הפעילים שלך, ${hk} חמש.`);
     }
 
     // 6 — הודעות חשובות (רק אם יש)
@@ -140,10 +137,14 @@ async function goToMenu(enterId, userId, gender, res, prefix = '') {
     try { counts = await getMenuCounts(userId); } catch {}
     const statusText = buildStatusText(gender, counts);
     const menuText   = buildMenuText(gender, counts);
-    const fullText   = prefix
-        ? `${prefix} ${statusText} ${menuText}`
-        : `${statusText} ${menuText}`;
-    const file = await textToYemot(fullText);
+    // כשיש prefix (למשל "סיימת את כל ההצעות") — לא חוזרים על "אין פעילות חדשה"
+    const parts = [];
+    if (prefix) parts.push(prefix);
+    // הצג status רק אם יש פעילות (כדי למנוע כפילות עם prefix שאומר "אין...")
+    const hasActivity = (counts.matches || counts.requests || counts.photos || counts.messages || counts.pendingSent || counts.activeSent);
+    if (hasActivity) parts.push(statusText);
+    parts.push(menuText);
+    const file = await textToYemot(parts.join(' '));
     return yemotRead(res, file, 'digits', 1, 1, 8);
 }
 
@@ -180,10 +181,17 @@ function buildFullProfileText(match) {
     const parts = [];
 
     // --- פרטים בסיסיים ---
+    const isFemale = match.gender === 'female';
     const fullName = buildFullName(match);
     if (fullName) parts.push(fullName);
     if (match.status) {
-        const st = pm.status_personal?.[match.status] || match.status;
+        // מפה מודעת-מגדר: ניקוד מפורש כדי ש-TTS יבטא נכון
+        const statusMap = {
+            single:   isFemale ? 'רַוָּקָה' : 'רַוָּק',
+            divorced: isFemale ? 'גְּרוּשָׁה'  : 'גָּרוּשׁ',
+            widower:  isFemale ? 'אַלְמָנָה'  : 'אַלְמָן',
+        };
+        const st = statusMap[match.status] || pm.status_personal?.[match.status] || match.status;
         parts.push(st);
     }
     if (match.age) parts.push(`גיל ${numberToHebrew(match.age)}`);
@@ -192,7 +200,9 @@ function buildFullProfileText(match) {
         parts.push(`מ${city}`);
     }
     if (match.country_of_birth && match.country_of_birth !== 'ישראל') {
-        parts.push(`ילידת ${match.country_of_birth}`);
+        // ילידת (נקבה) / יליד (זכר)
+        const ylidPrefix = isFemale ? 'יְלִידַת' : 'יְלִיד';
+        parts.push(`${ylidPrefix} ${match.country_of_birth}`);
     }
     if ((match.status === 'divorced' || match.status === 'widower') && match.has_children === 'yes' && match.children_count) {
         parts.push(`${match.children_count} ילדים`);
@@ -851,8 +861,25 @@ router.get('/call', async (req, res) => {
             if (key === '8') {
                 offset++;
                 await updateSession(enterId, 'messages', { page: offset });
-                const file = await textToYemot('עוברים להודעה הבאה.');
-                return yemotPlayback(res, file);
+                // טוען הודעה הבאה ישירות — לא yemotPlayback שמנתק
+                let nextMsgs = [];
+                try { nextMsgs = await getMessagesForIvr(user.id, offset, 1); } catch {}
+                if (nextMsgs.length === 0) {
+                    return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות נוספות.');
+                }
+                const nextMsg = nextMsgs[0];
+                const nextClean = (nextMsg.content || '')
+                    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
+                    .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+                    .trim();
+                await updateSession(enterId, 'messages', { page: offset, currentMessageId: nextMsg.id, currentMessageText: nextClean });
+                markMessageReadFromIvr(nextMsg.id, user.id).catch(() => {});
+                const nextAct = g(user.gender,
+                    'הַקֵּשׁ תשע לשמיעה חוזרת. הַקֵּשׁ שמונה להודעה הבאה. הַקֵּשׁ אפס לתפריט הראשי.',
+                    'הַקִּישִׁי תשע לשמיעה חוזרת. הַקִּישִׁי שמונה להודעה הבאה. הַקִּישִׁי אפס לתפריט הראשי.'
+                );
+                const nextFile = await textToYemot(`הודעה חדשה: ${nextClean} ${nextAct}`);
+                return yemotRead(res, nextFile, 'digits', 1, 1, 8);
             }
 
             // מקש לא מוכר
@@ -1131,181 +1158,110 @@ router.get('/call', async (req, res) => {
         let   offset = parseInt(data.page || 0, 10);
         const connId = data.currentConnectionId || null;
 
+        const loadNextPending = async (prefix = '') => {
+            let rows = [];
+            try { rows = await getPendingSentForIvr(user.id, offset, 1); } catch {}
+            if (rows.length === 0) {
+                return await goToMenu(enterId, user.id, user.gender, res, prefix || 'אין בקשות ממתינות לתשובה.');
+            }
+            const c    = rows[0];
+            const fn   = [c.last_name, c.full_name].filter(Boolean).join(' ');
+            const nameStr = fn || 'ללא שם';
+            const ageStr  = c.age  ? `, ${numberToHebrew(c.age)} שנים` : '';
+            const cityStr = c.city ? `, ${c.city}` : '';
+            await updateSession(enterId, 'pending_sent', { page: offset, currentConnectionId: c.connection_id });
+            const act = g(user.gender,
+                'הָקֵשׁ אחת לביטול הבקשה. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
+                'הָקִישִׁי אחת לביטול הבקשה. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
+            );
+            const text = `${prefix ? prefix + ' ' : ''}שלחת בקשה ל${nameStr}${ageStr}${cityStr} — טרם נענתה. ${act}`;
+            const file = await textToYemot(text);
+            return yemotRead(res, file, 'digits', 1, 1, 8);
+        };
+
         if (!key && connId) {
             return await goToMenu(enterId, user.id, user.gender, res);
         }
 
         if (key && connId) {
-            if (key === '0') {
-                return await goToMenu(enterId, user.id, user.gender, res);
-            }
+            if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
 
-            // מקש 9 — שמע שוב
-            if (key === '9') {
-                // re-load same item
-                const rePending = await getPendingSentForIvr(user.id, offset, 1).catch(() => []);
-                if (rePending.length === 0) {
-                    return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות ממתינות לתשובה.');
-                }
-                const rc = rePending[0];
-                const rn = rc.full_name || 'ללא שם';
-                const ra = rc.age  ? `, ${numberToHebrew(rc.age)} שנים` : '';
-                const ri = rc.city ? `, ${rc.city}` : '';
-                const rAct = g(user.gender,
-                    'הקש אחת לביטול הבקשה. הקש שמונה להמשך. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-                    'הקשי אחת לביטול הבקשה. הקשי שמונה להמשך. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
-                );
-                const rFile = await textToYemot(`בקשתך ל${rn}${ra}${ri} — טרם נענתה. ${rAct}`);
-                return yemotRead(res, rFile, 'digits', 1, 1, 8);
-            }
+            if (key === '9') return await loadNextPending();
 
-            // מקש 1 — ביטול הבקשה
             if (key === '1') {
                 const result = await cancelSentRequestFromIvr(connId, user.id).catch(() => 'error');
-                const responseText = result === 'ok'
-                    ? 'הבקשה בוטלה. עוברים לבקשה הבאה.'
-                    : 'אירעה תקלה. עוברים לבקשה הבאה.';
+                const pfx = result === 'ok' ? 'הבקשה בוטלה.' : 'אירעה תקלה.';
                 offset++;
-                await updateSession(enterId, 'pending_sent', { page: offset });
-                const file = await textToYemot(responseText);
-                return yemotPlayback(res, file);
+                await updateSession(enterId, 'pending_sent', { page: offset, currentConnectionId: null });
+                return await loadNextPending(pfx);
             }
 
-            // מקש 8 — דלג לבקשה הבאה
             if (key === '8') {
                 offset++;
-                await updateSession(enterId, 'pending_sent', { page: offset });
-                const file = await textToYemot('עוברים לבקשה הבאה.');
-                return yemotPlayback(res, file);
+                await updateSession(enterId, 'pending_sent', { page: offset, currentConnectionId: null });
+                return await loadNextPending();
             }
 
             const unknownText = g(user.gender,
-                'מקש לא מוכר. הקש אחת לביטול. הקש שמונה להמשך. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                'מקש לא מוכר. הקשי אחת לביטול. הקשי שמונה להמשך. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+                'מקש לא מוכר. הָקֵשׁ אחת לביטול. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
+                'מקש לא מוכר. הָקִישִׁי אחת לביטול. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
             const file = await textToYemot(unknownText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
-        // טעינת הבקשה הבאה
-        let pending = [];
-        try {
-            pending = await getPendingSentForIvr(user.id, offset, 1);
-        } catch (err) {
-            console.error('[IVR] ❌ שגיאה בשליפת בקשות pending:', err.message);
-        }
-
-        if (pending.length === 0) {
-            return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות ממתינות לתשובה.');
-        }
-
-        const conn = pending[0];
-        const name = conn.full_name || 'ללא שם';
-        const age  = conn.age  ? `, ${numberToHebrew(conn.age)} שנים` : '';
-        const city = conn.city ? `, ${conn.city}` : '';
-
-        await updateSession(enterId, 'pending_sent', {
-            page:                offset,
-            currentConnectionId: conn.connection_id
-        });
-
-        const actionsText = g(user.gender,
-            'הקש אחת לביטול הבקשה. הקש שמונה להמשך. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-            'הקשי אחת לביטול הבקשה. הקשי שמונה להמשך. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
-        );
-        const file = await textToYemot(`בקשתך ל${name}${age}${city} — טרם נענתה. ${actionsText}`);
-        return yemotRead(res, file, 'digits', 1, 1, 8);
+        return await loadNextPending();
     }
 
     // --- מצב: active_sent — שידוכים פעילים ---
     if (session.state === 'active_sent') {
-        const data       = session.data || {};
-        let   offset     = parseInt(data.page || 0, 10);
-        const connId     = data.currentConnectionId || null;
-        const connStatus = data.currentConnectionStatus || null;
+        const data   = session.data || {};
+        let   offset = parseInt(data.page || 0, 10);
+        const connId = data.currentConnectionId || null;
 
-        if (!key && connId) {
-            return await goToMenu(enterId, user.id, user.gender, res);
-        }
+        const loadNextActive = async (prefix = '') => {
+            let rows = [];
+            try { rows = await getActiveSentForIvr(user.id, offset, 1); } catch {}
+            if (rows.length === 0) {
+                return await goToMenu(enterId, user.id, user.gender, res, prefix || 'אין שידוכים פעילים כרגע.');
+            }
+            const c    = rows[0];
+            const fn   = [c.last_name, c.full_name].filter(Boolean).join(' ');
+            const nameStr = fn || 'ללא שם';
+            const ageStr  = c.age  ? `, ${numberToHebrew(c.age)} שנים` : '';
+            const cityStr = c.city ? `, ${c.city}` : '';
+            const statusTxt = c.status === 'active'
+                ? `הקשר עם ${nameStr}${ageStr}${cityStr} פעיל — שניכם הביעו עניין ראשוני.`
+                : `הקשר עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
+            await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: c.connection_id, currentConnectionStatus: c.status });
+            const act = g(user.gender,
+                'הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
+                'הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
+            );
+            const text = `${prefix ? prefix + ' ' : ''}${statusTxt} ${act}`;
+            const file = await textToYemot(text);
+            return yemotRead(res, file, 'digits', 1, 1, 8);
+        };
+
+        if (!key && connId) return await goToMenu(enterId, user.id, user.gender, res);
 
         if (key && connId) {
-            if (key === '0') {
-                return await goToMenu(enterId, user.id, user.gender, res);
-            }
-
-            // מקש 9 — שמע שוב
-            if (key === '9') {
-                const reActive = await getActiveSentForIvr(user.id, offset, 1).catch(() => []);
-                if (reActive.length === 0) {
-                    return await goToMenu(enterId, user.id, user.gender, res, 'אין שידוכים פעילים.');
-                }
-                const ac = reActive[0];
-                const an = ac.full_name || 'ללא שם';
-                const aa = ac.age  ? `, ${numberToHebrew(ac.age)} שנים` : '';
-                const ai = ac.city ? `, ${ac.city}` : '';
-                const acText = ac.status === 'active'
-                    ? `הקשר עם ${an}${aa}${ai} פעיל — שניכם הביעו עניין ראשוני.`
-                    : `הקשר עם ${an}${aa}${ai} בטיפול השדכנית.`;
-                const aAct = g(user.gender,
-                    'הקש שמונה להמשך. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-                    'הקשי שמונה להמשך. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
-                );
-                const aFile = await textToYemot(`${acText} ${aAct}`);
-                return yemotRead(res, aFile, 'digits', 1, 1, 8);
-            }
-
-            // מקש 8 — הבא
+            if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
+            if (key === '9') return await loadNextActive();
             if (key === '8') {
                 offset++;
-                await updateSession(enterId, 'active_sent', { page: offset });
-                const file = await textToYemot('עוברים לשידוך הבא.');
-                return yemotPlayback(res, file);
+                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: null });
+                return await loadNextActive();
             }
-
             const unknownText = g(user.gender,
-                'מקש לא מוכר. הקש שמונה להמשך. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                'מקש לא מוכר. הקשי שמונה להמשך. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+                'מקש לא מוכר. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
+                'מקש לא מוכר. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
             const file = await textToYemot(unknownText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
-        // טעינת השידוך הבא
-        let active = [];
-        try {
-            active = await getActiveSentForIvr(user.id, offset, 1);
-        } catch (err) {
-            console.error('[IVR] ❌ שגיאה בשליפת שידוכים פעילים:', err.message);
-        }
-
-        if (active.length === 0) {
-            return await goToMenu(enterId, user.id, user.gender, res, 'אין שידוכים פעילים כרגע.');
-        }
-
-        const conn = active[0];
-        const name = conn.full_name || 'ללא שם';
-        const age  = conn.age  ? `, ${numberToHebrew(conn.age)} שנים` : '';
-        const city = conn.city ? `, ${conn.city}` : '';
-
-        let connText = '';
-        if (conn.status === 'active') {
-            connText = `הקשר עם ${name}${age}${city} פעיל — שניכם הביעו עניין ראשוני.`;
-        } else {
-            connText = `הקשר עם ${name}${age}${city} בטיפול השדכנית.`;
-        }
-
-        await updateSession(enterId, 'active_sent', {
-            page:                    offset,
-            currentConnectionId:     conn.connection_id,
-            currentConnectionStatus: conn.status
-        });
-
-        const actionsText = g(user.gender,
-            'הקש שמונה להמשך. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-            'הקשי שמונה להמשך. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
-        );
-        const file = await textToYemot(`${connText} ${actionsText}`);
-        return yemotRead(res, file, 'digits', 1, 1, 8);
+        return await loadNextActive();
     }
 
     // מצב לא מוכר — חזרה לתפריט (בטוח יותר מניתוק)

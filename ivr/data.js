@@ -328,7 +328,7 @@ async function rejectRequestFromIvr(connectionId, userId) {
 async function getMySentRequestsForIvr(userId, offset = 0, limit = 1) {
     const result = await pool.query(
         `SELECT c.id AS connection_id, c.status, c.created_at,
-                u.id AS user_id, u.full_name, u.age, u.city, u.study_place
+                u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place
          FROM connections c
          JOIN users u ON c.receiver_id = u.id
          WHERE c.sender_id = $1
@@ -346,7 +346,7 @@ async function getMySentRequestsForIvr(userId, offset = 0, limit = 1) {
 async function getPendingSentForIvr(userId, offset = 0, limit = 1) {
     const result = await pool.query(
         `SELECT c.id AS connection_id, c.status, c.created_at,
-                u.id AS user_id, u.full_name, u.age, u.city, u.study_place
+                u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place
          FROM connections c
          JOIN users u ON c.receiver_id = u.id
          WHERE c.sender_id = $1
@@ -364,7 +364,7 @@ async function getPendingSentForIvr(userId, offset = 0, limit = 1) {
 async function getActiveSentForIvr(userId, offset = 0, limit = 1) {
     const result = await pool.query(
         `SELECT c.id AS connection_id, c.status, c.created_at,
-                u.id AS user_id, u.full_name, u.age, u.city, u.study_place
+                u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place
          FROM connections c
          JOIN users u ON c.receiver_id = u.id
          WHERE c.sender_id = $1
