@@ -82,7 +82,8 @@ function buildMenuText(gender, counts = {}) {
     const pendingSent = counts.pendingSent || 0;
     const activeSent  = counts.activeSent  || 0;
     const isMale = gender !== 'female';
-    const hk = isMale ? 'הקש' : 'הקשי';
+    // ניקוד מפורש — TTS יקרא "הָקֵשׁ" (פועל) ולא "הַקֵּשׁ" (שם עצם)
+    const hk = isMale ? 'הָקֵשׁ' : 'הָקִישִׁי';
 
     const parts = [];
 
@@ -160,13 +161,23 @@ function shouldHangupAfterTerminal(phone, enterId) {
 }
 
 // ==========================================
+// שם מלא — שם פרטי + שם משפחה
+// ==========================================
+function buildFullName(match) {
+    const first = match.full_name || '';
+    const last  = match.last_name  || '';
+    return last ? `${first} ${last}` : first;
+}
+
+// ==========================================
 // הצעה — שכבה 1 (חובה): שם, סטטוס, גיל, עיר, מוסד
 // ==========================================
 function buildMatchText(match) {
     const parts = [];
 
-    // שם
-    if (match.full_name) parts.push(match.full_name);
+    // שם מלא (פרטי + משפחה)
+    const fullName = buildFullName(match);
+    if (fullName) parts.push(fullName);
 
     // סטטוס (רווק/גרוש/אלמן)
     if (match.status) {
@@ -202,7 +213,7 @@ function buildMatchText(match) {
 function buildMatchDetailText(match) {
     const parts = [];
 
-    // שכבה 2: זהות ורקע
+    // רקע משפחתי
     if (match.heritage_sector) {
         const sector = pm.heritage_sector?.[match.heritage_sector] || match.heritage_sector;
         parts.push(`מוצא ${sector}`);
@@ -211,17 +222,19 @@ function buildMatchDetailText(match) {
         const bg = pm.family_background?.[match.family_background] || match.family_background;
         parts.push(`רקע ${bg}`);
     }
+    if (match.father_occupation) parts.push(`אבא ${match.father_occupation}`);
+    if (match.siblings_count)    parts.push(`${match.siblings_count} אחים ואחיות`);
+
+    // עיסוק ולימודים
     if (match.current_occupation) {
         const occ = pm.current_occupation?.[match.current_occupation] || match.current_occupation;
         parts.push(occ);
     }
-    if (match.height) parts.push(`גובה ${numberToHebrew(match.height)} סנטימטר`);
-    if (match.gender === 'female' && match.head_covering) {
-        const hc = pm.head_covering?.[match.head_covering] || match.head_covering;
-        parts.push(`כיסוי ראש: ${hc}`);
-    }
+    if (match.yeshiva_name) parts.push(`ישיבת ${match.yeshiva_name}`);
+    if (match.work_field)   parts.push(`תחום עבודה: ${match.work_field}`);
 
-    // שכבה 3: מראה ושאיפות
+    // מראה
+    if (match.height) parts.push(`גובה ${numberToHebrew(match.height)} סנטימטר`);
     if (match.body_type) {
         const bt = pm.body_type?.[match.body_type] || match.body_type;
         parts.push(`מבנה גוף ${bt}`);
@@ -232,16 +245,21 @@ function buildMatchDetailText(match) {
     }
     if (match.skin_tone) {
         const st = pm.skin_tone?.[match.skin_tone] || match.skin_tone;
-        parts.push(`גוון עור ${st}`);
+        parts.push(`צבע עור ${st}`);  // תוקן: גוון → צבע (TTS ברור יותר)
     }
+    if (match.gender === 'female' && match.head_covering) {
+        const hc = pm.head_covering?.[match.head_covering] || match.head_covering;
+        parts.push(`כיסוי ראש: ${hc}`);
+    }
+
+    // שאיפות וסגנון חיים
     if (match.life_aspiration) {
         const la = pm.life_aspiration?.[match.life_aspiration] || match.life_aspiration;
         parts.push(`שאיפה: ${la}`);
     }
-    if (match.work_field) parts.push(`תחום עבודה: ${match.work_field}`);
+    if (match.home_style) parts.push(`סגנון בית: ${match.home_style}`);
 
-    // תיאור עצמי — ivr_about מכיל טקסט קצר שנכתב במיוחד לטלפון.
-    // אם לא מולא — מדלגים (לא מקריאים את about_me הארוך).
+    // תיאור עצמי לטלפון
     if (match.ivr_about && match.ivr_about.trim()) {
         parts.push(match.ivr_about.trim());
     }
@@ -1061,6 +1079,33 @@ router.get('/call', async (req, res) => {
         let   offset      = parseInt(data.page || 0, 10);
         const requesterId = data.currentRequesterId || null;
 
+        // helper: בנה טקסט בקשת תמונה + אפשרויות
+        const buildPhotoText = (ph) => {
+            const nm   = buildFullName(ph) || 'ללא שם';
+            const ag   = ph.age  ? `, ${numberToHebrew(ph.age)} שנים` : '';
+            const ci   = ph.city ? `, ${ph.city}` : '';
+            const word = ph.gender === 'female' ? 'מבקשת' : 'מבקש';
+            const acts = g(user.gender,
+                'הקש אחת — הסכם לחשיפה. הקש שתיים — דחה. הקש ארבע לפרטים על המבקש. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
+                'הקשי אחת — הסכמי לחשיפה. הקשי שתיים — דחי. הקשי ארבע לפרטים על המבקשת. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+            );
+            return `${nm}${ag}${ci} ${word} לראות את תמונתך. ${acts}`;
+        };
+
+        // helper: טעינת הבקשה הבאה ישירות (ללא playback נפרד)
+        const loadNextPhoto = async (prefix = '') => {
+            let pool2 = [];
+            try { pool2 = await getPhotoRequestsForIvr(user.id, offset, 1); } catch {}
+            if (pool2.length === 0) {
+                return await goToMenu(enterId, user.id, user.gender, res, prefix || 'אין עוד בקשות תמונה.');
+            }
+            const ph = pool2[0];
+            await updateSession(enterId, 'photos', { page: offset, currentRequesterId: ph.requester_id });
+            const text = (prefix ? prefix + ' ' : '') + buildPhotoText(ph);
+            const file = await textToYemot(text);
+            return yemotRead(res, file, 'digits', 1, 1, 8);
+        };
+
         // # / timeout עם בקשה מוצגת → חזרה לתפריט
         if (!key && requesterId) {
             return await goToMenu(enterId, user.id, user.gender, res);
@@ -1072,84 +1117,58 @@ router.get('/call', async (req, res) => {
                 return await goToMenu(enterId, user.id, user.gender, res);
             }
 
-            // מקש 9 — שמע שוב (טוען מחדש את אותה הבקשה)
+            // מקש 9 — שמע שוב
             if (key === '9') {
-                const photosAgain = await getPhotoRequestsForIvr(user.id, offset, 1).catch(() => []);
-                if (photosAgain.length === 0) {
-                    return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות תמונה ממתינות.');
-                }
-                const ph9   = photosAgain[0];
-                const n9    = ph9.full_name || 'ללא שם';
-                const age9  = ph9.age  ? `, ${numberToHebrew(ph9.age)} שנים` : '';
-                const city9 = ph9.city ? `, ${ph9.city}` : '';
-                const word9 = ph9.gender === 'female' ? 'מבקשת' : 'מבקש';
-                const act9  = g(user.gender,
-                    'הקש אחת — הסכם לחשיפה. הקש שתיים — דחה את הבקשה. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-                    'הקשי אחת — הסכמי לחשיפה. הקשי שתיים — דחי את הבקשה. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
-                );
-                const file9 = await textToYemot(`${n9}${age9}${city9} ${word9} לראות את תמונתך. ${act9}`);
-                return yemotRead(res, file9, 'digits', 1, 1, 8);
+                return await loadNextPhoto();
             }
 
-            let responseText = '';
+            // מקש 4 — פרטים על המבקש
+            if (key === '4') {
+                const photosDetail = await getPhotoRequestsForIvr(user.id, offset, 1).catch(() => []);
+                const detailText = photosDetail.length > 0
+                    ? buildMatchDetailText(photosDetail[0])
+                    : 'אין פרטים נוספים.';
+                const actDetail = g(user.gender,
+                    'הקש אחת — הסכם לחשיפה. הקש שתיים — דחה. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
+                    'הקשי אחת — הסכמי לחשיפה. הקשי שתיים — דחי. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+                );
+                const fileD = await textToYemot(`${detailText} ${actDetail}`);
+                return yemotRead(res, fileD, 'digits', 1, 1, 8);
+            }
+
             if (key === '1') {
                 const result = await approvePhotoRequestFromIvr(requesterId, user.id).catch(() => 'error');
-                responseText = result === 'ok'
-                    ? 'הסכמת לחשיפת תמונתך. עוברים לבקשה הבאה.'
-                    : 'אירעה תקלה. עוברים לבקשה הבאה.';
+                const prefix = result === 'ok' ? 'הסכמת לחשיפת תמונתך.' : 'אירעה תקלה.';
                 console.log(`[IVR] 📷 תמונה אושרה: requesterId=${requesterId} | userId=${user.id}`);
-            } else if (key === '2') {
+                offset++;
+                await updateSession(enterId, 'photos', { page: offset, currentRequesterId: null });
+                return await loadNextPhoto(prefix);
+            }
+            if (key === '2') {
                 const result = await rejectPhotoRequestFromIvr(requesterId, user.id).catch(() => 'error');
-                responseText = result === 'ok'
-                    ? 'הבקשה נדחתה. עוברים לבקשה הבאה.'
-                    : 'אירעה תקלה. עוברים לבקשה הבאה.';
+                const prefix = result === 'ok' ? 'הבקשה נדחתה.' : 'אירעה תקלה.';
                 console.log(`[IVR] 📷 תמונה נדחתה: requesterId=${requesterId} | userId=${user.id}`);
-            } else if (key === '8') {
-                responseText = 'עוברים לבקשה הבאה.';
-            } else {
-                const actionsText = g(user.gender,
-                    'מקש לא מוכר. הקש אחת — הסכמה. הקש שתיים — דחייה. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                    'מקש לא מוכר. הקשי אחת — הסכמה. הקשי שתיים — דחייה. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
-                );
-                const file = await textToYemot(actionsText);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
+                offset++;
+                await updateSession(enterId, 'photos', { page: offset, currentRequesterId: null });
+                return await loadNextPhoto(prefix);
+            }
+            if (key === '8') {
+                offset++;
+                await updateSession(enterId, 'photos', { page: offset, currentRequesterId: null });
+                return await loadNextPhoto();
             }
 
-            offset++;
-            await updateSession(enterId, 'photos', { page: offset });
-            const file = await textToYemot(responseText);
-            return yemotPlayback(res, file);
+            // מקש לא מוכר
+            const actionsText = g(user.gender,
+                'מקש לא מוכר. הקש אחת — הסכמה. הקש שתיים — דחייה. הקש ארבע לפרטים. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
+                'מקש לא מוכר. הקשי אחת — הסכמה. הקשי שתיים — דחייה. הקשי ארבע לפרטים. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+            );
+            const file = await textToYemot(actionsText);
+            return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
-        // טעינת הבקשה הבאה
-        let photos = [];
-        try {
-            photos = await getPhotoRequestsForIvr(user.id, offset, 1);
-        } catch (err) {
-            console.error('[IVR] ❌ שגיאה בשליפת בקשות תמונה:', err.message);
-        }
-
-        if (photos.length === 0) {
-            return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות תמונה ממתינות.');
-        }
-
-        const photo    = photos[0];
-        const name     = photo.full_name || 'ללא שם';
-        const age      = photo.age  ? `, ${numberToHebrew(photo.age)} שנים` : '';
-        const city     = photo.city ? `, ${photo.city}` : '';
-        const genderWord = photo.gender === 'female'
-            ? 'מבקשת'
-            : 'מבקש';
-
-        await updateSession(enterId, 'photos', { page: offset, currentRequesterId: photo.requester_id });
-
-        const photoText   = `${name}${age}${city} ${genderWord} לראות את תמונתך.`;
-        const actionsText = g(user.gender,
-            'הקש אחת — הסכם לחשיפה. הקש שתיים — דחה את הבקשה. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-            'הקשי אחת — הסכמי לחשיפה. הקשי שתיים — דחי את הבקשה. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
-        );
-        const file = await textToYemot(`${photoText} ${actionsText}`);
-        return yemotRead(res, file, 'digits', 1, 1, 8);
+        // טעינת הבקשה הראשונה
+        return await loadNextPhoto();
     }
 
     // --- מצב: my_sent — legacy fallback → תפריט ראשי ---

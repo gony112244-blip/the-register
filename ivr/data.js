@@ -149,10 +149,11 @@ async function getMatchesForIvr(userId, offset = 0, limit = 1) {
     const targetGender = user.gender === 'male' ? 'female' : 'male';
 
     const result = await pool.query(
-        `SELECT id, full_name, age, city, study_place, height,
+        `SELECT id, full_name, last_name, age, city, study_place, height,
                 family_background, heritage_sector, current_occupation,
                 body_type, appearance, skin_tone, life_aspiration,
-                work_field, about_me, ivr_about, gender, status, head_covering
+                work_field, ivr_about, gender, status, head_covering,
+                yeshiva_name, father_occupation, siblings_count, home_style
          FROM users
          WHERE gender       = $1
            AND is_approved  = TRUE
@@ -197,10 +198,11 @@ async function getAllMatchesForIvr(userId, offset = 0, limit = 1) {
     const targetGender = user.gender === 'male' ? 'female' : 'male';
 
     const result = await pool.query(
-        `SELECT id, full_name, age, city, study_place, height,
+        `SELECT id, full_name, last_name, age, city, study_place, height,
                 family_background, heritage_sector, current_occupation,
                 body_type, appearance, skin_tone, life_aspiration,
-                work_field, about_me, ivr_about, gender, status, head_covering
+                work_field, ivr_about, gender, status, head_covering,
+                yeshiva_name, father_occupation, siblings_count, home_style
          FROM users
          WHERE gender       = $1
            AND is_approved  = TRUE
@@ -250,8 +252,8 @@ async function sendConnectionFromIvr(senderId, receiverId) {
  */
 async function hideProfileFromIvr(userId, targetId) {
     await pool.query(
-        `INSERT INTO hidden_profiles (user_id, hidden_user_id, reason)
-         VALUES ($1, $2, 'ivr_not_interested')
+        `INSERT INTO hidden_profiles (user_id, hidden_user_id)
+         VALUES ($1, $2)
          ON CONFLICT (user_id, hidden_user_id) DO NOTHING`,
         [userId, targetId]
     );
@@ -264,10 +266,11 @@ async function hideProfileFromIvr(userId, targetId) {
 async function getIncomingRequestsForIvr(userId, offset = 0, limit = 1) {
     const result = await pool.query(
         `SELECT c.id AS connection_id, c.created_at,
-                u.id, u.full_name, u.age, u.city, u.study_place, u.height,
+                u.id, u.full_name, u.last_name, u.age, u.city, u.study_place, u.height,
                 u.family_background, u.heritage_sector, u.current_occupation,
                 u.body_type, u.appearance, u.skin_tone, u.life_aspiration,
-                u.work_field, u.about_me, u.ivr_about, u.gender, u.status, u.head_covering
+                u.work_field, u.ivr_about, u.gender, u.status, u.head_covering,
+                u.yeshiva_name, u.father_occupation, u.siblings_count, u.home_style
          FROM connections c
          JOIN users u ON c.sender_id = u.id
          WHERE c.receiver_id = $1 AND c.status = 'pending'
@@ -390,7 +393,11 @@ async function cancelSentRequestFromIvr(connectionId, userId) {
 async function getPhotoRequestsForIvr(userId, offset = 0, limit = 1) {
     const result = await pool.query(
         `SELECT pa.id AS request_id, pa.requester_id, pa.created_at,
-                u.full_name, u.age, u.city, u.gender
+                u.full_name, u.last_name, u.age, u.city, u.gender,
+                u.study_place, u.height, u.family_background, u.heritage_sector,
+                u.current_occupation, u.body_type, u.appearance, u.skin_tone,
+                u.life_aspiration, u.work_field, u.ivr_about, u.status, u.head_covering,
+                u.yeshiva_name, u.father_occupation, u.siblings_count, u.home_style
          FROM photo_approvals pa
          JOIN users u ON u.id = pa.requester_id
          WHERE pa.target_id = $1 AND pa.status = 'pending'
