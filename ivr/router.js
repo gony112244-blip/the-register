@@ -54,7 +54,7 @@ function buildStatusText(gender, { matches, requests, photos, messages }) {
         parts.push(noun);
     }
     if (requests > 0) {
-        const noun = requests === 1 ? 'בקשת שידוך שקיבלת' : `${numberToHebrew(requests, true)} בקשות שידוך שקיבלת`;
+        const noun = requests === 1 ? 'בקשת שידוך שהגיעה אליך' : `${numberToHebrew(requests, true)} בקשות שידוך שהגיעו אליך`;
         parts.push(noun);
     }
     if (photos > 0) {
@@ -95,8 +95,8 @@ function buildMenuText(gender, counts = {}) {
     // 2 — תמונות ממתינות (רק אם יש)
     if (p > 0) parts.push(`לתמונות הממתינות לאישורך, ${hk} שתיים.`);
 
-    // 3 — בקשות שידוך שקיבלת (רק אם יש)
-    if (r > 0) parts.push(`לבקשות שידוך שקיבלת, ${hk} שלוש.`);
+    // 3 — בקשות שידוך שהגיעו אליך (רק אם יש)
+    if (r > 0) parts.push(`לבקשות שידוך שהגיעו אליך, ${hk} שלוש.`);
 
     // 4 — בקשות שיצאו ממני שטרם נענו (רק אם יש)
     if (pendingSent > 0) {
@@ -531,12 +531,12 @@ router.get('/call', async (req, res) => {
             return yemotRead(res, file2, 'digits', 1, 1, 8);
         }
 
-        // key=3 → בקשות שידוך שקיבלת
+        // key=3 → בקשות שידוך שהגיעו אליך
         if (key === '3') {
             let reqs = [];
             try { reqs = await getIncomingRequestsForIvr(user.id, 0, 1); } catch {}
             if (reqs.length === 0) {
-                return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות שידוך ממתינות לתשובתך.');
+                return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות שידוך ממתינות לתשובה.');
             }
             const req = reqs[0];
             await updateSession(enterId, 'requests', { page: 0, currentConnectionId: req.connection_id });
