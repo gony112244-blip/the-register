@@ -109,10 +109,8 @@ function Navbar() {
     return () => clearInterval(id);
   }, [user]);
 
-  // מנקה badge כשנכנסים לדף שידוכים פעילים
-  useEffect(() => {
-    if (location.pathname === '/connections') setActiveConnCount(0);
-  }, [location.pathname]);
+  // badge שידוכים פעילים — מוסתר אוטומטית ב-JSX כשנמצאים בדף /connections
+  // אין צורך לאפס את הספירה — היא תישמר ותוצג שוב כשיוצאים לדף אחר
 
   // בדיקת הודעות שלא נקראו — כל 10 דקות
   useEffect(() => {
@@ -132,10 +130,7 @@ function Navbar() {
     return () => clearInterval(id);
   }, [user]);
 
-  // מנקה badge הודעות כשנכנסים לדף הודעות
-  useEffect(() => {
-    if (location.pathname === '/inbox') setUnreadMsgCount(0);
-  }, [location.pathname]);
+  // badge הודעות — מוסתר ב-JSX כשנמצאים ב-/inbox, אין צורך לאפס
 
   const handleLogout = () => {
     localStorage.removeItem('user');
