@@ -195,10 +195,9 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             style={S.avatar}
                         />
                         <div style={S.heroInfo}>
-                            <h2 style={S.heroName}>{p.full_name}</h2>
-                            {p.last_name && (
-                                <p style={S.heroNameHint}>{p.last_name} {p.full_name?.[0]}.</p>
-                            )}
+                            <h2 style={S.heroName}>
+                                {p.full_name}{p.last_name ? ` ${p.last_name}` : ''}
+                            </h2>
                             <div style={S.heroTags}>
                                 {show(p.age) && <span style={S.tag}>🎂 {p.age} שנים</span>}
                                 {show(p.height) && <span style={S.tag}>📏 {p.height} ס"מ</span>}
@@ -353,8 +352,7 @@ const S = {
     heroInner: { display: 'flex', gap: 18, alignItems: 'flex-start' },
     avatar: { width: 80, height: 80, borderRadius: '50%', border: '3px solid #c9a227', objectFit: 'cover', flexShrink: 0 },
     heroInfo: { flex: 1 },
-    heroName: { color: '#fff', margin: '0 2px', fontSize: '1.2rem', fontWeight: 700 },
-    heroNameHint: { color: 'rgba(255,255,255,0.55)', margin: '0 0 10px', fontSize: '0.8rem', fontWeight: 400 },
+    heroName: { color: '#fff', margin: '0 2px 10px', fontSize: '1.25rem', fontWeight: 700 },
     heroTags: { display: 'flex', flexWrap: 'wrap', gap: 6 },
     tag: {
         background: 'rgba(255,255,255,0.18)', color: '#fff',
