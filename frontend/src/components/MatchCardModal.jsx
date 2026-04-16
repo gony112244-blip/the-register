@@ -313,8 +313,8 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             {p.gender === 'male' && <Row label="ישיבה" val={p.yeshiva_name} />}
                             {p.gender === 'male' && <Row label="ישיבה קטנה" val={p.yeshiva_ketana_name} />}
                             {p.gender === 'female' && <Row label="סמינר/מוסד" val={p.study_place} />}
-                            <Row label="תחום לימוד" val={p.study_field} />
-                            <Row label="נושא לימוד אהוב" val={tr('favorite_study', p.favorite_study)} />
+                            {p.gender === 'male' && <Row label="תחום לימוד" val={p.study_field} />}
+                            {p.gender === 'male' && <Row label="נושא לימוד אהוב" val={tr('favorite_study', p.favorite_study)} />}
                         </Section>
                     )}
                 </div>

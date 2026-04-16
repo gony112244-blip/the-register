@@ -196,8 +196,7 @@ function buildFullProfileText(match) {
         const city = pm.cities_phonetic?.[match.city] || match.city;
         parts.push(`מ${city}`);
     }
-    if (match.country_of_birth && match.country_of_birth !== 'ישראל') {
-        // ילידת (נקבה) / יליד (זכר)
+    if (match.country_of_birth) {
         const ylidPrefix = isFemale ? 'יְלִידַת' : 'יְלִיד';
         parts.push(`${ylidPrefix} ${match.country_of_birth}`);
     }
@@ -238,15 +237,19 @@ function buildFullProfileText(match) {
         const label = match.gender === 'female' ? 'סמינר' : 'ישיבת';
         parts.push(`${label} ${inst}`);
     }
-    if (match.yeshiva_name) parts.push(`ישיבת ${match.yeshiva_name}`);
-    if (match.yeshiva_ketana_name) parts.push(`ישיבה קטנה: ${match.yeshiva_ketana_name}`);
+    if (!isFemale && match.yeshiva_name) parts.push(`ישיבת ${match.yeshiva_name}`);
+    if (!isFemale && match.yeshiva_ketana_name) parts.push(`ישיבה קטנה: ${match.yeshiva_ketana_name}`);
     if (match.current_occupation) {
         const occ = pm.current_occupation?.[match.current_occupation] || match.current_occupation;
         parts.push(occ);
     }
-    if (match.work_field)     parts.push(`תחום עבודה: ${match.work_field}`);
-    if (match.study_field)    parts.push(`תחום לימודים: ${match.study_field}`);
-    if (match.favorite_study) parts.push(`לימוד מועדף: ${match.favorite_study}`);
+    if (match.work_field) parts.push(`תחום עבודה: ${match.work_field}`);
+    // study_field ו-favorite_study רלוונטיים לגברים בלבד (לימוד תורני)
+    if (!isFemale && match.study_field)    parts.push(`תחום לימודים: ${match.study_field}`);
+    if (!isFemale && match.favorite_study) {
+        const fs = pm.favorite_study?.[match.favorite_study] || match.favorite_study;
+        parts.push(`לימוד מועדף: ${fs}`);
+    }
 
     // --- דיור ---
     if (match.apartment_help) {

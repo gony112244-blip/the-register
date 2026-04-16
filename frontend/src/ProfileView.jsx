@@ -323,8 +323,8 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 {user.gender === 'male' && <Row label="ישיבה" val={user.yeshiva_name} />}
                                 {user.gender === 'male' && <Row label="ישיבה קטנה" val={user.yeshiva_ketana_name} />}
                                 {user.gender === 'female' && <Row label="סמינר/מוסד" val={user.study_place} />}
-                                <Row label="תחום לימוד" val={user.study_field} />
-                                <Row label="נושא לימוד אהוב" val={tr('favorite_study', user.favorite_study)} />
+                                {user.gender === 'male' && <Row label="תחום לימוד" val={user.study_field} />}
+                                {user.gender === 'male' && <Row label="נושא לימוד אהוב" val={tr('favorite_study', user.favorite_study)} />}
                             </Section>
                         </div>
                     )}
