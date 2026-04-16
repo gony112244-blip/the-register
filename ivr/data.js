@@ -88,9 +88,8 @@ async function countUnreadMessages(userId) {
            AND is_read = FALSE
            AND (
                type = 'admin_message'
-               OR (type = 'photo_request')
-               OR (type = 'photo_response')
-               OR (type = 'system' AND from_user_id != 1)
+               OR type = 'photo_response'
+               OR (type = 'system' AND from_user_id IS NOT NULL AND from_user_id != 1)
            )`,
         [userId]
     );
@@ -492,7 +491,7 @@ async function getMessagesForIvr(userId, offset = 0, limit = 1) {
          WHERE m.to_user_id = $1
            AND m.is_read = FALSE
            AND (
-               m.type IN ('admin_message', 'photo_request', 'photo_response')
+               m.type IN ('admin_message', 'photo_response')
                OR (m.type = 'system' AND m.from_user_id IS NOT NULL AND m.from_user_id != 1)
            )
          ORDER BY m.created_at DESC

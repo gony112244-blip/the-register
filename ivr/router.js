@@ -43,9 +43,8 @@ function g(gender, maleText, femaleText) {
 // מבזק סטטוס — "יש לְךָ / לָך X הצעות, Y בקשות..."
 // gender-aware כדי למנוע עיוות TTS במילה "לך"
 // ==========================================
-function buildStatusText(gender, { matches, requests, photos }) {
+function buildStatusText(gender, { matches, requests, photos, messages }) {
     const isMale = gender !== 'female';
-    // ניקוד מפורש כדי ש-TTS יקרא נכון: לְךָ (זכר) / לָך (נקבה)
     const lecha = isMale ? 'לְךָ' : 'לָך';
     const parts = [];
 
@@ -64,11 +63,16 @@ function buildStatusText(gender, { matches, requests, photos }) {
         const noun = photos === 1 ? 'בקשת תמונה' : 'בקשות תמונה';
         parts.push(`${n} ${noun}`);
     }
+    if (messages > 0) {
+        const n = numberToHebrew(messages, true);
+        const noun = messages === 1 ? 'הודעה חשובה' : 'הודעות חשובות';
+        parts.push(`${n} ${noun}`);
+    }
 
     if (parts.length === 0) return 'אין פעילות חדשה כרגע.';
-    if (parts.length === 1) return `יש ${lecha} ${parts[0]}.`;
-    if (parts.length === 2) return `יש ${lecha} ${parts[0]}, ו${parts[1]}.`;
-    return `יש ${lecha} ${parts[0]}, ${parts[1]}, ו${parts[2]}.`;
+    const last = parts.pop();
+    if (parts.length === 0) return `יש ${lecha} ${last}.`;
+    return `יש ${lecha} ${parts.join(', ')}, ו${last}.`;
 }
 
 // ==========================================
