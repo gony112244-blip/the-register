@@ -566,7 +566,7 @@ router.get('/call', async (req, res) => {
                 'הָקֵשׁ אחת לביטול הבקשה. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
                 'הָקִישִׁי אחת לביטול הבקשה. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
-            const file4 = await textToYemot(`שלחת בקשה ל${fn4}${age4}${city4} — טרם נענתה. ${actionsText4}`);
+            const file4 = await textToYemot(`בקשה שנשלחה ל${fn4}${age4}${city4} — טרם נענתה. ${actionsText4}`);
             return yemotRead(res, file4, 'digits', 1, 1, 8);
         }
 
@@ -1168,7 +1168,7 @@ router.get('/call', async (req, res) => {
                 'הָקֵשׁ אחת לביטול הבקשה. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
                 'הָקִישִׁי אחת לביטול הבקשה. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
-            const text = `${prefix ? prefix + ' ' : ''}שלחת בקשה ל${nameStr}${ageStr}${cityStr} — טרם נענתה. ${act}`;
+            const text = `${prefix ? prefix + ' ' : ''}בקשה שנשלחה ל${nameStr}${ageStr}${cityStr} — טרם נענתה. ${act}`;
             const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         };
