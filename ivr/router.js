@@ -170,50 +170,31 @@ function buildFullName(match) {
 }
 
 // ==========================================
-// הצעה — שכבה 1 (חובה): שם, סטטוס, גיל, עיר, מוסד
+// הקראת פרופיל מלא — כל הפרטים ברצף אחד
 // ==========================================
-function buildMatchText(match) {
+function buildFullProfileText(match) {
     const parts = [];
 
-    // שם מלא (פרטי + משפחה)
+    // --- פרטים בסיסיים ---
     const fullName = buildFullName(match);
     if (fullName) parts.push(fullName);
-
-    // סטטוס (רווק/גרוש/אלמן)
     if (match.status) {
         const st = pm.status_personal?.[match.status] || match.status;
         parts.push(st);
     }
-
-    // גיל
     if (match.age) parts.push(`גיל ${numberToHebrew(match.age)}`);
-
-    // עיר
     if (match.city) {
         const city = pm.cities_phonetic?.[match.city] || match.city;
         parts.push(`מ${city}`);
     }
-
-    // מוסד לימודים
-    if (match.study_place) {
-        const inst = pm.yeshivot_phonetic?.[match.study_place] || match.study_place;
-        const label = match.gender === 'female' ? 'בוגרת סמינר' : 'ישיבת';
-        parts.push(`${label} ${inst}`);
+    if (match.country_of_birth && match.country_of_birth !== 'ישראל') {
+        parts.push(`ילידת ${match.country_of_birth}`);
+    }
+    if ((match.status === 'divorced' || match.status === 'widower') && match.has_children === 'yes' && match.children_count) {
+        parts.push(`${match.children_count} ילדים`);
     }
 
-    return parts.length > 0
-        ? `הצעה. ${parts.join(', ')}.`
-        : 'הצעה. פרטים לא זמינים.';
-}
-
-// ==========================================
-// הצעה — כל הפרטים (מקש 4): שכבה 2+3 ברצף
-// מוצא, רקע, עיסוק, גובה, מראה, שאיפה, תיאור עצמי
-// ==========================================
-function buildMatchDetailText(match) {
-    const parts = [];
-
-    // רקע משפחתי
+    // --- מוצא ורקע ---
     if (match.heritage_sector) {
         const sector = pm.heritage_sector?.[match.heritage_sector] || match.heritage_sector;
         parts.push(`מוצא ${sector}`);
@@ -222,18 +203,42 @@ function buildMatchDetailText(match) {
         const bg = pm.family_background?.[match.family_background] || match.family_background;
         parts.push(`רקע ${bg}`);
     }
-    if (match.father_occupation) parts.push(`אבא ${match.father_occupation}`);
-    if (match.siblings_count)    parts.push(`${match.siblings_count} אחים ואחיות`);
+    if (match.father_heritage) parts.push(`עדת האב: ${match.father_heritage}`);
+    if (match.mother_heritage) parts.push(`עדת האם: ${match.mother_heritage}`);
 
-    // עיסוק ולימודים
+    // --- משפחה ---
+    if (match.father_occupation) parts.push(`עיסוק האב: ${match.father_occupation}`);
+    if (match.mother_occupation) parts.push(`עיסוק האם: ${match.mother_occupation}`);
+    if (match.siblings_count) {
+        const pos = match.sibling_position ? `, מיקום ${match.sibling_position}` : '';
+        parts.push(`${match.siblings_count} אחים${pos}`);
+    }
+
+    // --- לימודים ועיסוק ---
+    if (match.study_place) {
+        const inst = pm.yeshivot_phonetic?.[match.study_place] || match.study_place;
+        const label = match.gender === 'female' ? 'סמינר' : 'ישיבת';
+        parts.push(`${label} ${inst}`);
+    }
+    if (match.yeshiva_name) parts.push(`ישיבת ${match.yeshiva_name}`);
+    if (match.yeshiva_ketana_name) parts.push(`ישיבה קטנה: ${match.yeshiva_ketana_name}`);
     if (match.current_occupation) {
         const occ = pm.current_occupation?.[match.current_occupation] || match.current_occupation;
         parts.push(occ);
     }
-    if (match.yeshiva_name) parts.push(`ישיבת ${match.yeshiva_name}`);
-    if (match.work_field)   parts.push(`תחום עבודה: ${match.work_field}`);
+    if (match.work_field)     parts.push(`תחום עבודה: ${match.work_field}`);
+    if (match.study_field)    parts.push(`תחום לימודים: ${match.study_field}`);
+    if (match.favorite_study) parts.push(`לימוד מועדף: ${match.favorite_study}`);
 
-    // מראה
+    // --- דיור ---
+    if (match.apartment_help) {
+        const helpMap = { full: 'דירה מלאה', partial: 'עזרה חלקית', none: 'ללא עזרה' };
+        const helpText = helpMap[match.apartment_help] || match.apartment_help;
+        const amount = match.apartment_amount ? `, ${match.apartment_amount}` : '';
+        parts.push(`דיור: ${helpText}${amount}`);
+    }
+
+    // --- מראה ---
     if (match.height) parts.push(`גובה ${numberToHebrew(match.height)} סנטימטר`);
     if (match.body_type) {
         const bt = pm.body_type?.[match.body_type] || match.body_type;
@@ -245,32 +250,33 @@ function buildMatchDetailText(match) {
     }
     if (match.skin_tone) {
         const st = pm.skin_tone?.[match.skin_tone] || match.skin_tone;
-        parts.push(`צבע עור ${st}`);  // תוקן: גוון → צבע (TTS ברור יותר)
+        parts.push(`צבע עור ${st}`);
     }
     if (match.gender === 'female' && match.head_covering) {
         const hc = pm.head_covering?.[match.head_covering] || match.head_covering;
         parts.push(`כיסוי ראש: ${hc}`);
     }
 
-    // שאיפות וסגנון חיים
+    // --- שאיפות ---
     if (match.life_aspiration) {
         const la = pm.life_aspiration?.[match.life_aspiration] || match.life_aspiration;
         parts.push(`שאיפה: ${la}`);
     }
-    if (match.home_style) parts.push(`סגנון בית: ${match.home_style}`);
 
-    // תיאור עצמי לטלפון
+    // --- תיאור עצמי (IVR) ---
     if (match.ivr_about && match.ivr_about.trim()) {
         parts.push(match.ivr_about.trim());
     }
 
-    return parts.length > 0 ? parts.join('. ') + '.' : 'אין פרטים נוספים.';
+    return parts.length > 0
+        ? `הצעה. ${parts.join('. ')}.`
+        : 'הצעה. פרטים לא זמינים.';
 }
 
-// buildMatchFullText נשמר לתאימות אחורה אך כבר לא בשימוש
-function buildMatchFullText(match) {
-    return buildMatchDetailText(match);
-}
+// תאימות אחורה — פונקציות ישנות מפנות לחדשה
+function buildMatchText(match)     { return buildFullProfileText(match); }
+function buildMatchDetailText(match) { return buildFullProfileText(match); }
+function buildMatchFullText(match)   { return buildFullProfileText(match); }
 
 // ==========================================
 // helpers — פורמט תגובה לימות המשיח
@@ -636,17 +642,17 @@ router.get('/call', async (req, res) => {
         try { pool = await fetchFn(user.id, nextOffset, 1); } catch {}
         if (pool.length === 0) {
             const endMsg = stateName === 'matches'
-                ? (prefix ? `${prefix} סיימת את כל ההצעות החדשות. לעיון בכל ההצעות לחץ שש בתפריט הראשי.` : 'סיימת את כל ההצעות החדשות. לעיון בכל ההצעות לחץ שש בתפריט הראשי.')
+                ? (prefix ? `${prefix} סיימת את כל ההצעות החדשות. לעיון בכל ההצעות לחץ שבע בתפריט הראשי.` : 'סיימת את כל ההצעות החדשות. לעיון בכל ההצעות לחץ שבע בתפריט הראשי.')
                 : (prefix || 'סיימת את כל ההצעות הזמינות.');
             return await goToMenu(enterId, user.id, user.gender, res, endMsg);
         }
         const m = pool[0];
         await updateSession(enterId, stateName, { page: nextOffset, currentMatchId: m.id });
         updateTtsLastPlayed(m.id);
-        const mText   = buildMatchText(m);
-        const aText   = g(user.gender,
-            'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים נוספים. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-            'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים נוספים. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
+        const mText = buildFullProfileText(m);
+        const aText = g(user.gender,
+            'לשליחת בקשה הָקֵשׁ אחת. להצעה הבאה הָקֵשׁ שמונה. לשמיעה חוזרת הָקֵשׁ תשע. לתפריט הָקֵשׁ אפס.',
+            'לשליחת בקשה הָקִישִׁי אחת. להצעה הבאה הָקִישִׁי שמונה. לשמיעה חוזרת הָקִישִׁי תשע. לתפריט הָקִישִׁי אפס.'
         );
         const fullText = prefix ? `${prefix} ${mText} ${aText}` : `${mText} ${aText}`;
         const file = await textToYemot(fullText);
@@ -665,10 +671,10 @@ router.get('/call', async (req, res) => {
         const r = pool[0];
         await updateSession(enterId, 'requests', { page: nextOffset, currentConnectionId: r.connection_id });
         updateTtsLastPlayed(r.id);
-        const rText = buildMatchText(r);
+        const rText = buildFullProfileText(r);
         const aText = g(user.gender,
-            'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה לאוחר יותר. הקש ארבע לפרטים. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט הראשי.',
-            'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי לאוחר יותר. הקשי ארבע לפרטים. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט הראשי.'
+            'לאישור הָקֵשׁ אחת. לדחייה הָקֵשׁ שתיים. לדחייה לאחר יותר הָקֵשׁ שמונה. לשמיעה חוזרת הָקֵשׁ תשע. לתפריט הָקֵשׁ אפס.',
+            'לאישור הָקִישִׁי אחת. לדחייה הָקִישִׁי שתיים. לדחייה לאחר יותר הָקִישִׁי שמונה. לשמיעה חוזרת הָקִישִׁי תשע. לתפריט הָקִישִׁי אפס.'
         );
         const fullText = prefix ? `${prefix} ${rText} ${aText}` : `בדיקת התאמה שהגיעה אליך. ${rText} ${aText}`;
         const file = await textToYemot(fullText);
@@ -688,26 +694,8 @@ router.get('/call', async (req, res) => {
 
         // תגובה על הצעה קיימת (המשתמש לחץ מקש)
         if (key && matchId) {
-            if (key === '0') {
-                return await goToMenu(enterId, user.id, user.gender, res);
-            }
-
-            // מקש 9 — שמע שוב (טוען מחדש את אותה ההצעה)
-            if (key === '9') {
-                return await loadNextMatch(getMatchesForIvr, 'matches', offset);
-            }
-
-            if (key === '4') {
-                // מקש 4 = כל הפרטים (שכבה 2+3 מאוחדת)
-                const more = await getMatchesForIvr(user.id, offset, 1);
-                const detailText = more.length > 0 ? buildMatchDetailText(more[0]) : 'אין פרטים נוספים.';
-                const actionsText = g(user.gender,
-                    'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                    'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
-                );
-                const file = await textToYemot(`${detailText} ${actionsText}`);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
-            }
+            if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
+            if (key === '9') return await loadNextMatch(getMatchesForIvr, 'matches', offset);
 
             const nextOffset = offset + 1;
             if (key === '1') {
@@ -721,25 +709,20 @@ router.get('/call', async (req, res) => {
                 }
                 return await loadNextMatch(getMatchesForIvr, 'matches', nextOffset, prefix);
             }
-            if (key === '2') {
-                await hideProfileFromIvr(user.id, matchId);
-                console.log(`[IVR] 🙈 הסתרה: ${user.id} → ${matchId}`);
-                return await loadNextMatch(getMatchesForIvr, 'matches', nextOffset, 'הצעה הוסרה.');
-            }
             if (key === '8') {
                 return await loadNextMatch(getMatchesForIvr, 'matches', nextOffset, '');
             }
 
             // מקש לא מוכר
             const actionsText = g(user.gender,
-                'מקש לא מוכר. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש ארבע לפרטים. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                'מקש לא מוכר. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי ארבע לפרטים. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+                'מקש לא מוכר. לשליחת בקשה הָקֵשׁ אחת. להצעה הבאה הָקֵשׁ שמונה. לשמיעה חוזרת הָקֵשׁ תשע. לתפריט הָקֵשׁ אפס.',
+                'מקש לא מוכר. לשליחת בקשה הָקִישִׁי אחת. להצעה הבאה הָקִישִׁי שמונה. לשמיעה חוזרת הָקִישִׁי תשע. לתפריט הָקִישִׁי אפס.'
             );
             const file = await textToYemot(actionsText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
-        // טעינת ההצעה הבאה (כניסה ראשונה, או callback אחרי פעולה)
+        // טעינת ההצעה הבאה (כניסה ראשונה)
         return await loadNextMatch(getMatchesForIvr, 'matches', offset);
     }
 
@@ -760,24 +743,8 @@ router.get('/call', async (req, res) => {
         }
 
         if (key && matchId) {
-            if (key === '0') {
-                return await goToMenu(enterId, user.id, user.gender, res);
-            }
-            // מקש 9 — שמע שוב
-            if (key === '9') {
-                return await loadNextMatch(getAllMatchesForIvr, 'all_matches', offset);
-            }
-            if (key === '4') {
-                // מקש 4 = כל הפרטים (שכבה 2+3 מאוחדת)
-                const more = await getAllMatchesForIvr(user.id, offset, 1);
-                const detailText = more.length > 0 ? buildMatchDetailText(more[0]) : 'אין פרטים נוספים.';
-                const actionsText = g(user.gender,
-                    'הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                    'הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
-                );
-                const file = await textToYemot(`${detailText} ${actionsText}`);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
-            }
+            if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
+            if (key === '9') return await loadNextMatch(getAllMatchesForIvr, 'all_matches', offset);
 
             const nextOffset = offset + 1;
             if (key === '1') {
@@ -788,17 +755,13 @@ router.get('/call', async (req, res) => {
                 } catch (e) { prefix = 'אירעה תקלה.'; }
                 return await loadNextMatch(getAllMatchesForIvr, 'all_matches', nextOffset, prefix);
             }
-            if (key === '2') {
-                await hideProfileFromIvr(user.id, matchId);
-                return await loadNextMatch(getAllMatchesForIvr, 'all_matches', nextOffset, 'הצעה הוסרה.');
-            }
             if (key === '8') {
                 return await loadNextMatch(getAllMatchesForIvr, 'all_matches', nextOffset, '');
             }
 
             const actionsText = g(user.gender,
-                'מקש לא מוכר. הקש אחת — מעוניין. הקש שתיים — לא מעוניין. הקש שמונה — דלג. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                'מקש לא מוכר. הקשי אחת — מעוניינת. הקשי שתיים — לא מעוניינת. הקשי שמונה — דלגי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+                'מקש לא מוכר. לשליחת בקשה הָקֵשׁ אחת. להצעה הבאה הָקֵשׁ שמונה. לשמיעה חוזרת הָקֵשׁ תשע. לתפריט הָקֵשׁ אפס.',
+                'מקש לא מוכר. לשליחת בקשה הָקִישִׁי אחת. להצעה הבאה הָקִישִׁי שמונה. לשמיעה חוזרת הָקִישִׁי תשע. לתפריט הָקִישִׁי אפס.'
             );
             const file = await textToYemot(actionsText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -820,26 +783,8 @@ router.get('/call', async (req, res) => {
         }
 
         if (key && connId) {
-            if (key === '0') {
-                return await goToMenu(enterId, user.id, user.gender, res);
-            }
-
-            // מקש 9 — שמע שוב
-            if (key === '9') {
-                return await loadNextRequest(offset);
-            }
-
-            if (key === '4') {
-                // מקש 4 = כל הפרטים (שכבה 2+3 מאוחדת)
-                const reqs = await getIncomingRequestsForIvr(user.id, offset, 1);
-                const detailText = reqs.length > 0 ? buildMatchDetailText(reqs[0]) : 'אין פרטים נוספים.';
-                const actionsText = g(user.gender,
-                    'הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                    'הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
-                );
-                const file = await textToYemot(`${detailText} ${actionsText}`);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
-            }
+            if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
+            if (key === '9') return await loadNextRequest(offset);
 
             const nextOffset = offset + 1;
             if (key === '1') {
@@ -859,8 +804,8 @@ router.get('/call', async (req, res) => {
             }
 
             const actionsText = g(user.gender,
-                'מקש לא מוכר. הקש אחת — מסכים. הקש שתיים — לא מסכים. הקש שמונה — דחה. הקש תשע לשמיעה חוזרת. הקש אפס לתפריט.',
-                'מקש לא מוכר. הקשי אחת — מסכימה. הקשי שתיים — לא מסכימה. הקשי שמונה — דחי. הקשי תשע לשמיעה חוזרת. הקשי אפס לתפריט.'
+                'מקש לא מוכר. לאישור הָקֵשׁ אחת. לדחייה הָקֵשׁ שתיים. לדחייה לאחר יותר הָקֵשׁ שמונה. לשמיעה חוזרת הָקֵשׁ תשע. לתפריט הָקֵשׁ אפס.',
+                'מקש לא מוכר. לאישור הָקִישִׁי אחת. לדחייה הָקִישִׁי שתיים. לדחייה לאחר יותר הָקִישִׁי שמונה. לשמיעה חוזרת הָקִישִׁי תשע. לתפריט הָקִישִׁי אפס.'
             );
             const file = await textToYemot(actionsText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
