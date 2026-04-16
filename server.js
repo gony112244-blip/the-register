@@ -4383,17 +4383,33 @@ app.post('/admin/support/reply/:ticketId', authenticateToken, async (req, res) =
     }
 });
 
-// עדכון סטטוס פנייה (אדמין)
+// עדכון סטטוס פנייה (אדמין) — open | read | replied | closed | archived
 app.put('/admin/support/tickets/:id/status', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
     const { id } = req.params;
-    const { status } = req.body; // open | read | replied | closed
+    const { status } = req.body;
+    const allowed = ['open', 'read', 'replied', 'closed', 'archived'];
+    if (!allowed.includes(status)) return res.status(400).json({ message: 'סטטוס לא תקין' });
     try {
         await pool.query('UPDATE support_tickets SET status = $1, updated_at = NOW() WHERE id = $2', [status, id]);
         setImmediate(() => logActivity(req.user.id, 'support_ticket_status_changed', { note: `ticket #${id} → ${status}` }));
         res.json({ message: 'סטטוס עודכן' });
     } catch (err) {
         res.status(500).json({ message: 'שגיאה' });
+    }
+});
+
+// מחיקת פנייה לצמיתות (אדמין)
+app.delete('/admin/support/tickets/:id', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: 'גישה נדחתה' });
+    const { id } = req.params;
+    try {
+        await pool.query('DELETE FROM support_replies WHERE ticket_id = $1', [id]);
+        await pool.query('DELETE FROM support_tickets WHERE id = $1', [id]);
+        setImmediate(() => logActivity(req.user.id, 'support_ticket_deleted', { note: `ticket #${id}` }));
+        res.json({ message: 'פנייה נמחקה' });
+    } catch (err) {
+        res.status(500).json({ message: 'שגיאה במחיקה' });
     }
 });
 

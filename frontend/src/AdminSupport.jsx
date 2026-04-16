@@ -5,11 +5,15 @@ import { useNavigate } from 'react-router-dom';
 const isMobile = () => window.innerWidth < 700;
 
 const STATUS_LABELS = {
-    open: { label: 'חדש', color: '#dc2626', bg: '#fef2f2' },
-    read: { label: 'נקרא', color: '#d97706', bg: '#fffbeb' },
-    replied: { label: 'נענה', color: '#059669', bg: '#f0fdf4' },
-    closed: { label: 'סגור', color: '#6b7280', bg: '#f8fafc' }
+    open:     { label: 'חדש',    color: '#dc2626', bg: '#fef2f2' },
+    read:     { label: 'נקרא',   color: '#d97706', bg: '#fffbeb' },
+    replied:  { label: 'נענה',   color: '#059669', bg: '#f0fdf4' },
+    closed:   { label: 'סגור',   color: '#6b7280', bg: '#f8fafc' },
+    archived: { label: 'ארכיון', color: '#7c3aed', bg: '#f5f3ff' }
 };
+
+// פניות פעילות = כל מה שאינו ארכיון
+const ACTIVE_STATUSES = ['open', 'read', 'replied', 'closed'];
 
 export default function AdminSupport() {
     const navigate = useNavigate();
@@ -17,12 +21,13 @@ export default function AdminSupport() {
 
     const [tickets, setTickets] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selected, setSelected] = useState(null); // פנייה פתוחה
+    const [selected, setSelected] = useState(null);
     const [replies, setReplies] = useState([]);
     const [replyText, setReplyText] = useState('');
     const [replying, setReplying] = useState(false);
-    const [filterStatus, setFilterStatus] = useState('all');
-    const [mobileView, setMobileView] = useState('list'); // 'list' | 'thread'
+    // 'active' = הכל חוץ מארכיון | 'open'|'read'|'replied'|'closed' | 'archived'
+    const [filterStatus, setFilterStatus] = useState('active');
+    const [mobileView, setMobileView] = useState('list');
 
     useEffect(() => {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -54,7 +59,6 @@ export default function AdminSupport() {
             if (res.ok) {
                 setSelected(data.ticket);
                 setReplies(data.replies);
-                // עדכון סטטוס ברשימה
                 setTickets(ts => ts.map(t => t.id === ticket.id ? { ...t, status: data.ticket.status } : t));
             }
         } catch {}
@@ -91,8 +95,35 @@ export default function AdminSupport() {
         } catch {}
     };
 
-    const filtered = filterStatus === 'all' ? tickets : tickets.filter(t => t.status === filterStatus);
+    const archiveTicket = async (ticketId) => {
+        await updateStatus(ticketId, 'archived');
+        if (selected?.id === ticketId) setSelected(null);
+        setReplies([]);
+        if (isMobile()) setMobileView('list');
+    };
+
+    const deleteTicket = async (ticketId, withConfirm = true) => {
+        if (withConfirm && !window.confirm('למחוק את הפנייה לצמיתות?')) return;
+        try {
+            await fetch(`${API_BASE}/admin/support/tickets/${ticketId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            setTickets(ts => ts.filter(t => t.id !== ticketId));
+            if (selected?.id === ticketId) { setSelected(null); setReplies([]); }
+            if (isMobile()) setMobileView('list');
+        } catch {}
+    };
+
+    const getFiltered = () => {
+        if (filterStatus === 'active') return tickets.filter(t => ACTIVE_STATUSES.includes(t.status));
+        if (filterStatus === 'archived') return tickets.filter(t => t.status === 'archived');
+        return tickets.filter(t => t.status === filterStatus);
+    };
+
+    const filtered  = getFiltered();
     const openCount = tickets.filter(t => t.status === 'open').length;
+    const archCount = tickets.filter(t => t.status === 'archived').length;
 
     const mobile = isMobile();
 
@@ -109,13 +140,24 @@ export default function AdminSupport() {
 
                     {/* סינון סטטוס */}
                     <div style={s.filterRow}>
-                        {['all', 'open', 'read', 'replied', 'closed'].map(st => (
+                        {[
+                            { key: 'active',   label: 'פעילות' },
+                            { key: 'open',     label: 'חדש' },
+                            { key: 'read',     label: 'נקרא' },
+                            { key: 'replied',  label: 'נענה' },
+                            { key: 'closed',   label: 'סגור' },
+                            { key: 'archived', label: `📁 ארכיון${archCount > 0 ? ` (${archCount})` : ''}` },
+                        ].map(({ key, label }) => (
                             <button
-                                key={st}
-                                onClick={() => setFilterStatus(st)}
-                                style={{ ...s.filterBtn, background: filterStatus === st ? '#1e3a5f' : 'transparent', color: filterStatus === st ? '#fff' : '#64748b' }}
+                                key={key}
+                                onClick={() => setFilterStatus(key)}
+                                style={{
+                                    ...s.filterBtn,
+                                    background: filterStatus === key ? (key === 'archived' ? '#7c3aed' : '#1e3a5f') : 'transparent',
+                                    color: filterStatus === key ? '#fff' : '#64748b'
+                                }}
                             >
-                                {st === 'all' ? 'הכל' : STATUS_LABELS[st]?.label}
+                                {label}
                             </button>
                         ))}
                     </div>
@@ -135,12 +177,20 @@ export default function AdminSupport() {
                                         style={{
                                             ...s.ticketItem,
                                             background: selected?.id === t.id ? '#f0f6ff' : '#fff',
-                                            borderRight: selected?.id === t.id ? '4px solid #1e3a5f' : '4px solid transparent'
+                                            borderRight: selected?.id === t.id ? '4px solid #1e3a5f' : '4px solid transparent',
+                                            position: 'relative'
                                         }}
                                     >
                                         <div style={s.ticketTop}>
                                             <span style={s.ticketName}>{t.name}</span>
-                                            <span style={{ ...s.statusBadge, color: st.color, background: st.bg }}>{st.label}</span>
+                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                <span style={{ ...s.statusBadge, color: st.color, background: st.bg }}>{st.label}</span>
+                                                <button
+                                                    onClick={e => { e.stopPropagation(); deleteTicket(t.id); }}
+                                                    title="מחק פנייה"
+                                                    style={s.trashBtn}
+                                                >🗑️</button>
+                                            </div>
                                         </div>
                                         <div style={s.ticketSubject}>{t.subject || 'ללא נושא'}</div>
                                         <div style={s.ticketMeta}>
@@ -193,7 +243,13 @@ export default function AdminSupport() {
                                         <option value="read">נקרא</option>
                                         <option value="replied">נענה</option>
                                         <option value="closed">סגור</option>
+                                        <option value="archived">ארכיון</option>
                                     </select>
+                                    <button
+                                        onClick={() => deleteTicket(selected.id)}
+                                        title="מחק לצמיתות"
+                                        style={s.deleteBtnHeader}
+                                    >🗑️ מחק</button>
                                 </div>
                             </div>
 
@@ -215,7 +271,7 @@ export default function AdminSupport() {
                             ))}
 
                             {/* שדה תשובה */}
-                            {selected.status !== 'closed' && (
+                            {selected.status !== 'archived' && (
                                 <div style={s.replyBox}>
                                     <textarea
                                         style={s.replyInput}
@@ -224,13 +280,22 @@ export default function AdminSupport() {
                                         onChange={e => setReplyText(e.target.value)}
                                         rows={4}
                                     />
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-                                        <button
-                                            onClick={() => updateStatus(selected.id, 'closed')}
-                                            style={s.closeBtn}
-                                        >
-                                            סגור פנייה
-                                        </button>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button
+                                                onClick={() => archiveTicket(selected.id)}
+                                                style={s.archiveBtn}
+                                                title="הפנייה תועבר לארכיון ותיעלם מהרשימה הפעילה"
+                                            >
+                                                📁 ארכב ושמור
+                                            </button>
+                                            <button
+                                                onClick={() => deleteTicket(selected.id)}
+                                                style={s.deleteBtn}
+                                            >
+                                                🗑️ מחק
+                                            </button>
+                                        </div>
                                         <button
                                             onClick={sendReply}
                                             disabled={replying || !replyText.trim()}
@@ -241,11 +306,15 @@ export default function AdminSupport() {
                                     </div>
                                 </div>
                             )}
-                            {selected.status === 'closed' && (
-                                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px', fontSize: '0.9rem' }}>
-                                    הפנייה סגורה ·{' '}
+                            {selected.status === 'archived' && (
+                                <div style={{ textAlign: 'center', color: '#7c3aed', padding: '20px', fontSize: '0.9rem', background: '#f5f3ff', borderRadius: '10px', marginTop: '16px' }}>
+                                    📁 פנייה בארכיון ·{' '}
                                     <button onClick={() => updateStatus(selected.id, 'open')} style={{ background: 'none', border: 'none', color: '#1e3a5f', cursor: 'pointer', fontWeight: 'bold' }}>
-                                        פתח מחדש
+                                        החזר לפעילות
+                                    </button>
+                                    {' · '}
+                                    <button onClick={() => deleteTicket(selected.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontWeight: 'bold' }}>
+                                        מחק לצמיתות
                                     </button>
                                 </div>
                             )}
@@ -359,9 +428,24 @@ const s = {
         padding: '10px 24px', fontWeight: '700', cursor: 'pointer',
         fontSize: '0.95rem'
     },
-    closeBtn: {
-        background: 'transparent', border: '1.5px solid #e2e8f0',
-        color: '#64748b', borderRadius: '10px',
-        padding: '10px 20px', cursor: 'pointer', fontSize: '0.9rem'
+    archiveBtn: {
+        background: 'transparent', border: '1.5px solid #7c3aed',
+        color: '#7c3aed', borderRadius: '10px',
+        padding: '8px 16px', cursor: 'pointer', fontSize: '0.88rem', fontWeight: '600'
+    },
+    deleteBtn: {
+        background: 'transparent', border: '1.5px solid #fca5a5',
+        color: '#dc2626', borderRadius: '10px',
+        padding: '8px 14px', cursor: 'pointer', fontSize: '0.88rem'
+    },
+    deleteBtnHeader: {
+        background: 'transparent', border: '1.5px solid #fca5a5',
+        color: '#dc2626', borderRadius: '8px',
+        padding: '5px 12px', cursor: 'pointer', fontSize: '0.82rem'
+    },
+    trashBtn: {
+        background: 'none', border: 'none',
+        cursor: 'pointer', fontSize: '0.9rem', padding: '2px 4px',
+        opacity: 0.5, lineHeight: 1
     }
 };
