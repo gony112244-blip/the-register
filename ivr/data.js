@@ -396,6 +396,36 @@ async function cancelSentRequestFromIvr(connectionId, userId) {
     return result.rowCount > 0 ? 'ok' : 'not_found';
 }
 
+/**
+ * אישור סופי לבירורים — מקביל ל-POST /finalize-connection.
+ * מסמן sender_final_approve=TRUE. אם שני הצדדים אישרו → status='waiting_for_shadchan'.
+ * מחזיר: 'completed' | 'waiting' | 'error'
+ */
+async function finalizeConnectionFromIvr(connectionId, userId) {
+    const check = await pool.query(
+        `SELECT sender_id, receiver_id, sender_final_approve, receiver_final_approve
+         FROM connections WHERE id = $1`,
+        [connectionId]
+    );
+    if (check.rowCount === 0) return 'error';
+    const conn = check.rows[0];
+    if (conn.sender_id !== userId && conn.receiver_id !== userId) return 'error';
+
+    const field = conn.sender_id === userId ? 'sender_final_approve' : 'receiver_final_approve';
+    await pool.query(`UPDATE connections SET ${field} = TRUE WHERE id = $1`, [connectionId]);
+
+    const updated = await pool.query(
+        `SELECT sender_final_approve, receiver_final_approve FROM connections WHERE id = $1`,
+        [connectionId]
+    );
+    const { sender_final_approve, receiver_final_approve } = updated.rows[0];
+    if (sender_final_approve && receiver_final_approve) {
+        await pool.query(`UPDATE connections SET status = 'waiting_for_shadchan' WHERE id = $1`, [connectionId]);
+        return 'completed';
+    }
+    return 'waiting';
+}
+
 // ==========================================
 // ניהול תמונות — בקשות ממתינות לאישור/דחייה
 // ==========================================
@@ -533,7 +563,7 @@ module.exports = {
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPendingSentForIvr, getActiveSentForIvr,
+    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed

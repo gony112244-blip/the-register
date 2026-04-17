@@ -7,13 +7,13 @@
 const express = require('express');
 const router = express.Router();
 const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateUserPin } = require('./auth');
-const { textToYemot, numberToHebrew } = require('./tts');
+const { textToYemot, numberToHebrew, formatPhoneForTts } = require('./tts');
 const {
     getMenuCounts,
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPendingSentForIvr, getActiveSentForIvr,
+    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed
@@ -1255,25 +1255,26 @@ router.get('/call', async (req, res) => {
 
     // --- מצב: active_sent — שידוכים פעילים ---
     if (session.state === 'active_sent') {
-        const data   = session.data || {};
-        let   offset = parseInt(data.page || 0, 10);
-        const connId = data.currentConnectionId || null;
+        const data       = session.data || {};
+        let   offset     = parseInt(data.page || 0, 10);
+        const connId     = data.currentConnectionId    || null;
+        const connStatus = data.currentConnectionStatus || null;
 
         const buildBeiurimCard = (c) => {
             const parts = [];
             if (c.father_full_name) parts.push(`אב: ${c.father_full_name}`);
             if (c.mother_full_name) parts.push(`אם: ${c.mother_full_name}`);
-            if (c.phone)            parts.push(`טלפון: ${c.phone}`);
+            if (c.phone)            parts.push(`טלפון: ${formatPhoneForTts(c.phone)}`);
             if (c.reference_1_name) {
-                const ph = c.reference_1_phone ? `, טלפון ${c.reference_1_phone}` : '';
+                const ph = c.reference_1_phone ? `. טלפון: ${formatPhoneForTts(c.reference_1_phone)}` : '';
                 parts.push(`ממליץ ראשון: ${c.reference_1_name}${ph}`);
             }
             if (c.reference_2_name) {
-                const ph = c.reference_2_phone ? `, טלפון ${c.reference_2_phone}` : '';
+                const ph = c.reference_2_phone ? `. טלפון: ${formatPhoneForTts(c.reference_2_phone)}` : '';
                 parts.push(`ממליץ שני: ${c.reference_2_name}${ph}`);
             }
             if (c.rabbi_name) {
-                const ph = c.rabbi_phone ? `, טלפון ${c.rabbi_phone}` : '';
+                const ph = c.rabbi_phone ? `. טלפון: ${formatPhoneForTts(c.rabbi_phone)}` : '';
                 parts.push(`רב: ${c.rabbi_name}${ph}`);
             }
             if (c.full_address) parts.push(`כתובת: ${c.full_address}`);
@@ -1296,10 +1297,17 @@ router.get('/call', async (req, res) => {
                 : `הבירורים עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
             const cardTxt = buildBeiurimCard(c);
             await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: c.connection_id, currentConnectionStatus: c.status });
-            const act = g(user.gender,
-                'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
-                'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
-            );
+            // מקש 1 זמין רק כשהסטטוס 'active' (לא כשכבר בטיפול שדכנית)
+            const canFinalize = c.status === 'active';
+            const act = canFinalize
+                ? g(user.gender,
+                    'לאישור התקדמות לשדכנית הָקֵשׁ אחת. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
+                    'לאישור התקדמות לשדכנית הָקִישִׁי אחת. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
+                )
+                : g(user.gender,
+                    'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
+                    'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
+                );
             const text = [prefix, statusTxt, cardTxt, act].filter(Boolean).join(' ');
             const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -1310,14 +1318,28 @@ router.get('/call', async (req, res) => {
         if (key && connId) {
             if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
             if (key === '9') return await loadNextActive();
+
+            // מקש 1 — אישור התקדמות לשדכנית (רק כשסטטוס active)
+            if (key === '1') {
+                if (connStatus !== 'active') return await loadNextActive();
+                const result = await finalizeConnectionFromIvr(connId, user.id).catch(() => 'error');
+                let pfx;
+                if (result === 'completed') pfx = 'מעולה. שני הצדדים אישרו — התיק עבר לשדכנית.';
+                else if (result === 'waiting') pfx = 'האישור שלך התקבל. ממתינים לאישור הצד השני.';
+                else pfx = 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                offset++;
+                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: null });
+                return await loadNextActive(pfx);
+            }
+
             if (key === '8') {
                 offset++;
                 await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: null });
                 return await loadNextActive();
             }
             const unknownText = g(user.gender,
-                'מקש לא מוכר. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
-                'מקש לא מוכר. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
+                'מקש לא מוכר. הָקֵשׁ אחת לאישור התקדמות. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
+                'מקש לא מוכר. הָקִישִׁי אחת לאישור התקדמות. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
             const file = await textToYemot(unknownText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
