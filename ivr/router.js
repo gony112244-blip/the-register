@@ -99,17 +99,21 @@ function buildMenuText(gender, counts = {}) {
     if (r > 0) parts.push(`לבקשות שידוך שהגיעו אליך, ${hk} שלוש.`);
 
     // 4 — בקשות שיצאו ממני שטרם נענו (רק אם יש)
+    // כשאחת — לא אומרים מספר (לא "לאחת בקשה" — נשמע מוזר)
     if (pendingSent > 0) {
-        const n    = numberToHebrew(pendingSent, true);
-        const noun = pendingSent === 1 ? 'בקשה ששלחת שטרם נענתה' : 'בקשות ששלחת שטרם נענו';
-        parts.push(`ל${n} ${noun}, ${hk} ארבע.`);
+        const txt = pendingSent === 1
+            ? `לבקשה שנשלחה ועדיין ממתינה לתשובה, ${hk} ארבע.`
+            : `ל${numberToHebrew(pendingSent, true)} בקשות שנשלחו שטרם נענו, ${hk} ארבע.`;
+        parts.push(txt);
     }
 
     // 5 — שידוכים פעילים (רק אם יש)
+    // כשאחד — לא אומרים מספר ("שידוך" זכר — "אחד שידוך" גם כך לא נכון)
     if (activeSent > 0) {
-        const n    = numberToHebrew(activeSent, true);
-        const noun = activeSent === 1 ? 'שידוך פעיל' : 'שידוכים פעילים';
-        parts.push(`ל${n} ${noun}, ${hk} חמש.`);
+        const txt = activeSent === 1
+            ? `לשידוך פעיל, ${hk} חמש.`
+            : `ל${numberToHebrew(activeSent)} שידוכים פעילים, ${hk} חמש.`;
+        parts.push(txt);
     }
 
     // 6 — הודעות חשובות (רק אם יש)
@@ -240,7 +244,15 @@ function buildFullProfileText(match) {
     if (!isFemale && match.yeshiva_name) parts.push(`ישיבת ${match.yeshiva_name}`);
     if (!isFemale && match.yeshiva_ketana_name) parts.push(`ישיבה קטנה: ${match.yeshiva_ketana_name}`);
     if (match.current_occupation) {
-        const occ = pm.current_occupation?.[match.current_occupation] || match.current_occupation;
+        const femaleOccMap = {
+            studying:    'לומדת',
+            working:     'עובדת',
+            both:        'לומדת ועובדת',
+            fixed_times: 'קובעת עיתים ללימוד'
+        };
+        const occ = isFemale
+            ? (femaleOccMap[match.current_occupation] || pm.current_occupation?.[match.current_occupation] || match.current_occupation)
+            : (pm.current_occupation?.[match.current_occupation] || match.current_occupation);
         parts.push(occ);
     }
     if (match.work_field) parts.push(`תחום עבודה: ${match.work_field}`);
@@ -255,8 +267,8 @@ function buildFullProfileText(match) {
     if (match.apartment_help) {
         const helpMap = { full: 'דירה מלאה', partial: 'עזרה חלקית', none: 'ללא עזרה' };
         const helpText = helpMap[match.apartment_help] || match.apartment_help;
-        const amount = match.apartment_amount ? `, ${match.apartment_amount}` : '';
-        parts.push(`דיור: ${helpText}${amount}`);
+        // apartment_amount הוא טקסט חופשי — לא מוקרא כדי להימנע מבלבול ב-TTS
+        parts.push(`עזרה בדיור: ${helpText}`);
     }
 
     // --- מראה ---
