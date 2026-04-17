@@ -13,7 +13,7 @@ const {
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr,
+    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, getAwaitingMyApproval,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed
@@ -151,9 +151,18 @@ async function goToMenu(enterId, userId, gender, res, prefix = '') {
     try { counts = await getMenuCounts(userId); } catch {}
     const statusText = buildStatusText(gender, counts);
     const menuText   = buildMenuText(gender, counts);
-    // כשיש prefix (למשל "סיימת את כל ההצעות") — לא חוזרים על "אין פעילות חדשה"
+
     const parts = [];
     if (prefix) parts.push(prefix);
+
+    // נדנוד: הצד השני אישר התקדמות לשדכנית — המשתמש עדיין לא אישר
+    let awaitingRows = [];
+    try { awaitingRows = await getAwaitingMyApproval(userId); } catch {}
+    for (const row of awaitingRows) {
+        const otherName = [row.last_name, row.full_name].filter(Boolean).join(' ') || 'הצד השני';
+        parts.push(`שים לב: ${otherName} אישר התקדמות לשדכנית ומחכה לאישורך. לאישור כנס לשידוכים הפעילים.`);
+    }
+
     // הצג status רק אם יש פעילות (כדי למנוע כפילות עם prefix שאומר "אין...")
     const hasActivity = (counts.matches || counts.requests || counts.photos || counts.messages || counts.pendingSent || counts.activeSent);
     if (hasActivity) parts.push(statusText);
@@ -1292,22 +1301,55 @@ router.get('/call', async (req, res) => {
             const nameStr = fn || 'ללא שם';
             const ageStr  = c.age  ? `, ${numberToHebrew(c.age)} שנים` : '';
             const cityStr = c.city ? `, ${c.city}` : '';
-            const statusTxt = c.status === 'active'
-                ? `הגעת לשלב הבירורים עם ${nameStr}${ageStr}${cityStr}.`
-                : `הבירורים עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
+
+            // חישוב מצב אישורים: מי הנוכחי ומי השני
+            const iAmSender  = (c.sender_id === user.id);
+            const myApprove    = iAmSender ? c.sender_final_approve   : c.receiver_final_approve;
+            const otherApprove = iAmSender ? c.receiver_final_approve : c.sender_final_approve;
+
+            // טקסט סטטוס: שם + גיל + עיר + מצב בירורים
+            let statusTxt;
+            if (c.status === 'waiting_for_shadchan') {
+                statusTxt = `הבירורים עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
+            } else {
+                // active — מצב אישורים
+                let approveTxt;
+                if (myApprove && !otherApprove) {
+                    approveTxt = `אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`;
+                } else if (!myApprove && otherApprove) {
+                    approveTxt = `${nameStr} כבר אישר התקדמות לשדכנית ומחכה לאישורך!`;
+                } else if (myApprove && otherApprove) {
+                    approveTxt = `שני הצדדים אישרו — עובר לשדכנית.`;
+                } else {
+                    approveTxt = ``;
+                }
+                statusTxt = [`הגעת לשלב הבירורים עם ${nameStr}${ageStr}${cityStr}.`, approveTxt].filter(Boolean).join(' ');
+            }
+
             const cardTxt = buildBeiurimCard(c);
             await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: c.connection_id, currentConnectionStatus: c.status });
-            // מקש 1 זמין רק כשהסטטוס 'active' (לא כשכבר בטיפול שדכנית)
-            const canFinalize = c.status === 'active';
-            const act = canFinalize
-                ? g(user.gender,
+
+            // מקש 1 — זמין רק כשסטטוס active ולא אישרתי עדיין
+            const canFinalize = c.status === 'active' && !myApprove;
+            let act;
+            if (c.status === 'waiting_for_shadchan') {
+                act = g(user.gender,
+                    'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
+                    'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
+                );
+            } else if (canFinalize) {
+                act = g(user.gender,
                     'לאישור התקדמות לשדכנית הָקֵשׁ אחת. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
                     'לאישור התקדמות לשדכנית הָקִישִׁי אחת. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
-                )
-                : g(user.gender,
-                    'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
-                    'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
                 );
+            } else {
+                // כבר אישרתי — ממתינים לצד השני
+                act = g(user.gender,
+                    'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
+                    'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
+                );
+            }
+
             const text = [prefix, statusTxt, cardTxt, act].filter(Boolean).join(' ');
             const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -1319,7 +1361,7 @@ router.get('/call', async (req, res) => {
             if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
             if (key === '9') return await loadNextActive();
 
-            // מקש 1 — אישור התקדמות לשדכנית (רק כשסטטוס active)
+            // מקש 1 — אישור התקדמות לשדכנית (רק כשסטטוס active ולא אישרתי עדיין)
             if (key === '1') {
                 if (connStatus !== 'active') return await loadNextActive();
                 const result = await finalizeConnectionFromIvr(connId, user.id).catch(() => 'error');

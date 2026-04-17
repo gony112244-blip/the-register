@@ -362,8 +362,13 @@ async function getPendingSentForIvr(userId, offset = 0, limit = 1) {
  * שליפת השידוכים הפעילים שלי (active + waiting_for_shadchan).
  */
 async function getActiveSentForIvr(userId, offset = 0, limit = 1) {
+    // מחזיר שידוכים פעילים בין אם המשתמש שלח את הבקשה ובין אם קיבל אותה.
+    // u — הצד השני (לא המשתמש הנוכחי).
     const result = await pool.query(
         `SELECT c.id AS connection_id, c.status, c.created_at,
+                c.sender_id,
+                c.sender_final_approve,
+                c.receiver_final_approve,
                 u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place,
                 u.phone,
                 u.father_full_name, u.mother_full_name,
@@ -372,12 +377,36 @@ async function getActiveSentForIvr(userId, offset = 0, limit = 1) {
                 u.rabbi_name, u.rabbi_phone,
                 u.full_address
          FROM connections c
-         JOIN users u ON c.receiver_id = u.id
-         WHERE c.sender_id = $1
+         JOIN users u ON u.id = CASE WHEN c.sender_id = $1 THEN c.receiver_id ELSE c.sender_id END
+         WHERE (c.sender_id = $1 OR c.receiver_id = $1)
            AND c.status IN ('active', 'waiting_for_shadchan')
          ORDER BY c.created_at DESC
          LIMIT $2 OFFSET $3`,
         [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
+ * בודק אם יש שידוכים פעילים שבהם הצד השני אישר התקדמות והמשתמש הנוכחי עדיין לא.
+ * משמש לנדנוד בפתיחת השיחה.
+ * מחזיר מערך של { connection_id, other_name }
+ */
+async function getAwaitingMyApproval(userId) {
+    const result = await pool.query(
+        `SELECT c.id AS connection_id,
+                u.full_name, u.last_name
+         FROM connections c
+         JOIN users u ON u.id = CASE WHEN c.sender_id = $1 THEN c.receiver_id ELSE c.sender_id END
+         WHERE (c.sender_id = $1 OR c.receiver_id = $1)
+           AND c.status = 'active'
+           AND (
+               (c.sender_id = $1 AND c.receiver_final_approve = TRUE AND c.sender_final_approve = FALSE)
+               OR
+               (c.receiver_id = $1 AND c.sender_final_approve = TRUE AND c.receiver_final_approve = FALSE)
+           )
+         ORDER BY c.created_at DESC`,
+        [userId]
     );
     return result.rows;
 }
@@ -419,8 +448,18 @@ async function finalizeConnectionFromIvr(connectionId, userId) {
         [connectionId]
     );
     const { sender_final_approve, receiver_final_approve } = updated.rows[0];
+
     if (sender_final_approve && receiver_final_approve) {
         await pool.query(`UPDATE connections SET status = 'waiting_for_shadchan' WHERE id = $1`, [connectionId]);
+
+        // שליחת הודעת מערכת לשני הצדדים
+        const msgText = 'מזל טוב! שני הצדדים אישרו התקדמות. התיק עבר לטיפול השדכנית.';
+        await pool.query(
+            `INSERT INTO messages (to_user_id, from_user_id, type, content, is_read, created_at)
+             VALUES ($1, 1, 'system', $3, FALSE, NOW()),
+                    ($2, 1, 'system', $3, FALSE, NOW())`,
+            [conn.sender_id, conn.receiver_id, msgText]
+        );
         return 'completed';
     }
     return 'waiting';
@@ -563,7 +602,7 @@ module.exports = {
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr,
+    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, getAwaitingMyApproval,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed
