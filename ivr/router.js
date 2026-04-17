@@ -278,10 +278,18 @@ function buildFullProfileText(match) {
 
     // --- דיור ---
     if (match.apartment_help) {
-        const helpMap = { full: 'דירה מלאה', partial: 'עזרה חלקית', none: 'ללא עזרה' };
+        const helpMap = {
+            full: 'דירה מלאה', partial: 'עזרה חלקית', none: 'ללא עזרה',
+            yes: 'כן', no: 'לא', discuss: 'נדון עם השדכן'
+        };
         const helpText = helpMap[match.apartment_help] || match.apartment_help;
-        // apartment_amount הוא טקסט חופשי — לא מוקרא כדי להימנע מבלבול ב-TTS
-        parts.push(`עזרה בדיור: ${helpText}`);
+        if (match.apartment_amount) {
+            // מסיר פסיקים ורווחים — TTS יקרא "60000" כ"שישים אלף" ולא ספרה-ספרה
+            const cleanAmt = String(match.apartment_amount).replace(/[,\s]/g, '');
+            parts.push(`עזרה בדיור: ${helpText}, סכום ${cleanAmt} שקל`);
+        } else {
+            parts.push(`עזרה בדיור: ${helpText}`);
+        }
     }
 
     // --- מראה ---
