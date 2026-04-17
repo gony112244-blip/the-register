@@ -109,14 +109,13 @@ function buildMenuText(gender, counts = {}) {
     // 3 — בקשות שידוך שהגיעו אליך (רק אם יש)
     if (r > 0) parts.push(`לבקשות שידוך שהגיעו אליך, ${hk} שלוש.`);
 
-    // 4 — בקשות שנשלחו שטרם נענו (רק אם יש) — מספר אחרי שם העצם (נקבה: אחת/שתי)
+    // 4 — בקשות ששלחת שטרם נענו (רק אם יש) — מספר אחרי שם העצם (נקבה: אחת/שתי)
     if (pendingSent > 0) {
-        const noun = pendingSent === 1
-            ? `לבקשה אחת שנשלחה ועדיין ממתינה לתשובה, ${hk} ארבע.`
-            : `לשתי בקשות שנשלחו שעדיין ממתינות, ${hk} ארבע.`;
-        // 3+: "לשלוש בקשות..." וכו'
-        const txt = pendingSent <= 2 ? noun
-            : `ל${numberToHebrew(pendingSent, true)} בקשות שנשלחו שעדיין ממתינות, ${hk} ארבע.`;
+        const txt = pendingSent === 1
+            ? `לבקשה אחת ששלחת ועדיין ממתינה לתשובה, ${hk} ארבע.`
+            : pendingSent === 2
+                ? `לשתי בקשות ששלחת שעדיין ממתינות, ${hk} ארבע.`
+                : `ל${numberToHebrew(pendingSent, true)} בקשות ששלחת שעדיין ממתינות, ${hk} ארבע.`;
         parts.push(txt);
     }
 
@@ -595,7 +594,7 @@ router.get('/call', async (req, res) => {
                 'הָקֵשׁ אחת לביטול הבקשה. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
                 'הָקִישִׁי אחת לביטול הבקשה. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
-            const file4 = await textToYemot(`בקשה שנשלחה ל${fn4}${age4}${city4} — טרם נענתה. ${actionsText4}`);
+            const file4 = await textToYemot(`בקשה ששלחת ל${fn4}${age4}${city4} — טרם נענתה. ${actionsText4}`);
             return yemotRead(res, file4, 'digits', 1, 1, 8);
         }
 
@@ -1197,7 +1196,7 @@ router.get('/call', async (req, res) => {
                 'הָקֵשׁ אחת לביטול הבקשה. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
                 'הָקִישִׁי אחת לביטול הבקשה. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
-            const text = `${prefix ? prefix + ' ' : ''}בקשה שנשלחה ל${nameStr}${ageStr}${cityStr} — טרם נענתה. ${act}`;
+            const text = `${prefix ? prefix + ' ' : ''}בקשה ששלחת ל${nameStr}${ageStr}${cityStr} — טרם נענתה. ${act}`;
             const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         };
