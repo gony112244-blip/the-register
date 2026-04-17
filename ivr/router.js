@@ -43,26 +43,37 @@ function g(gender, maleText, femaleText) {
 // מבזק סטטוס — "יש לְךָ / לָך X הצעות, Y בקשות..."
 // gender-aware כדי למנוע עיוות TTS במילה "לך"
 // ==========================================
-function buildStatusText(gender, { matches, requests, photos, messages }) {
+function buildStatusText(gender, counts) {
+    const { matches = 0, requests = 0, photos = 0, messages = 0, pendingSent = 0, activeSent = 0 } = counts;
     const isMale = gender !== 'female';
     const lecha = isMale ? 'לְךָ' : 'לָך';
     const parts = [];
 
+    // הצעות חדשות
     if (matches > 0) {
-        // לסינגולר: "הצעה חדשה" (ללא מספר), לרבים: "שתי הצעות חדשות" / "שלוש הצעות..."
         const noun = matches === 1 ? 'הצעה חדשה' : `${numberToHebrew(matches, true)} הצעות חדשות`;
         parts.push(noun);
     }
+    // בקשות שידוך שהגיעו
     if (requests > 0) {
         const noun = requests === 1 ? 'בקשת שידוך שהגיעה אליך' : `${numberToHebrew(requests, true)} בקשות שידוך שהגיעו אליך`;
         parts.push(noun);
     }
+    // בקשות תמונה
     if (photos > 0) {
         const noun = photos === 1 ? 'בקשת תמונה' : `${numberToHebrew(photos, true)} בקשות תמונה`;
         parts.push(noun);
     }
+    // הודעות חשובות
     if (messages > 0) {
         const noun = messages === 1 ? 'הודעה חשובה' : `${numberToHebrew(messages, true)} הודעות חשובות`;
+        parts.push(noun);
+    }
+    // שידוך פעיל — מספר אחרי שם העצם (זכר: אחד/שני)
+    if (activeSent > 0) {
+        const noun = activeSent === 1
+            ? 'שידוך פעיל אחד'
+            : `${activeSent === 2 ? 'שני' : numberToHebrew(activeSent)} שידוכים פעילים`;
         parts.push(noun);
     }
 
@@ -98,21 +109,24 @@ function buildMenuText(gender, counts = {}) {
     // 3 — בקשות שידוך שהגיעו אליך (רק אם יש)
     if (r > 0) parts.push(`לבקשות שידוך שהגיעו אליך, ${hk} שלוש.`);
 
-    // 4 — בקשות שיצאו ממני שטרם נענו (רק אם יש)
-    // כשאחת — לא אומרים מספר (לא "לאחת בקשה" — נשמע מוזר)
+    // 4 — בקשות שנשלחו שטרם נענו (רק אם יש) — מספר אחרי שם העצם (נקבה: אחת/שתי)
     if (pendingSent > 0) {
-        const txt = pendingSent === 1
-            ? `לבקשה שנשלחה ועדיין ממתינה לתשובה, ${hk} ארבע.`
-            : `ל${numberToHebrew(pendingSent, true)} בקשות שנשלחו שטרם נענו, ${hk} ארבע.`;
+        const noun = pendingSent === 1
+            ? `לבקשה אחת שנשלחה ועדיין ממתינה לתשובה, ${hk} ארבע.`
+            : `לשתי בקשות שנשלחו שעדיין ממתינות, ${hk} ארבע.`;
+        // 3+: "לשלוש בקשות..." וכו'
+        const txt = pendingSent <= 2 ? noun
+            : `ל${numberToHebrew(pendingSent, true)} בקשות שנשלחו שעדיין ממתינות, ${hk} ארבע.`;
         parts.push(txt);
     }
 
-    // 5 — שידוכים פעילים (רק אם יש)
-    // כשאחד — לא אומרים מספר ("שידוך" זכר — "אחד שידוך" גם כך לא נכון)
+    // 5 — שידוכים פעילים (רק אם יש) — מספר אחרי שם העצם (זכר: אחד/שני)
     if (activeSent > 0) {
         const txt = activeSent === 1
-            ? `לשידוך פעיל, ${hk} חמש.`
-            : `ל${numberToHebrew(activeSent)} שידוכים פעילים, ${hk} חמש.`;
+            ? `לשידוך פעיל אחד, ${hk} חמש.`
+            : activeSent === 2
+                ? `לשני שידוכים פעילים, ${hk} חמש.`
+                : `ל${numberToHebrew(activeSent)} שידוכים פעילים, ${hk} חמש.`;
         parts.push(txt);
     }
 
