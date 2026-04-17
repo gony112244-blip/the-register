@@ -598,7 +598,7 @@ router.get('/call', async (req, res) => {
             return yemotRead(res, file4, 'digits', 1, 1, 8);
         }
 
-        // key=5 → שידוכים פעילים (active + waiting_for_shadchan)
+        // key=5 → שידוכים פעילים (active + waiting_for_shadchan) — נכנסים ל-active_sent state
         if (key === '5') {
             let active = [];
             try { active = await getActiveSentForIvr(user.id, 0, 1); } catch {}
@@ -613,11 +613,21 @@ router.get('/call', async (req, res) => {
             const connText5 = conn5.status === 'active'
                 ? `הגעת לשלב הבירורים עם ${fn5}${age5}${city5}.`
                 : `הבירורים עם ${fn5}${age5}${city5} בטיפול השדכנית.`;
+            // כרטיס בירורים — פרטי קשר
+            const cardParts5 = [];
+            if (conn5.father_full_name) cardParts5.push(`אב: ${conn5.father_full_name}`);
+            if (conn5.mother_full_name) cardParts5.push(`אם: ${conn5.mother_full_name}`);
+            if (conn5.phone)            cardParts5.push(`טלפון: ${conn5.phone}`);
+            if (conn5.reference_1_name) cardParts5.push(`ממליץ ראשון: ${conn5.reference_1_name}${conn5.reference_1_phone ? ', טלפון ' + conn5.reference_1_phone : ''}`);
+            if (conn5.reference_2_name) cardParts5.push(`ממליץ שני: ${conn5.reference_2_name}${conn5.reference_2_phone ? ', טלפון ' + conn5.reference_2_phone : ''}`);
+            if (conn5.rabbi_name)       cardParts5.push(`רב: ${conn5.rabbi_name}${conn5.rabbi_phone ? ', טלפון ' + conn5.rabbi_phone : ''}`);
+            if (conn5.full_address)     cardParts5.push(`כתובת: ${conn5.full_address}`);
+            const cardTxt5 = cardParts5.length > 0 ? `פרטי בירורים. ${cardParts5.join('. ')}.` : '';
             const actionsText5 = g(user.gender,
-                'הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
-                'הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
+                'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
+                'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
             );
-            const file5 = await textToYemot(`${connText5} ${actionsText5}`);
+            const file5 = await textToYemot([connText5, cardTxt5, actionsText5].filter(Boolean).join(' '));
             return yemotRead(res, file5, 'digits', 1, 1, 8);
         }
 
@@ -1241,6 +1251,27 @@ router.get('/call', async (req, res) => {
         let   offset = parseInt(data.page || 0, 10);
         const connId = data.currentConnectionId || null;
 
+        const buildBeiurimCard = (c) => {
+            const parts = [];
+            if (c.father_full_name) parts.push(`אב: ${c.father_full_name}`);
+            if (c.mother_full_name) parts.push(`אם: ${c.mother_full_name}`);
+            if (c.phone)            parts.push(`טלפון: ${c.phone}`);
+            if (c.reference_1_name) {
+                const ph = c.reference_1_phone ? `, טלפון ${c.reference_1_phone}` : '';
+                parts.push(`ממליץ ראשון: ${c.reference_1_name}${ph}`);
+            }
+            if (c.reference_2_name) {
+                const ph = c.reference_2_phone ? `, טלפון ${c.reference_2_phone}` : '';
+                parts.push(`ממליץ שני: ${c.reference_2_name}${ph}`);
+            }
+            if (c.rabbi_name) {
+                const ph = c.rabbi_phone ? `, טלפון ${c.rabbi_phone}` : '';
+                parts.push(`רב: ${c.rabbi_name}${ph}`);
+            }
+            if (c.full_address) parts.push(`כתובת: ${c.full_address}`);
+            return parts.length > 0 ? `פרטי בירורים. ${parts.join('. ')}.` : '';
+        };
+
         const loadNextActive = async (prefix = '') => {
             let rows = [];
             try { rows = await getActiveSentForIvr(user.id, offset, 1); } catch {}
@@ -1255,12 +1286,13 @@ router.get('/call', async (req, res) => {
             const statusTxt = c.status === 'active'
                 ? `הגעת לשלב הבירורים עם ${nameStr}${ageStr}${cityStr}.`
                 : `הבירורים עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
+            const cardTxt = buildBeiurimCard(c);
             await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: c.connection_id, currentConnectionStatus: c.status });
             const act = g(user.gender,
-                'הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
-                'הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
+                'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
+                'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
             );
-            const text = `${prefix ? prefix + ' ' : ''}${statusTxt} ${act}`;
+            const text = [prefix, statusTxt, cardTxt, act].filter(Boolean).join(' ');
             const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         };

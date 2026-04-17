@@ -364,7 +364,13 @@ async function getPendingSentForIvr(userId, offset = 0, limit = 1) {
 async function getActiveSentForIvr(userId, offset = 0, limit = 1) {
     const result = await pool.query(
         `SELECT c.id AS connection_id, c.status, c.created_at,
-                u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place
+                u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place,
+                u.phone,
+                u.father_full_name, u.mother_full_name,
+                u.reference_1_name, u.reference_1_phone,
+                u.reference_2_name, u.reference_2_phone,
+                u.rabbi_name, u.rabbi_phone,
+                u.full_address
          FROM connections c
          JOIN users u ON c.receiver_id = u.id
          WHERE c.sender_id = $1
