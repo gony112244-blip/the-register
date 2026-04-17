@@ -611,8 +611,8 @@ router.get('/call', async (req, res) => {
             const age5  = conn5.age  ? `, ${numberToHebrew(conn5.age)} שנים` : '';
             const city5 = conn5.city ? `, ${conn5.city}` : '';
             const connText5 = conn5.status === 'active'
-                ? `הקשר עם ${fn5}${age5}${city5} פעיל — שניכם הביעו עניין ראשוני.`
-                : `הקשר עם ${fn5}${age5}${city5} בטיפול השדכנית.`;
+                ? `הגעת לשלב הבירורים עם ${fn5}${age5}${city5}.`
+                : `הבירורים עם ${fn5}${age5}${city5} בטיפול השדכנית.`;
             const actionsText5 = g(user.gender,
                 'הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
                 'הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
@@ -1253,8 +1253,8 @@ router.get('/call', async (req, res) => {
             const ageStr  = c.age  ? `, ${numberToHebrew(c.age)} שנים` : '';
             const cityStr = c.city ? `, ${c.city}` : '';
             const statusTxt = c.status === 'active'
-                ? `הקשר עם ${nameStr}${ageStr}${cityStr} פעיל — שניכם הביעו עניין ראשוני.`
-                : `הקשר עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
+                ? `הגעת לשלב הבירורים עם ${nameStr}${ageStr}${cityStr}.`
+                : `הבירורים עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
             await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: c.connection_id, currentConnectionStatus: c.status });
             const act = g(user.gender,
                 'הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
