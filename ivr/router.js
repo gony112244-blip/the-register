@@ -630,23 +630,56 @@ router.get('/call', async (req, res) => {
             const fn5   = [conn5.last_name, conn5.full_name].filter(Boolean).join(' ') || 'ללא שם';
             const age5  = conn5.age  ? `, ${numberToHebrew(conn5.age)} שנים` : '';
             const city5 = conn5.city ? `, ${conn5.city}` : '';
-            const connText5 = conn5.status === 'active'
-                ? `הגעת לשלב הבירורים עם ${fn5}${age5}${city5}.`
-                : `הבירורים עם ${fn5}${age5}${city5} בטיפול השדכנית.`;
-            // כרטיס בירורים — פרטי קשר
+            const iAmSender5  = (conn5.sender_id === user.id);
+            const myApprove5    = iAmSender5 ? conn5.sender_final_approve   : conn5.receiver_final_approve;
+            const otherApprove5 = iAmSender5 ? conn5.receiver_final_approve : conn5.sender_final_approve;
+            const approveTxt5 = conn5.status === 'active'
+                ? (myApprove5 && !otherApprove5
+                    ? `אישרת התקדמות לשדכנית. ממתינים לאישור ${fn5}.`
+                    : (!myApprove5 && otherApprove5
+                        ? `${fn5} כבר אישר התקדמות לשדכנית ומחכה לאישורך!`
+                        : ''))
+                : '';
+            const connText5 = [
+                conn5.status === 'active'
+                    ? `הגעת לשלב הבירורים עם ${fn5}${age5}${city5}.`
+                    : `הבירורים עם ${fn5}${age5}${city5} בטיפול השדכנית.`,
+                approveTxt5
+            ].filter(Boolean).join(' ');
+
             const cardParts5 = [];
-            if (conn5.father_full_name) cardParts5.push(`אב: ${conn5.father_full_name}`);
-            if (conn5.mother_full_name) cardParts5.push(`אם: ${conn5.mother_full_name}`);
-            if (conn5.phone)            cardParts5.push(`טלפון: ${conn5.phone}`);
-            if (conn5.reference_1_name) cardParts5.push(`ממליץ ראשון: ${conn5.reference_1_name}${conn5.reference_1_phone ? ', טלפון ' + conn5.reference_1_phone : ''}`);
-            if (conn5.reference_2_name) cardParts5.push(`ממליץ שני: ${conn5.reference_2_name}${conn5.reference_2_phone ? ', טלפון ' + conn5.reference_2_phone : ''}`);
-            if (conn5.rabbi_name)       cardParts5.push(`רב: ${conn5.rabbi_name}${conn5.rabbi_phone ? ', טלפון ' + conn5.rabbi_phone : ''}`);
-            if (conn5.full_address)     cardParts5.push(`כתובת: ${conn5.full_address}`);
-            const cardTxt5 = cardParts5.length > 0 ? `פרטי בירורים. ${cardParts5.join('. ')}.` : '';
-            const actionsText5 = g(user.gender,
-                'הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט הראשי.',
-                'הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט הראשי.'
-            );
+            if (conn5.father_full_name) cardParts5.push(`שם האב: ${conn5.father_full_name}`);
+            if (conn5.mother_full_name) cardParts5.push(`שם האם: ${conn5.mother_full_name}`);
+            if (conn5.phone)            cardParts5.push(`טלפון: ${formatPhoneForTts(conn5.phone)}`);
+            if (conn5.reference_1_name) {
+                const ph = conn5.reference_1_phone ? `. טלפון: ${formatPhoneForTts(conn5.reference_1_phone)}` : '';
+                cardParts5.push(`ממליץ ראשון: ${conn5.reference_1_name}${ph}`);
+            }
+            if (conn5.reference_2_name) {
+                const ph = conn5.reference_2_phone ? `. טלפון: ${formatPhoneForTts(conn5.reference_2_phone)}` : '';
+                cardParts5.push(`ממליץ שני: ${conn5.reference_2_name}${ph}`);
+            }
+            if (conn5.rabbi_name) {
+                const ph = conn5.rabbi_phone ? `. טלפון: ${formatPhoneForTts(conn5.rabbi_phone)}` : '';
+                cardParts5.push(`שם הרב או הרבנית: ${conn5.rabbi_name}${ph}`);
+            }
+            if (conn5.full_address) cardParts5.push(`כתובת: ${conn5.full_address}`);
+            const cardTxt5 = cardParts5.length > 0 ? `פרטים לבירורים. ${cardParts5.join('. ')}.` : '';
+            const canFinalize5 = conn5.status === 'active' && !myApprove5;
+            const actionsText5 = conn5.status === 'waiting_for_shadchan'
+                ? g(user.gender,
+                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט הראשי.',
+                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט הראשי.'
+                )
+                : canFinalize5
+                    ? g(user.gender,
+                        'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט הראשי.',
+                        'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט הראשי.'
+                    )
+                    : g(user.gender,
+                        'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט הראשי.',
+                        'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט הראשי.'
+                    );
             const file5 = await textToYemot([connText5, cardTxt5, actionsText5].filter(Boolean).join(' '));
             return yemotRead(res, file5, 'digits', 1, 1, 8);
         }
@@ -1287,7 +1320,7 @@ router.get('/call', async (req, res) => {
             }
             if (c.rabbi_name) {
                 const ph = c.rabbi_phone ? `. טלפון: ${formatPhoneForTts(c.rabbi_phone)}` : '';
-                parts.push(`שם הרב: ${c.rabbi_name}${ph}`);
+                parts.push(`שם הרב או הרבנית: ${c.rabbi_name}${ph}`);
             }
             if (c.full_address) parts.push(`כתובת: ${c.full_address}`);
             return parts.length > 0 ? `פרטים לבירורים. ${parts.join('. ')}.` : '';
