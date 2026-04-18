@@ -108,7 +108,8 @@ async function countPendingSent(userId) {
 async function countActiveSent(userId) {
     const result = await pool.query(
         `SELECT COUNT(*)::int AS count FROM connections
-         WHERE sender_id = $1 AND status IN ('active', 'waiting_for_shadchan')`,
+         WHERE (sender_id = $1 OR receiver_id = $1)
+           AND status IN ('active', 'waiting_for_shadchan')`,
         [userId]
     );
     return result.rows[0].count;
