@@ -238,7 +238,15 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             </div>
                         </div>
                     ) : hasPhotos ? (
-                        <div style={S.photoBadge}>📷 {p.profile_images_count} תמונות — שלח בקשה לצפייה</div>
+                        <div style={S.photoBadge}>
+                            {photoAccess?.outgoingPending && photoAccess?.incomingPending
+                                ? `📷 ${p.profile_images_count} תמונות — שניכם שלחתם בקשה; אשרו זה את זה בדף הבקשות או בהודעות`
+                                : photoAccess?.outgoingPending
+                                    ? `📷 ${p.profile_images_count} תמונות — בקשת צפייה נשלחה, ממתינה לאישור`
+                                    : photoAccess?.incomingPending
+                                        ? `📷 ${p.profile_images_count} תמונות — המועמד ביקש לראות; טפל/י בדף הבקשות`
+                                        : `📷 ${p.profile_images_count} תמונות — שלח בקשה לצפייה`}
+                        </div>
                     ) : null}
                 </div>
 

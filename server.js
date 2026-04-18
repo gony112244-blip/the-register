@@ -275,6 +275,49 @@ if (!fs.existsSync(uploadDir)) {
     console.log(`Created uploads directory at: ${uploadDir}`);
 }
 
+// מחיקת קבצי תמונות ותעודות של משתמש מהדיסק
+async function deleteUserFiles(userId) {
+    try {
+        const res = await pool.query(
+            'SELECT profile_images, id_card_image_url FROM users WHERE id = $1',
+            [userId]
+        );
+        if (!res.rows.length) return;
+        const { profile_images, id_card_image_url } = res.rows[0];
+
+        const toDelete = [];
+        if (Array.isArray(profile_images)) {
+            profile_images.forEach(p => {
+                if (p) toDelete.push(String(p));
+            });
+        }
+        if (id_card_image_url) toDelete.push(String(id_card_image_url));
+
+        for (const filePath of toDelete) {
+            // filePath יכול להיות URL מלא (/uploads/profileImage-...) או שם קובץ בלבד
+            const filename = filePath.split('/').pop();
+            const fullPath = path.join(uploadDir, filename);
+            fs.unlink(fullPath, err => {
+                if (err && err.code !== 'ENOENT') console.error('[deleteUserFiles]', err.message);
+            });
+        }
+    } catch (e) {
+        console.error('[deleteUserFiles] error:', e.message);
+    }
+}
+
+// מחיקה מלאה של חשבון (DB + קבצים) — משמשת מחיקה עצמית, מנהל, וניקוי אוטומטי
+async function purgeUser(userId, client) {
+    const c = client || pool;
+    await c.query('DELETE FROM connections WHERE sender_id = $1 OR receiver_id = $1', [userId]);
+    await c.query('DELETE FROM messages WHERE from_user_id = $1 OR to_user_id = $1', [userId]);
+    await c.query('DELETE FROM photo_approvals WHERE requester_id = $1 OR target_id = $1', [userId]).catch(() => {});
+    await c.query('DELETE FROM hidden_profiles WHERE user_id = $1 OR hidden_user_id = $1', [userId]).catch(() => {});
+    await c.query('DELETE FROM ivr_sessions WHERE user_id = $1', [userId]).catch(() => {});
+    await deleteUserFiles(userId);
+    await c.query('DELETE FROM users WHERE id = $1', [userId]);
+}
+
 const storage = multer.diskStorage({
     // הסבר: לאן לשמור את הקבצים
     destination: function (req, file, cb) {
@@ -1427,21 +1470,40 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
             return res.status(403).json({ message: "לא ניתן לשלוח בקשה למשתמש זה" });
         }
 
-        // בדיקה אם כבר יש בקשה/אישור
+        // בדיקה אם כבר יש בקשה פעילה (pending או approved בתוקף 48 שעות)
         const existing = await pool.query(
-            'SELECT * FROM photo_approvals WHERE requester_id = $1 AND target_id = $2',
+            `SELECT status, updated_at FROM photo_approvals
+             WHERE requester_id = $1 AND target_id = $2`,
             [requesterId, targetId]
         );
 
         if (existing.rows.length > 0) {
-            return res.json({ message: "כבר שלחת בקשה", status: existing.rows[0].status });
+            const row = existing.rows[0];
+            // pending — עדיין ממתינה
+            if (row.status === 'pending') {
+                return res.json({ message: "כבר שלחת בקשה", status: 'pending' });
+            }
+            // approved בתוקף — כבר יש גישה
+            if (row.status === 'approved') {
+                const validApproval = !row.updated_at ||
+                    new Date(row.updated_at) > new Date(Date.now() - 48 * 60 * 60 * 1000);
+                if (validApproval) {
+                    return res.json({ message: "כבר יש לך גישה לתמונות", status: 'approved' });
+                }
+            }
+            // rejected או approved שפג — מאפשרים לשלוח מחדש, מאפסים את הרשומה
+            await pool.query(
+                `UPDATE photo_approvals SET status = 'pending', updated_at = NOW()
+                 WHERE requester_id = $1 AND target_id = $2`,
+                [requesterId, targetId]
+            );
+        } else {
+            // יצירת בקשה חדשה
+            await pool.query(
+                `INSERT INTO photo_approvals (requester_id, target_id, status) VALUES ($1, $2, 'pending')`,
+                [requesterId, targetId]
+            );
         }
-
-        // יצירת בקשה חדשה
-        await pool.query(
-            `INSERT INTO photo_approvals (requester_id, target_id, status) VALUES ($1, $2, 'pending')`,
-            [requesterId, targetId]
-        );
 
         // שליחת הודעה לצד השני (במערכת + מייל)
         const requesterInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [requesterId]);
@@ -1574,7 +1636,24 @@ app.get('/check-photo-access/:targetId', authenticateToken, async (req, res) => 
             ? new Date(new Date(updatedAt).getTime() + 48 * 60 * 60 * 1000).toISOString()
             : null;
 
-        res.json({ canView, expiresAt });
+        let outgoingPending = false;
+        let incomingPending = false;
+        if (!canView) {
+            const [outRes, inRes] = await Promise.all([
+                pool.query(
+                    `SELECT 1 FROM photo_approvals WHERE requester_id = $1 AND target_id = $2 AND status = 'pending' LIMIT 1`,
+                    [requesterId, targetId]
+                ),
+                pool.query(
+                    `SELECT 1 FROM photo_approvals WHERE requester_id = $2 AND target_id = $1 AND status = 'pending' LIMIT 1`,
+                    [requesterId, targetId]
+                )
+            ]);
+            outgoingPending = outRes.rows.length > 0;
+            incomingPending = inRes.rows.length > 0;
+        }
+
+        res.json({ canView, expiresAt, outgoingPending, incomingPending });
     } catch (err) {
         res.status(500).json({ message: "שגיאה" });
     }
@@ -3428,67 +3507,104 @@ app.post('/admin/send-match-cards/:connectionId', authenticateToken, async (req,
             haredi: 'חרדי', dati_leumi: 'דתי לאומי', ashkenazi: 'אשכנזי',
             sephardi: 'ספרדי', teimani: 'תימני', mixed: 'מעורב'
         };
+        const occupationLabels = {
+            studying: 'לומד', working: 'עובד', both: 'לומד ועובד', fixed_times: 'קובע עיתים'
+        };
+        const row = (label, val) => val
+            ? `<tr><td style="padding:4px 8px 4px 0;color:#6b7280;width:38%;white-space:nowrap"><strong>${label}</strong></td><td style="padding:4px 0;color:#1f2937">${val}</td></tr>`
+            : '';
 
-        const cardHTML = (side, data) => `
-            <div style="background:#f8f9fa;padding:16px;border-radius:10px;margin-bottom:20px;border-right:4px solid #c9a227;direction:rtl">
-                <h3 style="color:#1e3a5f;margin:0 0 12px;font-size:1.1rem;border-bottom:1px solid #e5e7eb;padding-bottom:8px">${side}: ${data.name} ${data.last || ''}</h3>
-                <table style="width:100%;border-collapse:collapse;font-size:0.92rem">
-                    <tr><td style="padding:3px 0;color:#374151;width:38%"><strong>גיל:</strong></td><td style="padding:3px 0;color:#1f2937">${data.age || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>עיר:</strong></td><td style="padding:3px 0;color:#1f2937">${data.city || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>גובה:</strong></td><td style="padding:3px 0;color:#1f2937">${data.height ? data.height + ' ס"מ' : '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>מגזר:</strong></td><td style="padding:3px 0;color:#1f2937">${sectorLabels[data.sector] || data.sector || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>עדת אב:</strong></td><td style="padding:3px 0;color:#1f2937">${data.fatherHeritage || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>עדת אם:</strong></td><td style="padding:3px 0;color:#1f2937">${data.motherHeritage || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>טלפון:</strong></td><td style="padding:3px 0;color:#1f2937">${data.phone || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>מייל:</strong></td><td style="padding:3px 0;color:#1f2937">${data.email || '—'}</td></tr>
-                    ${data.occupation ? `<tr><td style="padding:3px 0;color:#374151"><strong>עיסוק/ישיבה:</strong></td><td style="padding:3px 0;color:#1f2937">${data.occupation}${data.yeshiva ? ' — ' + data.yeshiva : ''}</td></tr>` : ''}
-                    <tr><td style="padding:3px 0;color:#374151"><strong>אחים/אחיות:</strong></td><td style="padding:3px 0;color:#1f2937">${data.siblings != null ? data.siblings + ' (מקום ' + (data.siblingPos || '—') + ')' : '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>שם האב:</strong></td><td style="padding:3px 0;color:#1f2937">${data.fatherName || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>שם האם:</strong></td><td style="padding:3px 0;color:#1f2937">${data.motherName || '—'}</td></tr>
-                    <tr><td style="padding:3px 0;color:#374151"><strong>רב/ממליץ:</strong></td><td style="padding:3px 0;color:#1f2937">${data.rabbi || '—'}${data.rabbiPhone ? ' · ' + data.rabbiPhone : ''}</td></tr>
-                    ${data.ref1Name ? `<tr><td style="padding:3px 0;color:#374151"><strong>ממליץ 1:</strong></td><td style="padding:3px 0;color:#1f2937">${data.ref1Name}${data.ref1Phone ? ' · ' + data.ref1Phone : ''}</td></tr>` : ''}
-                    ${data.ref2Name ? `<tr><td style="padding:3px 0;color:#374151"><strong>ממליץ 2:</strong></td><td style="padding:3px 0;color:#1f2937">${data.ref2Name}${data.ref2Phone ? ' · ' + data.ref2Phone : ''}</td></tr>` : ''}
-                    <tr><td style="padding:3px 0;color:#374151"><strong>איש קשר:</strong></td><td style="padding:3px 0;color:#1f2937">${data.contact || '—'}${data.contactPhone ? ' · ' + data.contactPhone : ''}</td></tr>
+        // כרטיס סיכום מהיר — שורה אחת לכל מועמד
+        const quickSummaryRow = (side, d) => `
+            <tr>
+                <td style="padding:10px 12px;vertical-align:top;border-left:1px solid #e5e7eb">
+                    <strong style="color:#1e3a5f;font-size:1rem">${side}: ${d.name} ${d.last || ''}</strong><br/>
+                    <span style="color:#4b5563;font-size:0.88rem">גיל ${d.age || '—'} · ${d.city || '—'}</span><br/>
+                    <span style="color:#374151;font-size:0.88rem">📞 ${d.phone || '—'}</span>
+                    ${d.email ? `<br/><span style="color:#374151;font-size:0.85rem">✉️ ${d.email}</span>` : ''}
+                    ${d.contact ? `<br/><span style="color:#374151;font-size:0.85rem">איש קשר: ${d.contact}${d.contactPhone ? ' · ' + d.contactPhone : ''}</span>` : ''}
+                </td>
+            </tr>`;
+
+        // כרטיס פרופיל מלא
+        const fullCardHTML = (side, d) => `
+            <div style="background:#f8faff;padding:18px;border-radius:10px;margin-bottom:24px;border-right:4px solid #c9a227;direction:rtl">
+                <h3 style="color:#1e3a5f;margin:0 0 14px;font-size:1.05rem;border-bottom:2px solid #c9a227;padding-bottom:8px">
+                    ${side}: ${d.name} ${d.last || ''}
+                </h3>
+                <table style="width:100%;border-collapse:collapse;font-size:0.91rem">
+                    ${row('שם מלא:', `${d.name} ${d.last || ''}`)}
+                    ${row('גיל:', d.age)}
+                    ${row('עיר מגורים:', d.city)}
+                    ${row('טלפון:', d.phone)}
+                    ${row('מייל:', d.email)}
+                    ${row('איש קשר:', d.contact ? `${d.contact}${d.contactPhone ? ' · ' + d.contactPhone : ''}` : null)}
+                    ${row('גובה:', d.height ? `${d.height} ס"מ` : null)}
+                    ${row('מגזר:', sectorLabels[d.sector] || d.sector)}
+                    ${row('עדת אב:', d.fatherHeritage)}
+                    ${row('עדת אם:', d.motherHeritage)}
+                    ${row('עיסוק:', occupationLabels[d.occupation] || d.occupation)}
+                    ${row('ישיבה/מוסד:', d.yeshiva)}
+                    ${row('מקצוע:', d.workField)}
+                    ${row('אחים/מיקום:', d.siblings != null ? `${d.siblings} ילדים, מקום ${d.siblingPos || '—'}` : null)}
+                    ${row('שם האב:', d.fatherName)}
+                    ${row('שם האם:', d.motherName)}
+                    ${row('רב / רבנית:', d.rabbi ? `${d.rabbi}${d.rabbiPhone ? ' · ' + d.rabbiPhone : ''}` : null)}
+                    ${row('ממליץ 1:', d.ref1Name ? `${d.ref1Name}${d.ref1Phone ? ' · ' + d.ref1Phone : ''}` : null)}
+                    ${row('ממליץ 2:', d.ref2Name ? `${d.ref2Name}${d.ref2Phone ? ' · ' + d.ref2Phone : ''}` : null)}
                 </table>
-                ${data.about ? `<div style="margin-top:10px;padding-top:8px;border-top:1px solid #e5e7eb"><strong style="color:#374151">על עצמי:</strong><p style="color:#4b5563;margin:4px 0 0;font-size:0.9rem">${data.about}</p></div>` : ''}
-                ${data.partnerDesc ? `<div style="margin-top:8px"><strong style="color:#374151">מה מחפש/ת:</strong><p style="color:#4b5563;margin:4px 0 0;font-size:0.9rem">${data.partnerDesc}</p></div>` : ''}
-            </div>
-        `;
+                ${d.about ? `<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb"><strong style="color:#374151">על עצמי:</strong><p style="color:#4b5563;margin:6px 0 0;font-size:0.9rem;line-height:1.5">${d.about}</p></div>` : ''}
+                ${d.partnerDesc ? `<div style="margin-top:10px"><strong style="color:#374151">מה מחפש/ת:</strong><p style="color:#4b5563;margin:6px 0 0;font-size:0.9rem;line-height:1.5">${d.partnerDesc}</p></div>` : ''}
+            </div>`;
+
+        const senderData = {
+            name: m.sender_name, last: m.sender_last, age: m.sender_age,
+            city: m.sender_city, sector: m.sender_sector, phone: m.sender_phone,
+            email: m.sender_email, contact: m.sender_contact, contactPhone: m.sender_contact_phone,
+            height: m.sender_height, fatherHeritage: m.sender_father_heritage,
+            motherHeritage: m.sender_mother_heritage, siblings: m.sender_siblings,
+            siblingPos: m.sender_sibling_position, occupation: m.sender_occupation,
+            yeshiva: m.sender_yeshiva, workField: m.sender_work_field,
+            fatherName: m.sender_father_name, motherName: m.sender_mother_name,
+            rabbi: m.sender_rabbi, rabbiPhone: m.sender_rabbi_phone,
+            ref1Name: m.sender_ref1_name, ref1Phone: m.sender_ref1_phone,
+            ref2Name: m.sender_ref2_name, ref2Phone: m.sender_ref2_phone,
+            about: m.sender_about, partnerDesc: m.sender_partner_desc
+        };
+        const receiverData = {
+            name: m.receiver_name, last: m.receiver_last, age: m.receiver_age,
+            city: m.receiver_city, sector: m.receiver_sector, phone: m.receiver_phone,
+            email: m.receiver_email, contact: m.receiver_contact, contactPhone: m.receiver_contact_phone,
+            height: m.receiver_height, fatherHeritage: m.receiver_father_heritage,
+            motherHeritage: m.receiver_mother_heritage, siblings: m.receiver_siblings,
+            siblingPos: m.receiver_sibling_position, occupation: m.receiver_occupation,
+            yeshiva: m.receiver_yeshiva, workField: m.receiver_work_field,
+            fatherName: m.receiver_father_name, motherName: m.receiver_mother_name,
+            rabbi: m.receiver_rabbi, rabbiPhone: m.receiver_rabbi_phone,
+            ref1Name: m.receiver_ref1_name, ref1Phone: m.receiver_ref1_phone,
+            ref2Name: m.receiver_ref2_name, ref2Phone: m.receiver_ref2_phone,
+            about: m.receiver_about, partnerDesc: m.receiver_partner_desc
+        };
 
         const emailBody = `
-            <div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-                <h2 style="color:#1e3a5f;text-align:center">💍 כרטיסיות שידוך</h2>
+            <div dir="rtl" style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#1f2937">
+                <h2 style="color:#1e3a5f;text-align:center;border-bottom:3px solid #c9a227;padding-bottom:10px">💍 תיק שידוך חדש</h2>
                 <p>שלום ${m.shadchanit_name},</p>
-                <p>להלן פרטי הזוג שהועבר לטיפולך:</p>
-                ${cardHTML('צד א׳', {
-                    name: m.sender_name, last: m.sender_last, age: m.sender_age,
-                    city: m.sender_city, sector: m.sender_sector, phone: m.sender_phone,
-                    email: m.sender_email, rabbi: m.sender_rabbi, rabbiPhone: m.sender_rabbi_phone,
-                    contact: m.sender_contact, contactPhone: m.sender_contact_phone,
-                    height: m.sender_height, fatherHeritage: m.sender_father_heritage,
-                    motherHeritage: m.sender_mother_heritage, siblings: m.sender_siblings,
-                    siblingPos: m.sender_sibling_position, occupation: m.sender_occupation,
-                    yeshiva: m.sender_yeshiva, fatherName: m.sender_father_name,
-                    motherName: m.sender_mother_name, ref1Name: m.sender_ref1_name,
-                    ref1Phone: m.sender_ref1_phone, ref2Name: m.sender_ref2_name,
-                    ref2Phone: m.sender_ref2_phone, about: m.sender_about,
-                    partnerDesc: m.sender_partner_desc
-                })}
-                ${cardHTML('צד ב׳', {
-                    name: m.receiver_name, last: m.receiver_last, age: m.receiver_age,
-                    city: m.receiver_city, sector: m.receiver_sector, phone: m.receiver_phone,
-                    email: m.receiver_email, rabbi: m.receiver_rabbi, rabbiPhone: m.receiver_rabbi_phone,
-                    contact: m.receiver_contact, contactPhone: m.receiver_contact_phone,
-                    height: m.receiver_height, fatherHeritage: m.receiver_father_heritage,
-                    motherHeritage: m.receiver_mother_heritage, siblings: m.receiver_siblings,
-                    siblingPos: m.receiver_sibling_position, occupation: m.receiver_occupation,
-                    yeshiva: m.receiver_yeshiva, fatherName: m.receiver_father_name,
-                    motherName: m.receiver_mother_name, ref1Name: m.receiver_ref1_name,
-                    ref1Phone: m.receiver_ref1_phone, ref2Name: m.receiver_ref2_name,
-                    ref2Phone: m.receiver_ref2_phone, about: m.receiver_about,
-                    partnerDesc: m.receiver_partner_desc
-                })}
-                <p style="color:#666;font-size:0.85rem;margin-top:20px">נשלח ממערכת השידוכים האדמיניסטרטיבית</p>
+                <p>שני הצדדים הביעו עניין ואישרו להעביר את התיק לטיפולך. להלן הפרטים:</p>
+
+                <!-- סיכום מהיר -->
+                <h3 style="color:#1e3a5f;margin:20px 0 8px;font-size:1rem">📋 סיכום מהיר</h3>
+                <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:0.92rem">
+                    ${quickSummaryRow('צד א׳', senderData)}
+                    ${quickSummaryRow('צד ב׳', receiverData)}
+                </table>
+
+                <!-- כרטיסים מלאים -->
+                <h3 style="color:#1e3a5f;margin:28px 0 12px;font-size:1rem">📄 פרופילים מלאים</h3>
+                ${fullCardHTML('צד א׳', senderData)}
+                ${fullCardHTML('צד ב׳', receiverData)}
+
+                <p style="color:#9ca3af;font-size:0.82rem;margin-top:20px;text-align:center">נשלח ממערכת הפנקס · ${new Date().toLocaleDateString('he-IL')}</p>
             </div>
         `;
 
@@ -3809,13 +3925,7 @@ app.delete('/admin/delete-user/:userId', authenticateToken, async (req, res) => 
         // תיעוד לפני מחיקה (ON DELETE CASCADE ימחק שורות הלוג של המשתמש)
         // לכן לא נוכל לתעד אחרי — תועדו הפעולות ההיסטוריות שלו בלוג של המנהל
         await logActivity(req.user.id, 'admin_deleted_user', { note: `userId=${userId}` });
-
-        // מחיקת נתונים קשורים לפני מחיקת המשתמש
-        await pool.query('DELETE FROM messages WHERE from_user_id = $1 OR to_user_id = $1', [userId]);
-        await pool.query('DELETE FROM connections WHERE sender_id = $1 OR receiver_id = $1', [userId]);
-        await pool.query('DELETE FROM hidden_profiles WHERE user_id = $1 OR hidden_user_id = $1', [userId]);
-        await pool.query('DELETE FROM users WHERE id = $1', [userId]);
-
+        await purgeUser(userId);
         res.json({ message: "המשתמש נמחק בהצלחה" });
     } catch (err) {
         console.error("Error deleting user:", err);
@@ -5180,31 +5290,11 @@ app.delete('/user/delete-account', authenticateToken, async (req, res) => {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-
-            // 1. מחיקת חיבורים (Connections)
-            await client.query('DELETE FROM connections WHERE sender_id = $1 OR receiver_id = $1', [userId]);
-
-            // 2. מחיקת הודעות
-            await client.query('DELETE FROM messages WHERE from_user_id = $1 OR to_user_id = $1', [userId]);
-
-            // 3. מחיקת בקשות תמונה
-            await client.query('DELETE FROM photo_approvals WHERE requester_id = $1 OR target_id = $1', [userId]).catch(() => {});
-
-            // 4. מחיקת פרופילים מוסתרים
-            await client.query('DELETE FROM hidden_profiles WHERE user_id = $1 OR hidden_user_id = $1', [userId]).catch(() => {});
-
-            // 5. מחיקת סשנים IVR
-            await client.query('DELETE FROM ivr_sessions WHERE user_id = $1', [userId]).catch(() => {});
-
-            // 6. תיעוד לפני מחיקה
             await client.query(
                 `INSERT INTO activity_log (user_id, action, note) VALUES ($1, 'account_self_deleted', 'המשתמש מחק את החשבון שלו')`,
                 [userId]
             );
-
-            // 7. מחיקת המשתמש עצמו
-            await client.query('DELETE FROM users WHERE id = $1', [userId]);
-
+            await purgeUser(userId, client);
             await client.query('COMMIT');
             console.log(`[delete-account] User ${userId} deleted their account successfully.`);
             res.json({ message: 'החשבון נמחק בהצלחה. להתראות!' });
@@ -5259,8 +5349,38 @@ updateDbSchema().then(() => {
             // הפעלת job ניקוי קבצי פרופיל ישנים
             const { startCleanupScheduler } = require('./ivr/cleanupJob');
             startCleanupScheduler(pool);
-        } else {
-            console.log('[TTS] ⏭️ YEMOT credentials not set — skipping static phrase upload');
         }
+
+        // ניקוי חשבונות ללא פעילות מעל שנה — פועל פעם ביום, מתחיל מ-2027-04-19
+        async function purgeInactiveAccounts() {
+            if (new Date() < new Date('2027-04-19')) return;
+            try {
+                const cutoff = `NOW() - INTERVAL '1 year'`;
+                const res = await pool.query(
+                    `SELECT id FROM users
+                     WHERE is_admin = FALSE
+                       AND COALESCE(last_login, created_at) < ${cutoff}`
+                );
+                if (!res.rows.length) return;
+                console.log(`[purgeInactive] מוחק ${res.rows.length} חשבונות ישנים`);
+                for (const row of res.rows) {
+                    try {
+                        await pool.query(
+                            `INSERT INTO activity_log (user_id, action, note)
+                             VALUES ($1, 'account_auto_deleted', 'חשבון נמחק אוטומטית - ללא פעילות מעל שנה')`,
+                            [row.id]
+                        );
+                        await purgeUser(row.id);
+                    } catch (e) {
+                        console.error(`[purgeInactive] שגיאה במחיקת userId=${row.id}:`, e.message);
+                    }
+                }
+            } catch (e) {
+                console.error('[purgeInactive] שגיאה:', e.message);
+            }
+        }
+        purgeInactiveAccounts();
+        setInterval(purgeInactiveAccounts, 24 * 60 * 60 * 1000);
+
     });
 });

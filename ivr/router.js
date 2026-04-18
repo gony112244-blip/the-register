@@ -1366,7 +1366,7 @@ router.get('/call', async (req, res) => {
             // טקסט סטטוס: שם + גיל + עיר + מצב בירורים
             let statusTxt;
             if (c.status === 'waiting_for_shadchan') {
-                statusTxt = `הבירורים עם ${nameStr}${ageStr}${cityStr} בטיפול השדכנית.`;
+                statusTxt = `הבירורים עם ${nameStr}${ageStr}${cityStr} בְּטִיפּוּל הַשַּׁדְכָּנִית.`;
             } else {
                 // active — מצב אישורים
                 let approveTxt;
@@ -1385,7 +1385,6 @@ router.get('/call', async (req, res) => {
                 statusTxt = [`הגעת לשלב הבירורים עם ${nameStr}${ageStr}${cityStr}.`, approveTxt].filter(Boolean).join(' ');
             }
 
-            const cardTxt = [buildBeiurimCard(c), otherViewedTxt].filter(Boolean).join(' ');
             await updateSession(enterId, 'active_sent', {
                 page: offset,
                 currentConnectionId: c.connection_id,
@@ -1395,28 +1394,34 @@ router.get('/call', async (req, res) => {
                 inCancelReasonMenu: false
             });
 
-            // מקש 1 — זמין רק כשסטטוס active ולא אישרתי עדיין
-            const canFinalize = c.status === 'active' && !myApprove;
-            let act;
+            let text, act;
             if (c.status === 'waiting_for_shadchan') {
+                // בטיפול שדכנית — רק הודעת סטטוס + ניווט בסיסי
                 act = g(user.gender,
-                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. לבקשת עצירת ההתקדמות הָקֵשׁ שתיים. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. לבקשת עצירת ההתקדמות הָקִישִׁי שתיים. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    'לשידוך הבא הָקֵשׁ שמונה. לתפריט הראשי הָקֵשׁ אפס.',
+                    'לשידוך הבא הָקִישִׁי שמונה. לתפריט הראשי הָקִישִׁי אפס.'
                 );
-            } else if (canFinalize) {
-                act = g(user.gender,
-                    'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לביטול ההצעה הָקֵשׁ שתיים. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לביטול ההצעה הָקִישִׁי שתיים. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
-                );
+                text = [prefix, statusTxt, act].filter(Boolean).join(' ');
             } else {
-                act = g(user.gender,
-                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. לבקשת עצירת ההתקדמות הָקֵשׁ שתיים. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. לבקשת עצירת ההתקדמות הָקִישִׁי שתיים. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
-                );
+                // active — מקש 1 רק אם לא אישרתי עדיין
+                const canFinalize = !myApprove;
+                const cardTxt = [buildBeiurimCard(c), otherViewedTxt].filter(Boolean).join(' ');
+                if (canFinalize) {
+                    act = g(user.gender,
+                        'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לביטול ההצעה הָקֵשׁ שתיים. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                        'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לביטול ההצעה הָקִישִׁי שתיים. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    );
+                } else {
+                    // אישרתי כבר — אין מקש 1, יש מקש 2 לעצירה
+                    act = g(user.gender,
+                        'לבקשת עצירת ההתקדמות הָקֵשׁ שתיים. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                        'לבקשת עצירת ההתקדמות הָקִישִׁי שתיים. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    );
+                }
+                // פרטי בירורים — רק אם לא אישרתי עדיין (או אם יש prefix = אחרי פעולה)
+                const shouldPlayCard = !myApprove || prefix;
+                text = [prefix, statusTxt, shouldPlayCard ? cardTxt : '', act].filter(Boolean).join(' ');
             }
-
-            const shouldPlayCard = !myApprove || prefix;
-            const text = [prefix, statusTxt, shouldPlayCard ? cardTxt : '', act].filter(Boolean).join(' ');
             const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         };

@@ -2,26 +2,76 @@ import API_BASE from './config';
 import { useState } from 'react';
 
 const ACTION_LABELS = {
-    registered:              { icon: '📝', text: 'נרשם לאתר' },
-    email_verified:          { icon: '✅', text: 'אימת כתובת מייל' },
-    profile_approved:        { icon: '🎉', text: 'פרופיל אושר' },
-    connection_sent:         { icon: '📩', text: 'שלח פנייה ל' },
-    connection_approved:     { icon: '✅', text: 'אישר פנייה של' },
-    connection_got_approved: { icon: '🎉', text: 'הפנייה שלו/ה אושרה ע"י' },
-    connection_rejected:     { icon: '❌', text: 'דחה פנייה של' },
-    connection_cancelled:    { icon: '↩️', text: 'ביטל פנייה / שידוך' },
-    photo_requested:         { icon: '📷', text: 'ביקש תמונות מ' },
-    photo_approved:          { icon: '📷✅', text: 'אישר תמונות ל' },
-    photo_rejected:          { icon: '📷❌', text: 'דחה בקשת תמונות של' },
-    match_sent_to_shadchan:  { icon: '💍', text: 'כרטיסיות נשלחו לשדכנית' },
-    inquiry_ended:           { icon: '📋', text: 'בירור הסתיים' },
-    match_hidden:            { icon: '🗑️', text: 'הסתיר הצעה —' },
-    match_restored:          { icon: '♻️', text: 'שחזר הצעה של' },
-    user_blocked:            { icon: '🚫', text: 'חסם משתמש:' },
-    user_unblocked:          { icon: '🔓', text: 'ביטל חסימה של' },
-    admin_blocked_user:      { icon: '🔒', text: 'מנהל חסם חשבון' },
-    admin_unblocked_user:    { icon: '🔓', text: 'מנהל שחרר חשבון' },
-    admin_deleted_user:      { icon: '🗑️', text: 'מנהל מחק משתמש' },
+    // כניסה והרשמה
+    registered:                  { icon: '📝', text: 'נרשם לאתר' },
+    login_success:               { icon: '🔑', text: 'כניסה למערכת' },
+    email_verified:              { icon: '✅', text: 'אימת כתובת מייל' },
+    email_updated:               { icon: '📧', text: 'עדכן כתובת מייל' },
+    phone_updated:               { icon: '📱', text: 'עדכן מספר טלפון' },
+    password_reset_completed:    { icon: '🔐', text: 'סיים איפוס סיסמה' },
+
+    // פרופיל
+    profile_updated:             { icon: '✏️', text: 'עדכן פרופיל' },
+    profile_safe_fields_updated: { icon: '✏️', text: 'עדכן שדות בסיסיים' },
+    profile_approved:            { icon: '🎉', text: 'פרופיל אושר' },
+    profile_change_requested:    { icon: '📝', text: 'ביקש שינוי פרופיל' },
+    id_card_uploaded:            { icon: '🪪', text: 'העלה תעודת זהות' },
+    profile_image_uploaded:      { icon: '🖼️', text: 'העלה תמונת פרופיל' },
+    profile_image_deleted:       { icon: '🗑️', text: 'מחק תמונת פרופיל' },
+    user_image_added:            { icon: '🖼️', text: 'הוסיף תמונה' },
+    user_image_deleted:          { icon: '🗑️', text: 'מחק תמונה' },
+
+    // IVR
+    ivr_settings_updated:        { icon: '📞', text: 'עדכן הגדרות טלפון' },
+
+    // תשלום
+    payment_terms_accepted:      { icon: '💰', text: 'אישר תנאי תשלום' },
+
+    // פניות ושידוכים
+    connection_sent:             { icon: '📩', text: 'שלח פנייה ל' },
+    connection_approved:         { icon: '✅', text: 'אישר פנייה של' },
+    connection_got_approved:     { icon: '🎉', text: 'הפנייה שלו/ה אושרה ע"י' },
+    connection_rejected:         { icon: '❌', text: 'דחה פנייה של' },
+    connection_cancelled:        { icon: '↩️', text: 'ביטל פנייה / שידוך' },
+    match_hidden:                { icon: '🙈', text: 'הסתיר הצעה' },
+    match_restored:              { icon: '♻️', text: 'שחזר הצעה של' },
+    match_sent_to_shadchan:      { icon: '💍', text: 'כרטיסיות נשלחו לשדכנית' },
+    inquiry_ended:               { icon: '📋', text: 'בירור הסתיים' },
+
+    // תמונות
+    photo_requested:             { icon: '📷', text: 'ביקש תמונות מ' },
+    photo_approved:              { icon: '📷✅', text: 'אישר תמונות ל' },
+    photo_rejected:              { icon: '📷❌', text: 'דחה בקשת תמונות של' },
+    photo_request_cancelled:     { icon: '📷↩️', text: 'ביטל בקשת תמונות מ' },
+
+    // פעולות מנהל
+    admin_blocked_user:          { icon: '🔒', text: 'מנהל חסם חשבון' },
+    admin_unblocked_user:        { icon: '🔓', text: 'מנהל שחרר חשבון' },
+    admin_deleted_user:          { icon: '🗑️', text: 'מנהל מחק משתמש' },
+    admin_message_sent:          { icon: '💬', text: 'מנהל שלח הודעה' },
+    admin_user_note_saved:       { icon: '📌', text: 'מנהל שמר הערה' },
+    admin_match_marked_handled:  { icon: '📋', text: 'מנהל סימן שידוך כמטופל' },
+    shadchanit_created:          { icon: '👩', text: 'שדכנית נוספה' },
+    shadchanit_updated:          { icon: '✏️', text: 'שדכנית עודכנה' },
+    shadchanit_deleted:          { icon: '🗑️', text: 'שדכנית נמחקה' },
+    shadchanit_assigned_to_match:{ icon: '💍', text: 'שדכנית שויכה לשידוך' },
+
+    // חסימות משתמש
+    user_blocked:                { icon: '🚫', text: 'חסם משתמש' },
+    user_unblocked:              { icon: '🔓', text: 'ביטל חסימה של' },
+};
+
+// תרגום ה-note הטכני של ivr_settings_updated לעברית קריאה
+const formatNote = (action, note) => {
+    if (!note) return null;
+    if (action === 'ivr_settings_updated') {
+        const parts = [];
+        if (note.includes('no_pass=true'))   parts.push('כניסה ללא קוד: מופעל');
+        if (note.includes('no_pass=false'))  parts.push('כניסה ללא קוד: כבוי');
+        if (note.includes('pin_changed=true'))  parts.push('קוד PIN שונה');
+        return parts.length ? parts.join(' · ') : note;
+    }
+    return note;
 };
 
 const fmtDate = (d) =>
@@ -88,7 +138,8 @@ export default function AdminUserHistory({ userId, userName, onClose, inline = f
                         {events.map((ev) => {
                             const lbl = ACTION_LABELS[ev.action] || { icon: '•', text: ev.action };
                             const hasTarget = ev.target_name;
-                            const hasNote = ev.note;
+                            const formattedNote = formatNote(ev.action, ev.note);
+                            const hasNote = formattedNote;
                             const hasActor = ev.actor_name;
 
                             return (
@@ -101,7 +152,7 @@ export default function AdminUserHistory({ userId, userName, onClose, inline = f
                                         <div style={s.actionText}>
                                             {lbl.text}
                                             {hasTarget && <strong style={{ marginRight: 4 }}>{ev.target_name}</strong>}
-                                            {hasNote && <span style={s.note}> — {ev.note}</span>}
+                                            {hasNote && <span style={s.note}> — {formattedNote}</span>}
                                         </div>
                                         <div style={s.meta}>
                                             {fmtDate(ev.created_at)}

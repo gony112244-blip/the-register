@@ -130,17 +130,33 @@ function Matches() {
     }, [token]);
 
     const batchCheckPhotoStatus = async (targetIds) => {
+        if (!targetIds.length) return;
         try {
-            const res = await fetch(`${API_BASE}/batch-photo-access`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetIds })
-            });
-            const statusMap = await res.json();
-            if (res.ok) {
-                setPhotoStatuses(prev => ({ ...prev, ...statusMap }));
+            const [batchRes, sentRes] = await Promise.all([
+                fetch(`${API_BASE}/batch-photo-access`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetIds })
+                }),
+                fetch(`${API_BASE}/my-sent-photo-requests`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+            ]);
+            const statusMap = await batchRes.json();
+            const sentRows = sentRes.ok ? await sentRes.json() : [];
+            if (batchRes.ok && statusMap && typeof statusMap === 'object') {
+                const merged = { ...statusMap };
+                if (Array.isArray(sentRows)) {
+                    for (const row of sentRows) {
+                        const uid = row.user_id;
+                        if (uid != null && merged[uid] !== 'approved' && merged[uid] !== 'pending') {
+                            merged[uid] = 'pending';
+                        }
+                    }
+                }
+                setPhotoStatuses(prev => ({ ...prev, ...merged }));
             }
-        } catch { }
+        } catch { /* */ }
     };
 
     const checkPhotoStatus = async (targetId) => {
@@ -182,8 +198,14 @@ function Matches() {
             });
             const data = await res.json();
             if (res.ok) {
-                showToast('📷 הבקשה נשלחה! תקבל הודעה כשיאשרו את הבקשה', 'success');
-                setPhotoStatuses(prev => ({ ...prev, [targetId]: 'pending' }));
+                const already = typeof data.message === 'string' && data.message.includes('כבר');
+                showToast(
+                    already ? 'כבר יש בקשה פעילה' : 'הבקשה נשלחה — תקבל עדכון כשיאשרו',
+                    already ? 'info' : 'success'
+                );
+                const st = data.status === 'approved' ? 'approved' : 'pending';
+                setPhotoStatuses(prev => ({ ...prev, [targetId]: st }));
+                window.dispatchEvent(new CustomEvent('requestsUpdated'));
             } else {
                 showToast(data.message || 'שגיאה', 'warning');
             }
