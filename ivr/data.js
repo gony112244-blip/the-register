@@ -138,6 +138,25 @@ async function getMenuCounts(userId) {
  * שליפת הצעות לפי offset — ממירור שאילתת /matches בגרסה IVR.
  * מחזירה רק את השדות הנדרשים להקראה.
  */
+/**
+ * שליפת פרופיל מלא של משתמש יחיד לפי ID — לשמיעת כרטיס מלא בשלב הבירורים.
+ */
+async function getFullProfileForIvr(targetUserId) {
+    const result = await pool.query(
+        `SELECT id, full_name, last_name, age, city, study_place, height,
+                family_background, heritage_sector, current_occupation,
+                body_type, appearance, skin_tone, life_aspiration,
+                work_field, ivr_about, gender, status, head_covering,
+                yeshiva_name, yeshiva_ketana_name, father_occupation, mother_occupation,
+                father_heritage, mother_heritage, siblings_count, sibling_position,
+                has_children, children_count, country_of_birth,
+                apartment_help, apartment_amount, favorite_study, study_field, home_style
+         FROM users WHERE id = $1`,
+        [targetUserId]
+    );
+    return result.rows[0] || null;
+}
+
 async function getMatchesForIvr(userId, offset = 0, limit = 1) {
     const userResult = await pool.query(
         `SELECT gender FROM users WHERE id = $1`,
@@ -604,6 +623,7 @@ module.exports = {
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, getAwaitingMyApproval,
+    getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed

@@ -14,6 +14,7 @@ const {
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, getAwaitingMyApproval,
+    getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed
@@ -1334,19 +1335,18 @@ router.get('/call', async (req, res) => {
             let act;
             if (c.status === 'waiting_for_shadchan') {
                 act = g(user.gender,
-                    'לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                 );
             } else if (canFinalize) {
                 act = g(user.gender,
-                    'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                    'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                 );
             } else {
-                // כבר אישרתי — ממתינים לצד השני
                 act = g(user.gender,
-                    'לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                 );
             }
 
@@ -1359,7 +1359,31 @@ router.get('/call', async (req, res) => {
 
         if (key && connId) {
             if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
-            if (key === '9') return await loadNextActive();
+            // מקש 9 — אם היינו בפרופיל המלא, חוזרים לכרטיס הבירורים. אחרת — שמיעה חוזרת
+            if (key === '9') {
+                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, viewingFullProfile: false });
+                return await loadNextActive();
+            }
+
+            // מקש 6 — שמיעת הפרופיל המלא של הצד השני
+            if (key === '6') {
+                let profileText = '';
+                try {
+                    const rows = await getActiveSentForIvr(user.id, offset, 1);
+                    if (rows.length > 0) {
+                        const fullProfile = await getFullProfileForIvr(rows[0].user_id);
+                        if (fullProfile) profileText = buildFullProfileText(fullProfile);
+                    }
+                } catch {}
+                if (!profileText) profileText = 'לא נמצא פרופיל מלא.';
+                const backAct = g(user.gender,
+                    'לשמיעה חוזרת של הפרופיל הָקֵשׁ תשע. לחזרה לפרטי הבירורים הָקֵשׁ אפס.',
+                    'לשמיעה חוזרת של הפרופיל הָקִישִׁי תשע. לחזרה לפרטי הבירורים הָקִישִׁי אפס.'
+                );
+                const file = await textToYemot([profileText, backAct].join(' '));
+                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, viewingFullProfile: true });
+                return yemotRead(res, file, 'digits', 1, 1, 10);
+            }
 
             // מקש 1 — אישור התקדמות לשדכנית (רק כשסטטוס active ולא אישרתי עדיין)
             if (key === '1') {
