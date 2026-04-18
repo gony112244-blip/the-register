@@ -298,12 +298,12 @@ function getIndexStats() {
 
 /**
  * פורמט מספר טלפון לקריאת TTS ברורה.
- * מוסיף רווח בין כל ספרה כך שה-TTS קורא כל ספרה בנפרד.
- * לדוגמה: "0541234567" → "0 5 4 1 2 3 4 5 6 7"
+ * מוסיף פסיק ורווח בין כל ספרה — Google TTS עושה הפסקה קצרה בפסיק.
+ * לדוגמה: "0541234567" → "0, 5, 4, 1, 2, 3, 4, 5, 6, 7"
  */
 function formatPhoneForTts(phone) {
     if (!phone) return '';
-    return String(phone).replace(/\D/g, '').split('').join(' ');
+    return String(phone).replace(/\D/g, '').split('').join(', ');
 }
 
 module.exports = {
