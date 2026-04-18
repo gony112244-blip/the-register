@@ -339,6 +339,14 @@ function buildFullProfileText(match) {
         : 'הצעה. פרטים לא זמינים.';
 }
 
+function formatInlineNumbersForTts(text) {
+    if (!text) return '';
+    return String(text).replace(/\b(\d{1,6})\b/g, (_, digits) => {
+        const n = parseInt(digits, 10);
+        return Number.isNaN(n) ? digits : numberToHebrew(n);
+    });
+}
+
 // תאימות אחורה — פונקציות ישנות מפנות לחדשה
 function buildMatchText(match)     { return buildFullProfileText(match); }
 function buildMatchDetailText(match) { return buildFullProfileText(match); }
@@ -650,7 +658,6 @@ router.get('/call', async (req, res) => {
             const cardParts5 = [];
             if (conn5.father_full_name) cardParts5.push(`שם האב: ${conn5.father_full_name}`);
             if (conn5.mother_full_name) cardParts5.push(`שם האם: ${conn5.mother_full_name}`);
-            if (conn5.phone)            cardParts5.push(`טלפון: ${formatPhoneForTts(conn5.phone)}`);
             if (conn5.reference_1_name) {
                 const ph = conn5.reference_1_phone ? `. טלפון: ${formatPhoneForTts(conn5.reference_1_phone)}` : '';
                 cardParts5.push(`ממליץ ראשון: ${conn5.reference_1_name}${ph}`);
@@ -663,7 +670,7 @@ router.get('/call', async (req, res) => {
                 const ph = conn5.rabbi_phone ? `. טלפון: ${formatPhoneForTts(conn5.rabbi_phone)}` : '';
                 cardParts5.push(`שם הרב או הרבנית: ${conn5.rabbi_name}${ph}`);
             }
-            if (conn5.full_address) cardParts5.push(`כתובת: ${conn5.full_address}`);
+            if (conn5.full_address) cardParts5.push(`כתובת: ${formatInlineNumbersForTts(conn5.full_address)}`);
             const cardTxt5 = cardParts5.length > 0 ? `פרטים לבירורים. ${cardParts5.join('. ')}.` : '';
             const canFinalize5 = conn5.status === 'active' && !myApprove5;
             const actionsText5 = conn5.status === 'waiting_for_shadchan'
@@ -1309,7 +1316,6 @@ router.get('/call', async (req, res) => {
             const parts = [];
             if (c.father_full_name) parts.push(`שם האב: ${c.father_full_name}`);
             if (c.mother_full_name) parts.push(`שם האם: ${c.mother_full_name}`);
-            if (c.phone)            parts.push(`טלפון: ${formatPhoneForTts(c.phone)}`);
             if (c.reference_1_name) {
                 const ph = c.reference_1_phone ? `. טלפון: ${formatPhoneForTts(c.reference_1_phone)}` : '';
                 parts.push(`ממליץ ראשון: ${c.reference_1_name}${ph}`);
@@ -1322,7 +1328,7 @@ router.get('/call', async (req, res) => {
                 const ph = c.rabbi_phone ? `. טלפון: ${formatPhoneForTts(c.rabbi_phone)}` : '';
                 parts.push(`שם הרב או הרבנית: ${c.rabbi_name}${ph}`);
             }
-            if (c.full_address) parts.push(`כתובת: ${c.full_address}`);
+            if (c.full_address) parts.push(`כתובת: ${formatInlineNumbersForTts(c.full_address)}`);
             return parts.length > 0 ? `פרטים לבירורים. ${parts.join('. ')}.` : '';
         };
 
