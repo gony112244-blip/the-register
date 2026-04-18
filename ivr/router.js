@@ -13,7 +13,7 @@ const {
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, getAwaitingMyApproval,
+    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, cancelActiveConnectionFromIvr, getAwaitingMyApproval,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
@@ -39,6 +39,14 @@ router.use((req, res, next) => {
 function g(gender, maleText, femaleText) {
     return gender === 'female' ? femaleText : maleText;
 }
+
+const ACTIVE_CANCEL_REASONS = [
+    'לצערנו, לאחר בירורים נראה שאנחנו פחות מתאימים זה לזה',
+    'יש לנו כרגע הצעה אחרת שמתקדמת, אולי בהמשך',
+    'כבר נפגשנו בעבר ולא מצאנו לנכון להמשיך',
+    'הצעה זו כבר הוצעה לנו בעבר',
+    'ממתינים זמן רב מדי לתשובה ואנחנו לא ממשיכים'
+];
 
 // ==========================================
 // מבזק סטטוס — "יש לְךָ / לָך X הצעות, Y בקשות..."
@@ -245,16 +253,34 @@ function buildFullProfileText(match) {
 
     // --- משפחה ---
     // "האב" תקין. "האם" מבולבל עם שאלה — משתמשים ב"אמא" לבהירות ב-TTS
+    // מילים שנשמעות זכר אך בהקשר האמא הן נקבה — מוסיפים ניקוד נקבה
+    const feminizeOccupation = (occ) => {
+        if (!occ) return occ;
+        return occ
+            .replace(/\bמורה\b/g, 'מוֹרָה')
+            .replace(/\bעורכת דין\b/g, 'עוֹרֶכֶת דִּין')
+            .replace(/\bרופאה\b/g, 'רוֹפְאָה')
+            .replace(/\bאחות\b/g, 'אָחוֹת')
+            .replace(/\bגננת\b/g, 'גַּנֶּנֶת')
+            .replace(/\bמזכירה\b/g, 'מַזְכִּירָה');
+    };
     if (match.father_occupation) parts.push(`האבא עובד כ${match.father_occupation}`);
-    if (match.mother_occupation) parts.push(`האמא עובדת כ${match.mother_occupation}`);
+    if (match.mother_occupation) parts.push(`האמא עובדת כ${feminizeOccupation(match.mother_occupation)}`);
     if (match.siblings_count) {
-        const cnt = match.siblings_count;
+        const cntNum = parseInt(match.siblings_count, 10);
+        const cntWord = isNaN(cntNum) ? String(match.siblings_count) : numberToHebrew(cntNum);
+        const heOrShe = isFemale ? 'היא' : 'הוא';
         if (match.sibling_position) {
-            // "יש לו שישה אחים, הוא מספר שלוש"
-            const heOrShe = isFemale ? 'היא' : 'הוא';
-            parts.push(`${cnt} אחים, ${heOrShe} מספר ${match.sibling_position} בין האחים`);
+            const posNum = parseInt(match.sibling_position, 10);
+            const ordinalMale   = ['', 'ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שביעי', 'שמיני', 'תשיעי', 'עשירי'];
+            const ordinalFemale = ['', 'ראשונה', 'שנייה', 'שלישית', 'רביעית', 'חמישית', 'שישית', 'שביעית', 'שמינית', 'תשיעית', 'עשירית'];
+            const ordArr = isFemale ? ordinalFemale : ordinalMale;
+            const posWord = (!isNaN(posNum) && posNum >= 1 && posNum <= 10)
+                ? `ה${ordArr[posNum]}`
+                : `מספר ${numberToHebrew(posNum)}`;
+            parts.push(`יש ${cntWord} ילדים במשפחה, ${heOrShe} ${posWord}`);
         } else {
-            parts.push(`${cnt} אחים`);
+            parts.push(`יש ${cntWord} ילדים במשפחה`);
         }
     }
 
@@ -292,11 +318,17 @@ function buildFullProfileText(match) {
             full: 'דירה מלאה', partial: 'עזרה חלקית', none: 'ללא עזרה',
             yes: 'כן', no: 'לא', discuss: 'נדון עם השדכן'
         };
-        const helpText = helpMap[match.apartment_help] || match.apartment_help;
-        if (match.apartment_amount) {
-            const rawAmt = parseInt(String(match.apartment_amount).replace(/[,\s]/g, ''), 10);
-            const amtStr = isNaN(rawAmt) ? String(match.apartment_amount) : `${numberToHebrew(rawAmt)} שקל`;
-            parts.push(`עזרה בדיור: ${helpText}, סכום ${amtStr}`);
+        let rawHelp = String(match.apartment_help).trim();
+        let embeddedAmount = null;
+        const amtMatch = rawHelp.match(/^(\S+)\s*\((\d[\d,]*)\)$/);
+        if (amtMatch) {
+            rawHelp = amtMatch[1];
+            embeddedAmount = parseInt(amtMatch[2].replace(/,/g, ''), 10);
+        }
+        const helpText = helpMap[rawHelp] || rawHelp;
+        const amount = embeddedAmount || (match.apartment_amount ? parseInt(String(match.apartment_amount).replace(/[,\s]/g, ''), 10) : null);
+        if (amount && !isNaN(amount)) {
+            parts.push(`עזרה בדיור: ${helpText}, סכום ${numberToHebrew(amount)} שקל`);
         } else {
             parts.push(`עזרה בדיור: ${helpText}`);
         }
@@ -626,69 +658,20 @@ router.get('/call', async (req, res) => {
             return yemotRead(res, file4, 'digits', 1, 1, 8);
         }
 
-        // key=5 → שידוכים פעילים (active + waiting_for_shadchan) — נכנסים ל-active_sent state
+        // key=5 → שידוכים פעילים — מאתחלים session ומפנים ל-active_sent state (loadNextActive)
         if (key === '5') {
-            let active = [];
-            try { active = await getActiveSentForIvr(user.id, 0, 1); } catch {}
-            if (active.length === 0) {
-                return await goToMenu(enterId, user.id, user.gender, res, 'אין שידוכים פעילים כרגע.');
-            }
-            const conn5 = active[0];
-            await updateSession(enterId, 'active_sent', { page: 0, currentConnectionId: conn5.connection_id, currentConnectionStatus: conn5.status });
-            const fn5   = [conn5.last_name, conn5.full_name].filter(Boolean).join(' ') || 'ללא שם';
-            const age5  = conn5.age  ? `, ${numberToHebrew(conn5.age)} שנים` : '';
-            const city5 = conn5.city ? `, ${conn5.city}` : '';
-            const iAmSender5  = (conn5.sender_id === user.id);
-            const myApprove5    = iAmSender5 ? conn5.sender_final_approve   : conn5.receiver_final_approve;
-            const otherApprove5 = iAmSender5 ? conn5.receiver_final_approve : conn5.sender_final_approve;
-            const approveTxt5 = conn5.status === 'active'
-                ? (myApprove5 && !otherApprove5
-                    ? `אישרת התקדמות לשדכנית. ממתינים לאישור ${fn5}.`
-                    : (!myApprove5 && otherApprove5
-                        ? `${fn5} כבר אישר התקדמות לשדכנית ומחכה לאישורך!`
-                        : ''))
-                : '';
-            const connText5 = [
-                conn5.status === 'active'
-                    ? `הגעת לשלב הבירורים עם ${fn5}${age5}${city5}.`
-                    : `הבירורים עם ${fn5}${age5}${city5} בטיפול השדכנית.`,
-                approveTxt5
-            ].filter(Boolean).join(' ');
-
-            const cardParts5 = [];
-            if (conn5.father_full_name) cardParts5.push(`שם האב: ${conn5.father_full_name}`);
-            if (conn5.mother_full_name) cardParts5.push(`שם האם: ${conn5.mother_full_name}`);
-            if (conn5.reference_1_name) {
-                const ph = conn5.reference_1_phone ? `. טלפון: ${formatPhoneForTts(conn5.reference_1_phone)}` : '';
-                cardParts5.push(`ממליץ ראשון: ${conn5.reference_1_name}${ph}`);
-            }
-            if (conn5.reference_2_name) {
-                const ph = conn5.reference_2_phone ? `. טלפון: ${formatPhoneForTts(conn5.reference_2_phone)}` : '';
-                cardParts5.push(`ממליץ שני: ${conn5.reference_2_name}${ph}`);
-            }
-            if (conn5.rabbi_name) {
-                const ph = conn5.rabbi_phone ? `. טלפון: ${formatPhoneForTts(conn5.rabbi_phone)}` : '';
-                cardParts5.push(`שם הרב או הרבנית: ${conn5.rabbi_name}${ph}`);
-            }
-            if (conn5.full_address) cardParts5.push(`כתובת: ${formatInlineNumbersForTts(conn5.full_address)}`);
-            const cardTxt5 = cardParts5.length > 0 ? `פרטים לבירורים. ${cardParts5.join('. ')}.` : '';
-            const canFinalize5 = conn5.status === 'active' && !myApprove5;
-            const actionsText5 = conn5.status === 'waiting_for_shadchan'
-                ? g(user.gender,
-                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט הראשי.',
-                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט הראשי.'
-                )
-                : canFinalize5
-                    ? g(user.gender,
-                        'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט הראשי.',
-                        'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט הראשי.'
-                    )
-                    : g(user.gender,
-                        'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט הראשי.',
-                        'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט הראשי.'
-                    );
-            const file5 = await textToYemot([connText5, cardTxt5, actionsText5].filter(Boolean).join(' '));
-            return yemotRead(res, file5, 'digits', 1, 1, 8);
+            await updateSession(enterId, 'active_sent', {
+                page: 0,
+                currentConnectionId: null,
+                currentConnectionStatus: null,
+                currentMyApproved: false,
+                inCancelReasonMenu: false
+            });
+            // מנתבים לטיפול המאוחד ב-active_sent
+            const pseudoSession = { state: 'active_sent', data: { page: 0 } };
+            session.state = 'active_sent';
+            session.data  = { page: 0 };
+            // fall through — הקוד שמתחת יטפל
         }
 
         // key=6 → הודעות חשובות
@@ -735,8 +718,13 @@ router.get('/call', async (req, res) => {
             console.warn(`[IVR] ⚠️ מקש לא מוכר בתפריט: ${key}`);
         }
 
-        // כניסה ראשונה לתפריט, חזרה מ-#, או מקש לא מוכר
-        return await goToMenu(enterId, user.id, user.gender, res);
+        // key=5 שינה את session.state ל-active_sent — נפנה לטיפול בלוק הבא
+        if (session.state === 'active_sent') {
+            // fall-through לבלוק active_sent שמתחת
+        } else {
+            // כניסה ראשונה לתפריט, חזרה מ-#, או מקש לא מוכר
+            return await goToMenu(enterId, user.id, user.gender, res);
+        }
     }
 
     // ==========================================
@@ -1332,6 +1320,16 @@ router.get('/call', async (req, res) => {
             return parts.length > 0 ? `פרטים לבירורים. ${parts.join('. ')}.` : '';
         };
 
+        const buildCancelReasonPrompt = (approvedAlready) => {
+            const ordinals = ['אחת', 'שתיים', 'שלוש', 'ארבע', 'חמש'];
+            const hk = g(user.gender, 'הָקֵשׁ', 'הָקִישִׁי');
+            const intro = approvedAlready
+                ? g(user.gender, 'בחר סיבה לעצירת ההתקדמות.', 'בחרי סיבה לעצירת ההתקדמות.')
+                : g(user.gender, 'בחר סיבה לביטול ההצעה.', 'בחרי סיבה לביטול ההצעה.');
+            const reasonLines = ACTIVE_CANCEL_REASONS.map((r, i) => `${r}: ${hk} ${ordinals[i]}.`);
+            return `${intro} ${reasonLines.join(' ')} לחזרה ${hk} אפס.`;
+        };
+
         const loadNextActive = async (prefix = '') => {
             let rows = [];
             try { rows = await getActiveSentForIvr(user.id, offset, 1); } catch {}
@@ -1357,9 +1355,12 @@ router.get('/call', async (req, res) => {
                 // active — מצב אישורים
                 let approveTxt;
                 if (myApprove && !otherApprove) {
-                    approveTxt = `אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`;
+                    approveTxt = g(user.gender,
+                        `כבר אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`,
+                        `כבר אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`
+                    );
                 } else if (!myApprove && otherApprove) {
-                    approveTxt = `${nameStr} כבר אישר התקדמות לשדכנית ומחכה לאישורך!`;
+                    approveTxt = `${nameStr} כבר אישר התקדמות לשדכנית ומחכה לאישור שלך.`;
                 } else if (myApprove && otherApprove) {
                     approveTxt = `שני הצדדים אישרו — עובר לשדכנית.`;
                 } else {
@@ -1369,29 +1370,37 @@ router.get('/call', async (req, res) => {
             }
 
             const cardTxt = buildBeiurimCard(c);
-            await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: c.connection_id, currentConnectionStatus: c.status });
+            await updateSession(enterId, 'active_sent', {
+                page: offset,
+                currentConnectionId: c.connection_id,
+                currentConnectionStatus: c.status,
+                currentMyApproved: !!myApprove,
+                viewingFullProfile: false,
+                inCancelReasonMenu: false
+            });
 
             // מקש 1 — זמין רק כשסטטוס active ולא אישרתי עדיין
             const canFinalize = c.status === 'active' && !myApprove;
             let act;
             if (c.status === 'waiting_for_shadchan') {
                 act = g(user.gender,
-                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. לבקשת עצירת ההתקדמות הָקֵשׁ שתיים. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. לבקשת עצירת ההתקדמות הָקִישִׁי שתיים. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                 );
             } else if (canFinalize) {
                 act = g(user.gender,
-                    'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לביטול ההצעה הָקֵשׁ שתיים. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                    'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לביטול ההצעה הָקִישִׁי שתיים. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                 );
             } else {
                 act = g(user.gender,
-                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת של פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת של פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                    'לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. לבקשת עצירת ההתקדמות הָקֵשׁ שתיים. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                    'לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. לבקשת עצירת ההתקדמות הָקִישִׁי שתיים. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                 );
             }
 
-            const text = [prefix, statusTxt, cardTxt, act].filter(Boolean).join(' ');
+            const shouldPlayCard = !myApprove || prefix;
+            const text = [prefix, statusTxt, shouldPlayCard ? cardTxt : '', act].filter(Boolean).join(' ');
             const file = await textToYemot(text);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         };
@@ -1399,6 +1408,42 @@ router.get('/call', async (req, res) => {
         if (!key && connId) return await goToMenu(enterId, user.id, user.gender, res);
 
         if (key && connId) {
+            if (data.inCancelReasonMenu) {
+                if (key === '0') {
+                    await updateSession(enterId, 'active_sent', {
+                        page: offset,
+                        currentConnectionId: connId,
+                        currentConnectionStatus: connStatus,
+                        currentMyApproved: !!data.currentMyApproved,
+                        inCancelReasonMenu: false
+                    });
+                    return await loadNextActive();
+                }
+                const reasonIndex = parseInt(key, 10) - 1;
+                const reason = ACTIVE_CANCEL_REASONS[reasonIndex];
+                if (reason) {
+                    const result = await cancelActiveConnectionFromIvr(connId, user.id, reason).catch(() => 'error');
+                    const pfx = result === 'ok'
+                        ? (data.currentMyApproved
+                            ? 'בקשת עצירת ההתקדמות נקלטה ונשלחה לצד השני.'
+                            : 'ההצעה בוטלה והודעה נשלחה לצד השני.')
+                        : 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                    offset++;
+                    await updateSession(enterId, 'active_sent', {
+                        page: offset,
+                        currentConnectionId: null,
+                        currentConnectionStatus: null,
+                        inCancelReasonMenu: false
+                    });
+                    return await loadNextActive(pfx);
+                }
+                const unknownReason = g(user.gender,
+                    'מקש לא מוכר. לסיבה הראשונה הָקֵשׁ אחת. לסיבה השנייה הָקֵשׁ שתיים. לסיבה השלישית הָקֵשׁ שלוש. לסיבה הרביעית הָקֵשׁ ארבע. לסיבה החמישית הָקֵשׁ חמש. לחזרה הָקֵשׁ אפס.',
+                    'מקש לא מוכר. לסיבה הראשונה הָקִישִׁי אחת. לסיבה השנייה הָקִישִׁי שתיים. לסיבה השלישית הָקִישִׁי שלוש. לסיבה הרביעית הָקִישִׁי ארבע. לסיבה החמישית הָקִישִׁי חמש. לחזרה הָקִישִׁי אפס.'
+                );
+                const file = await textToYemot(unknownReason);
+                return yemotRead(res, file, 'digits', 1, 1, 8);
+            }
             if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
             // מקש 9 — אם היינו בפרופיל המלא, חוזרים לכרטיס הבירורים. אחרת — שמיעה חוזרת
             if (key === '9') {
@@ -1432,11 +1477,29 @@ router.get('/call', async (req, res) => {
                 const result = await finalizeConnectionFromIvr(connId, user.id).catch(() => 'error');
                 let pfx;
                 if (result === 'completed') pfx = 'מעולה. שני הצדדים אישרו — התיק עבר לשדכנית.';
-                else if (result === 'waiting') pfx = 'האישור שלך התקבל. ממתינים לאישור הצד השני.';
+                else if (result === 'waiting') pfx = 'האישור שלך נקלט בהצלחה. כעת ממתינים לאישור של הצד השני.';
                 else pfx = 'אירעה תקלה. אנא נסה שוב מהאתר.';
-                offset++;
-                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: null });
+                await updateSession(enterId, 'active_sent', {
+                    page: offset,
+                    currentConnectionId: connId,
+                    currentConnectionStatus: connStatus,
+                    currentMyApproved: true,
+                    inCancelReasonMenu: false
+                });
                 return await loadNextActive(pfx);
+            }
+
+            if (key === '2') {
+                const prompt = buildCancelReasonPrompt(!!data.currentMyApproved);
+                const file = await textToYemot(prompt);
+                await updateSession(enterId, 'active_sent', {
+                    page: offset,
+                    currentConnectionId: connId,
+                    currentConnectionStatus: connStatus,
+                    currentMyApproved: !!data.currentMyApproved,
+                    inCancelReasonMenu: true
+                });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
             if (key === '8') {
@@ -1445,8 +1508,12 @@ router.get('/call', async (req, res) => {
                 return await loadNextActive();
             }
             const unknownText = g(user.gender,
-                'מקש לא מוכר. הָקֵשׁ אחת לאישור התקדמות. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
-                'מקש לא מוכר. הָקִישִׁי אחת לאישור התקדמות. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
+                data.currentMyApproved
+                    ? 'מקש לא מוכר. הָקֵשׁ שתיים לעצירת ההתקדמות. הָקֵשׁ שש לפרופיל המלא. הָקֵשׁ תשע לפרטי הבירורים. הָקֵשׁ שמונה להמשך. הָקֵשׁ אפס לתפריט.'
+                    : 'מקש לא מוכר. הָקֵשׁ אחת לאישור התקדמות. הָקֵשׁ שתיים לביטול ההצעה. הָקֵשׁ שש לפרופיל המלא. הָקֵשׁ תשע לפרטי הבירורים. הָקֵשׁ שמונה להמשך. הָקֵשׁ אפס לתפריט.',
+                data.currentMyApproved
+                    ? 'מקש לא מוכר. הָקִישִׁי שתיים לעצירת ההתקדמות. הָקִישִׁי שש לפרופיל המלא. הָקִישִׁי תשע לפרטי הבירורים. הָקִישִׁי שמונה להמשך. הָקִישִׁי אפס לתפריט.'
+                    : 'מקש לא מוכר. הָקִישִׁי אחת לאישור התקדמות. הָקִישִׁי שתיים לביטול ההצעה. הָקִישִׁי שש לפרופיל המלא. הָקִישִׁי תשע לפרטי הבירורים. הָקִישִׁי שמונה להמשך. הָקִישִׁי אפס לתפריט.'
             );
             const file = await textToYemot(unknownText);
             return yemotRead(res, file, 'digits', 1, 1, 8);

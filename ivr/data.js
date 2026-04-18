@@ -485,6 +485,54 @@ async function finalizeConnectionFromIvr(connectionId, userId) {
     return 'waiting';
 }
 
+/**
+ * ביטול/עצירת התקדמות של שידוך פעיל מתוך ה-IVR.
+ * מקביל ל-POST /cancel-active-connection.
+ * מחזיר: 'ok' | 'not_found' | 'error'
+ */
+async function cancelActiveConnectionFromIvr(connectionId, userId, reason = '') {
+    const check = await pool.query(
+        `SELECT c.*, u1.full_name AS sender_name, u2.full_name AS receiver_name
+         FROM connections c
+         JOIN users u1 ON c.sender_id = u1.id
+         JOIN users u2 ON c.receiver_id = u2.id
+         WHERE c.id = $1
+           AND (c.sender_id = $2 OR c.receiver_id = $2)
+           AND c.status IN ('active', 'waiting_for_shadchan')`,
+        [connectionId, userId]
+    );
+    if (check.rowCount === 0) return 'not_found';
+
+    const conn = check.rows[0];
+    const otherUserId = conn.sender_id === userId ? conn.receiver_id : conn.sender_id;
+    const myName = conn.sender_id === userId ? conn.sender_name : conn.receiver_name;
+
+    await pool.query(`UPDATE connections SET status = 'cancelled' WHERE id = $1`, [connectionId]);
+    await pool.query(
+        `UPDATE connections
+         SET sender_final_approve = FALSE, receiver_final_approve = FALSE
+         WHERE id = $1`,
+        [connectionId]
+    );
+    await pool.query(
+        `DELETE FROM photo_approvals
+         WHERE (requester_id = $1 AND target_id = $2)
+            OR (requester_id = $2 AND target_id = $1)`,
+        [conn.sender_id, conn.receiver_id]
+    );
+
+    const msgContent = reason
+        ? `${myName} ביטל/ה את הצעת השידוך.\nסיבה: ${reason}`
+        : `${myName} ביטל/ה את הצעת השידוך.`;
+    await pool.query(
+        `INSERT INTO messages (from_user_id, to_user_id, content, type)
+         VALUES ($1, $2, $3, 'system')`,
+        [userId, otherUserId, msgContent]
+    );
+
+    return 'ok';
+}
+
 // ==========================================
 // ניהול תמונות — בקשות ממתינות לאישור/דחייה
 // ==========================================
@@ -622,7 +670,7 @@ module.exports = {
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
-    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, getAwaitingMyApproval,
+    getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, cancelActiveConnectionFromIvr, getAwaitingMyApproval,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
