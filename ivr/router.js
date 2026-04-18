@@ -1274,8 +1274,8 @@ router.get('/call', async (req, res) => {
 
         const buildBeiurimCard = (c) => {
             const parts = [];
-            if (c.father_full_name) parts.push(`אב: ${c.father_full_name}`);
-            if (c.mother_full_name) parts.push(`אם: ${c.mother_full_name}`);
+            if (c.father_full_name) parts.push(`שם האב: ${c.father_full_name}`);
+            if (c.mother_full_name) parts.push(`שם האם: ${c.mother_full_name}`);
             if (c.phone)            parts.push(`טלפון: ${formatPhoneForTts(c.phone)}`);
             if (c.reference_1_name) {
                 const ph = c.reference_1_phone ? `. טלפון: ${formatPhoneForTts(c.reference_1_phone)}` : '';
@@ -1287,10 +1287,10 @@ router.get('/call', async (req, res) => {
             }
             if (c.rabbi_name) {
                 const ph = c.rabbi_phone ? `. טלפון: ${formatPhoneForTts(c.rabbi_phone)}` : '';
-                parts.push(`רב: ${c.rabbi_name}${ph}`);
+                parts.push(`שם הרב: ${c.rabbi_name}${ph}`);
             }
             if (c.full_address) parts.push(`כתובת: ${c.full_address}`);
-            return parts.length > 0 ? `פרטי בירורים. ${parts.join('. ')}.` : '';
+            return parts.length > 0 ? `פרטים לבירורים. ${parts.join('. ')}.` : '';
         };
 
         const loadNextActive = async (prefix = '') => {
