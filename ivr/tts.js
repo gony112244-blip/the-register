@@ -151,7 +151,7 @@ async function generateGoogleTts(text, hash) {
         },
         audioConfig: {
             audioEncoding: 'MP3',
-            speakingRate: 0.85,
+            speakingRate: 0.95,
             pitch: 0.0
         }
     });
