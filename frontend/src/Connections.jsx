@@ -24,6 +24,12 @@ function formatAddress(full_address) {
     return full_address;
 }
 
+function formatDate(ts) {
+    if (!ts) return null;
+    const d = new Date(ts);
+    return `${d.getDate().toString().padStart(2,'0')}.${(d.getMonth()+1).toString().padStart(2,'0')}.${d.getFullYear()}`;
+}
+
 function Connections() {
     const [connections, setConnections] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -71,6 +77,18 @@ function Connections() {
         }
         fetchConnections(user.id);
     }, [navigate, token]);
+
+    // סימון צפייה ראשונה בכרטיס — נקרא בכל פעם שהרשימה נטענת
+    useEffect(() => {
+        if (!connections.length || !token) return;
+        connections.forEach(conn => {
+            fetch(`${API_BASE}/mark-connection-viewed`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ connectionId: conn.id })
+            }).catch(() => {});
+        });
+    }, [connections, token]);
 
     const handleCancelConnection = async (connectionId, reason) => {
         try {
@@ -364,6 +382,7 @@ function Connections() {
                             const alreadyApproved = isSender ? conn.sender_final_approve : conn.receiver_final_approve;
                             const otherSideReady = isSender ? conn.receiver_final_approve : conn.sender_final_approve;
                             const addrText = formatAddress(conn.full_address);
+                            const otherViewedAt = isSender ? conn.receiver_first_viewed_at : conn.sender_first_viewed_at;
 
                             return (
                                 <div key={conn.id} style={styles.card}>
@@ -379,6 +398,12 @@ function Connections() {
                                         <span style={conn.status === 'waiting_for_shadchan' ? styles.badgeGold : styles.badge}>
                                             {conn.status === 'waiting_for_shadchan' ? '⏳ בטיפול שדכנית' : '🔍 שלב בירורים'}
                                         </span>
+                                    </div>
+                                    <div style={{ padding: '4px 16px 8px', fontSize: '0.78rem', color: otherViewedAt ? '#16a34a' : '#b45309', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                        {otherViewedAt
+                                            ? <span>✅ {conn.full_name} פתח את הכרטיס ב-{formatDate(otherViewedAt)}</span>
+                                            : <span>👁️ {conn.full_name} טרם פתח את הכרטיס</span>
+                                        }
                                     </div>
 
                                     <div style={styles.body}>

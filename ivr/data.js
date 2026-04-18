@@ -389,6 +389,8 @@ async function getActiveSentForIvr(userId, offset = 0, limit = 1) {
                 c.sender_id,
                 c.sender_final_approve,
                 c.receiver_final_approve,
+                c.sender_first_viewed_at,
+                c.receiver_first_viewed_at,
                 u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place,
                 u.phone,
                 u.father_full_name, u.mother_full_name,
@@ -483,6 +485,25 @@ async function finalizeConnectionFromIvr(connectionId, userId) {
         return 'completed';
     }
     return 'waiting';
+}
+
+/**
+ * סימון צפייה ראשונה בכרטיס הבירורים דרך ה-IVR.
+ * מעדכן sender_first_viewed_at או receiver_first_viewed_at לפי תפקיד המשתמש.
+ */
+async function markConnectionViewedFromIvr(connectionId, userId) {
+    const check = await pool.query(
+        `SELECT sender_id, receiver_id FROM connections WHERE id = $1`,
+        [connectionId]
+    );
+    if (check.rowCount === 0) return;
+    const { sender_id, receiver_id } = check.rows[0];
+    if (sender_id !== userId && receiver_id !== userId) return;
+    const field = sender_id === userId ? 'sender_first_viewed_at' : 'receiver_first_viewed_at';
+    await pool.query(
+        `UPDATE connections SET ${field} = NOW() WHERE id = $1 AND ${field} IS NULL`,
+        [connectionId]
+    );
 }
 
 /**
@@ -671,6 +692,7 @@ module.exports = {
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, cancelActiveConnectionFromIvr, getAwaitingMyApproval,
+    markConnectionViewedFromIvr,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,

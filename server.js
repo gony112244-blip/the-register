@@ -3081,6 +3081,7 @@ app.get('/my-connections', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
             `SELECT c.id, c.status, c.sender_id, c.receiver_id, c.sender_final_approve, c.receiver_final_approve,
+                c.sender_first_viewed_at, c.receiver_first_viewed_at,
                 u.full_name, u.phone, u.reference_1_name, u.reference_1_phone,
                 u.reference_2_name, u.reference_2_phone, u.rabbi_name, u.rabbi_phone,
                 u.full_address, u.father_full_name, u.mother_full_name
@@ -3093,6 +3094,31 @@ app.get('/my-connections', authenticateToken, async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ message: "שגיאה בטעינת שיחות" });
+    }
+});
+
+// סימון צפייה ראשונה בכרטיס בירורים
+app.post('/mark-connection-viewed', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    const { connectionId } = req.body;
+    if (!connectionId) return res.status(400).json({ message: 'חסר connectionId' });
+    try {
+        const check = await pool.query(
+            `SELECT sender_id, receiver_id FROM connections WHERE id = $1`,
+            [connectionId]
+        );
+        if (check.rowCount === 0) return res.status(404).json({ message: 'לא נמצא' });
+        const { sender_id, receiver_id } = check.rows[0];
+        if (sender_id !== userId && receiver_id !== userId)
+            return res.status(403).json({ message: 'אין הרשאה' });
+        const field = sender_id === userId ? 'sender_first_viewed_at' : 'receiver_first_viewed_at';
+        await pool.query(
+            `UPDATE connections SET ${field} = NOW() WHERE id = $1 AND ${field} IS NULL`,
+            [connectionId]
+        );
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ message: 'שגיאה' });
     }
 });
 
@@ -4542,6 +4568,7 @@ async function updateDbSchema() {
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS close_summary TEXT`);
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`);
         await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS receiver_first_viewed_at TIMESTAMP`);
+        await pool.query(`ALTER TABLE connections ADD COLUMN IF NOT EXISTS sender_first_viewed_at TIMESTAMP`);
 
         await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(255)');
         // 7. הוספת עמודות לוויזארד החדש (אם חסרות)

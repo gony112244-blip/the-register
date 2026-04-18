@@ -14,6 +14,7 @@ const {
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, cancelActiveConnectionFromIvr, getAwaitingMyApproval,
+    markConnectionViewedFromIvr,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
@@ -1330,6 +1331,12 @@ router.get('/call', async (req, res) => {
             return `${intro} ${reasonLines.join(' ')} לחזרה ${hk} אפס.`;
         };
 
+        const formatViewedDate = (ts) => {
+            if (!ts) return null;
+            const d = new Date(ts);
+            return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+        };
+
         const loadNextActive = async (prefix = '') => {
             let rows = [];
             try { rows = await getActiveSentForIvr(user.id, offset, 1); } catch {}
@@ -1342,10 +1349,19 @@ router.get('/call', async (req, res) => {
             const ageStr  = c.age  ? `, ${numberToHebrew(c.age)} שנים` : '';
             const cityStr = c.city ? `, ${c.city}` : '';
 
+            // סימון צפייה ראשונה
+            markConnectionViewedFromIvr(c.connection_id, user.id).catch(() => {});
+
             // חישוב מצב אישורים: מי הנוכחי ומי השני
             const iAmSender  = (c.sender_id === user.id);
             const myApprove    = iAmSender ? c.sender_final_approve   : c.receiver_final_approve;
             const otherApprove = iAmSender ? c.receiver_final_approve : c.sender_final_approve;
+
+            // מתי הצד השני ראה לראשונה
+            const otherViewedAt = iAmSender ? c.receiver_first_viewed_at : c.sender_first_viewed_at;
+            const otherViewedTxt = otherViewedAt
+                ? `${nameStr} פתח את פרטי הבירורים לראשונה ב-${formatViewedDate(otherViewedAt)}.`
+                : `${nameStr} טרם פתח את פרטי הבירורים.`;
 
             // טקסט סטטוס: שם + גיל + עיר + מצב בירורים
             let statusTxt;
@@ -1369,7 +1385,7 @@ router.get('/call', async (req, res) => {
                 statusTxt = [`הגעת לשלב הבירורים עם ${nameStr}${ageStr}${cityStr}.`, approveTxt].filter(Boolean).join(' ');
             }
 
-            const cardTxt = buildBeiurimCard(c);
+            const cardTxt = [buildBeiurimCard(c), otherViewedTxt].filter(Boolean).join(' ');
             await updateSession(enterId, 'active_sent', {
                 page: offset,
                 currentConnectionId: c.connection_id,
