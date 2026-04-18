@@ -294,9 +294,9 @@ function buildFullProfileText(match) {
         };
         const helpText = helpMap[match.apartment_help] || match.apartment_help;
         if (match.apartment_amount) {
-            // מסיר פסיקים ורווחים — TTS יקרא "60000" כ"שישים אלף" ולא ספרה-ספרה
-            const cleanAmt = String(match.apartment_amount).replace(/[,\s]/g, '');
-            parts.push(`עזרה בדיור: ${helpText}, סכום ${cleanAmt} שקל`);
+            const rawAmt = parseInt(String(match.apartment_amount).replace(/[,\s]/g, ''), 10);
+            const amtStr = isNaN(rawAmt) ? String(match.apartment_amount) : `${numberToHebrew(rawAmt)} שקל`;
+            parts.push(`עזרה בדיור: ${helpText}, סכום ${amtStr}`);
         } else {
             parts.push(`עזרה בדיור: ${helpText}`);
         }
@@ -324,7 +324,9 @@ function buildFullProfileText(match) {
     // --- שאיפות ---
     if (match.life_aspiration) {
         const la = pm.life_aspiration?.[match.life_aspiration] || match.life_aspiration;
-        parts.push(`שאיפה: ${la}`);
+        // לגבר — שאיפתו שלו. לאישה — שאיפתה לגבי בעלה
+        const aspLabel = match.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה';
+        parts.push(`${aspLabel}: ${la}`);
     }
 
     // --- תיאור עצמי (IVR) ---

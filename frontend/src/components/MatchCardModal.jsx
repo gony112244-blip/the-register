@@ -306,7 +306,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                     {activeTab === 2 && !loadingFull && (
                         <Section title="💼 עיסוק ולימודים" color="#f0f9ff" border="#93c5fd">
                             <Row label="עיסוק כעת" val={tr('current_occupation', p.current_occupation)} />
-                            <Row label="שאיפה" val={tr('life_aspiration', p.life_aspiration)} />
+                            <Row label={p.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה'} val={tr('life_aspiration', p.life_aspiration)} />
                             <Row label="מקצוע" val={p.work_field} />
                             <Row label="פרטי עיסוק" val={p.occupation_details} fullWidth />
                             {p.gender === 'male' && <Row label="ישיבה גדולה" val={p.study_place} />}

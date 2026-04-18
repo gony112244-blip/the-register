@@ -983,7 +983,7 @@ function Profile() {
                                             <input name="yeshiva_ketana_name" value={user.yeshiva_ketana_name || ''} onChange={handleChange} style={styles.input} />
                                         </div>
                                         <div style={styles.field}>
-                                            <label>שאיפה בחיים</label>
+                                            <label>{user.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה בחיים'}</label>
                                             <select name="life_aspiration" value={user.life_aspiration || ''} onChange={handleChange} style={styles.input}>
                                                 <option value="">בחר...</option>
                                                 <option value="study_only">ללמוד יום שלם</option>

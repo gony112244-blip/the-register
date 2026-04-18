@@ -316,7 +316,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                         <div style={S.tabGrid}>
                             <Section title="💼 עיסוק ולימודים" color="#f0f9ff" border="#93c5fd" fullWidth>
                                 <Row label="עיסוק כעת" val={tr('current_occupation', user.current_occupation)} />
-                                <Row label="שאיפה" val={tr('life_aspiration', user.life_aspiration)} />
+                                <Row label={user.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה'} val={tr('life_aspiration', user.life_aspiration)} />
                                 <Row label="מקצוע" val={user.work_field} />
                                 <Row label="פרטי עיסוק" val={user.occupation_details} fullWidth />
                                 {user.gender === 'male' && <Row label="ישיבה גדולה" val={user.study_place} />}

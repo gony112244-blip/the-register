@@ -207,24 +207,53 @@ function sanitizeForYemotTts(text) {
 // construct=false → צורת עומד (שתיים, שלוש, ...)
 // רק 2 שונה: "שתיים" עומד vs "שתי" נסמך
 function numberToHebrew(n, construct = false) {
+    n = Math.round(Number(n));
+    if (isNaN(n)) return String(n);
+
     const units = ['', 'אחת', construct ? 'שתי' : 'שתיים', 'שלוש', 'ארבע', 'חמש', 'שש', 'שבע', 'שמונה', 'תשע', 'עשר',
                    'אחת עשרה', 'שתים עשרה', 'שלוש עשרה', 'ארבע עשרה', 'חמש עשרה',
                    'שש עשרה', 'שבע עשרה', 'שמונה עשרה', 'תשע עשרה', 'עשרים'];
-    if (n <= 20) return units[n];
-    if (n < 100) {
-        const tens = ['', '', 'עשרים', 'שלושים', 'ארבעים', 'חמישים', 'שישים', 'שבעים', 'שמונים', 'תשעים'];
-        const t = tens[Math.floor(n / 10)];
-        const u = units[n % 10];
-        return u ? `${t} ו${u}` : t;
+
+    function belowThousand(m) {
+        if (m <= 20) return units[m];
+        if (m < 100) {
+            const tens = ['', '', 'עשרים', 'שלושים', 'ארבעים', 'חמישים', 'שישים', 'שבעים', 'שמונים', 'תשעים'];
+            const t = tens[Math.floor(m / 10)];
+            const u = units[m % 10];
+            return u ? `${t} ו${u}` : t;
+        }
+        if (m < 200) { const r = m - 100; return r === 0 ? 'מאה' : `מאה ו${belowThousand(r)}`; }
+        if (m < 300) { const r = m - 200; return r === 0 ? 'מאתיים' : `מאתיים ו${belowThousand(r)}`; }
+        const hundreds = ['', '', '', 'שלוש מאות', 'ארבע מאות', 'חמש מאות', 'שש מאות', 'שבע מאות', 'שמונה מאות', 'תשע מאות'];
+        const h = hundreds[Math.floor(m / 100)];
+        const r = m % 100;
+        return r === 0 ? h : `${h} ו${belowThousand(r)}`;
     }
-    if (n < 200) {
-        const rest = n - 100;
-        return rest === 0 ? 'מאה' : `מאה ${numberToHebrew(rest)}`;
+
+    if (n < 1000) return belowThousand(n);
+
+    // אלפים — צורת נסמך לפני "אלף"
+    const thousandsConstruct = ['', 'אלף', 'אלפיים', 'שלושת', 'ארבעת', 'חמשת', 'ששת', 'שבעת', 'שמונת', 'תשעת', 'עשרת'];
+
+    if (n < 1000000) {
+        const th = Math.floor(n / 1000);
+        const rem = n % 1000;
+        let thousandStr;
+        if (th <= 10) {
+            thousandStr = th <= 2 ? thousandsConstruct[th] : `${thousandsConstruct[th]} אלפים`;
+        } else {
+            thousandStr = `${belowThousand(th)} אלף`;
+        }
+        return rem === 0 ? thousandStr : `${thousandStr} ו${belowThousand(rem)}`;
     }
-    if (n < 300) {
-        const rest = n - 200;
-        return rest === 0 ? 'מאתיים' : `מאתיים ${numberToHebrew(rest)}`;
+
+    if (n < 1000000000) {
+        const mil = Math.floor(n / 1000000);
+        const rem = n % 1000000;
+        const milStr = mil === 1 ? 'מיליון' : `${belowThousand(mil)} מיליון`;
+        return rem === 0 ? milStr : `${milStr} ו${numberToHebrew(rem)}`;
     }
+
     return String(n);
 }
 
