@@ -63,12 +63,13 @@ function saveIndex() {
 // קול TTS — גברי
 const TTS_VOICE_NAME   = 'he-IL-Wavenet-B';
 const TTS_VOICE_GENDER = 'MALE';
+const TTS_CACHE_VERSION = 'v2';
 
 // ==========================================
 // Hash — כולל שם קול (שינוי קול = cache miss)
 // ==========================================
 function getHash(text) {
-    const input = `${TTS_VOICE_NAME}:${text}`;
+    const input = `${TTS_CACHE_VERSION}:${TTS_VOICE_NAME}:${text}`;
     return crypto.createHash('md5').update(input).digest('hex').slice(0, 12);
 }
 
