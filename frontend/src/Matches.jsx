@@ -318,16 +318,15 @@ function Matches() {
                 </div>
             )}
 
-            <div style={{ maxWidth: '1200px', margin: '0 auto 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px' }}>
-                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.82rem', margin: 0 }}>
-                    💡 לחץ על 🗑️ בכרטיס הצעה כדי להכניסה לסל המיחזור — ההצעה תוסתר גם ממך וגם מהצד השני. תוכל לשחזר אותה בכל עת.
-                </p>
-                <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
-            </div>
-
             <div style={styles.container}>
-                <h1 style={styles.title}>✨ הצעות שידוך</h1>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <h1 style={{ ...styles.title, margin: 0 }}>✨ הצעות שידוך</h1>
+                    <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
+                </div>
                 <p style={styles.subtitle}>נמצאו {matches.length} התאמות פוטנציאליות</p>
+                <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '10px', padding: '10px 16px', marginBottom: '18px', color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                    💡 לחץ על 🗑️ בכרטיס הצעה כדי להכניסה לסל המיחזור — ההצעה תוסתר גם ממך <strong>וגם מהצד השני</strong>. תוכל לשחזר אותה בכל עת מכפתור "סל המיחזור".
+                </div>
 
                 {matches.length === 0 ? (
                     <div style={{ textAlign: 'center', color: 'white', marginTop: '60px' }}>
