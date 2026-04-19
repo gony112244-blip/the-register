@@ -57,7 +57,7 @@ const ACTIVE_CANCEL_REASONS = [
 // gender-aware כדי למנוע עיוות TTS במילה "לך"
 // ==========================================
 function buildStatusText(gender, counts) {
-    const { matches = 0, requests = 0, photos = 0, messages = 0, pendingSent = 0, activeSent = 0 } = counts;
+    const { matches = 0, requests = 0, photos = 0, messages = 0, pendingSent = 0, activeSent = 0 } = counts || {};
     const isMale = gender !== 'female';
     const lecha = isMale ? 'לְךָ' : 'לָך';
     const parts = [];
