@@ -33,7 +33,7 @@ export default function WelcomeModal({ user }) {
 
                 <div style={s.sparkles}>✨</div>
                 <h2 style={s.title}>ברוכים הבאים ל"פנקס"!</h2>
-                <p style={s.subtitle}>שמחים שהצטרפתם — ממש שמחים.</p>
+                <p style={s.subtitle}>שמחים שהצטרפתם — ממש שמחים. בסייעתא דשמיא נמצא כאן את ההתאמה הנכונה.</p>
 
                 <div style={s.divider} />
 
