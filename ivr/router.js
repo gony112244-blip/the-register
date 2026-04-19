@@ -255,7 +255,7 @@ function buildFullProfileText(match) {
         const ylidPrefix = isFemale ? 'יְלִידַת' : 'יְלִיד';
         parts.push(`${ylidPrefix} ${match.country_of_birth}`);
     }
-    if ((match.status === 'divorced' || match.status === 'widower') && match.has_children === 'yes' && match.children_count) {
+    if ((match.status === 'divorced' || match.status === 'widower') && match.has_children && match.children_count) {
         parts.push(`${match.children_count} ילדים`);
     }
 
@@ -379,6 +379,11 @@ function buildFullProfileText(match) {
         // לגבר — שאיפתו שלו. לאישה — שאיפתה לגבי בעלה
         const aspLabel = match.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה';
         parts.push(`${aspLabel}: ${la}`);
+    }
+
+    // --- סגנון בית ---
+    if (match.home_style && match.home_style.trim()) {
+        parts.push(`סגנון הבית: ${match.home_style.trim()}`);
     }
 
     // --- תיאור עצמי (IVR) ---
