@@ -18,7 +18,7 @@ const {
     markConnectionViewedFromIvr,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
-    getMessagesForIvr, markMessageReadFromIvr,
+    getMessagesForIvr, getRecentMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed
 } = require('./data');
 
@@ -146,6 +146,9 @@ function buildMenuText(gender, counts = {}) {
 
     // 7 — כל ההצעות כולל ישנות (תמיד)
     parts.push(`לכל ההצעות כולל ישנות, ${hk} שבע.`);
+
+    // 8 — הודעות אחרונות (תמיד — גם קרואות)
+    parts.push(`לשמיעת הודעות אחרונות מהשבוע האחרון, ${hk} שמונה.`);
 
     // חזרה על התפריט — תמיד בסוף
     parts.push(`לשמיעה חוזרת של התפריט, ${hk} אפס.`);
@@ -717,7 +720,36 @@ router.get('/call', async (req, res) => {
             return yemotRead(res, file7, 'digits', 1, 1, 8);
         }
 
-        if (key && !['1','2','3','4','5','6','7','0','#'].includes(key)) {
+        // key=8 → הודעות אחרונות (7 ימים, קרואות וגם לא)
+        if (key === '8') {
+            let recentMsgs = [];
+            try { recentMsgs = await getRecentMessagesForIvr(user.id, 0, 1); } catch {}
+            if (recentMsgs.length === 0) {
+                return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות מהשבוע האחרון.');
+            }
+            const rm = recentMsgs[0];
+            const cleanRm = (rm.content || '')
+                .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
+                .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+                .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (p) => formatPhoneForTts(p))
+                .trim();
+            let rmRequestId = null;
+            if (rm.type === 'reference_request' && rm.meta) {
+                try { rmRequestId = JSON.parse(rm.meta).requestId || null; } catch {}
+            }
+            await updateSession(enterId, 'recent_messages', {
+                page: 0, currentMessageId: rm.id, currentMessageText: cleanRm,
+                currentMessageType: rm.type || null, currentRequestId: rmRequestId
+            });
+            const rmAct = g(user.gender,
+                'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+            );
+            const rmFile = await textToYemot(`הודעה: ${cleanRm} ${rmAct}`);
+            return yemotRead(res, rmFile, 'digits', 1, 1, 8);
+        }
+
+        if (key && !['1','2','3','4','5','6','7','8','0','#'].includes(key)) {
             console.warn(`[IVR] ⚠️ מקש לא מוכר בתפריט: ${key}`);
         }
 
@@ -1616,6 +1648,82 @@ router.get('/call', async (req, res) => {
         }
 
         return await loadNextActive();
+    }
+
+    // --- מצב: recent_messages — הודעות אחרונות (7 ימים, קרואות וגם לא) ---
+    if (session.state === 'recent_messages') {
+        const data   = session.data || {};
+        let   offset = parseInt(data.page || 0, 10);
+        const msgId  = data.currentMessageId   || null;
+        const msgTxt = data.currentMessageText || null;
+
+        if (!key && msgId) return await goToMenu(enterId, user.id, user.gender, res);
+
+        if (key && msgId) {
+            if (key === '0') return await goToMenu(enterId, user.id, user.gender, res);
+
+            if (data.currentMessageType === 'reference_request' && data.currentRequestId) {
+                if (key === '1') {
+                    await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'provide').catch(() => {});
+                    return await goToMenu(enterId, user.id, user.gender, res, 'תגובתך נשלחה. היכנס לאתר להשלמת הפרטים.');
+                }
+                if (key === '2') {
+                    await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => {});
+                    return await goToMenu(enterId, user.id, user.gender, res, 'תגובתך נשלחה.');
+                }
+            }
+
+            if (key === '9' && msgTxt) {
+                const isRefReq = data.currentMessageType === 'reference_request';
+                const act9 = isRefReq
+                    ? g(user.gender,
+                        'הקש אחת להסכמה. הקש שתיים לדחייה. הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                        'הקשי אחת להסכמה. הקשי שתיים לדחייה. הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+                    )
+                    : g(user.gender,
+                        'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                        'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+                    );
+                const f9 = await textToYemot(`${msgTxt} ${act9}`);
+                return yemotRead(res, f9, 'digits', 1, 1, 8);
+            }
+
+            if (key === '8') {
+                offset++;
+                let nextMsgs = [];
+                try { nextMsgs = await getRecentMessagesForIvr(user.id, offset, 1); } catch {}
+                if (nextMsgs.length === 0) return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות נוספות.');
+                const nm = nextMsgs[0];
+                const nc = (nm.content || '')
+                    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
+                    .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+                    .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (p) => formatPhoneForTts(p))
+                    .trim();
+                let nmRequestId = null;
+                if (nm.type === 'reference_request' && nm.meta) {
+                    try { nmRequestId = JSON.parse(nm.meta).requestId || null; } catch {}
+                }
+                await updateSession(enterId, 'recent_messages', {
+                    page: offset, currentMessageId: nm.id, currentMessageText: nc,
+                    currentMessageType: nm.type || null, currentRequestId: nmRequestId
+                });
+                const na = g(user.gender,
+                    'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                    'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+                );
+                const nf = await textToYemot(`הודעה: ${nc} ${na}`);
+                return yemotRead(res, nf, 'digits', 1, 1, 8);
+            }
+
+            const ua = g(user.gender,
+                'מקש לא מוכר. הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                'מקש לא מוכר. הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+            );
+            const uf = await textToYemot(ua);
+            return yemotRead(res, uf, 'digits', 1, 1, 8);
+        }
+
+        return await goToMenu(enterId, user.id, user.gender, res);
     }
 
     // מצב לא מוכר — חזרה לתפריט (בטוח יותר מניתוק)

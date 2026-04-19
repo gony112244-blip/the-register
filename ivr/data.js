@@ -697,6 +697,28 @@ async function respondToReferenceRequestFromIvr(requestId, responderId, response
 }
 
 /**
+ * הודעות אחרונות (7 ימים) — קרואות וגם לא-קרואות, עד 10 הודעות
+ */
+async function getRecentMessagesForIvr(userId, offset = 0, limit = 1) {
+    const result = await pool.query(
+        `SELECT m.id, m.content, m.type, m.meta, m.is_read, m.created_at,
+                u.full_name AS from_name
+         FROM messages m
+         LEFT JOIN users u ON u.id = m.from_user_id
+         WHERE m.to_user_id = $1
+           AND m.created_at >= NOW() - INTERVAL '7 days'
+           AND (
+               m.type IN ('admin_message', 'photo_response', 'reference_request', 'reference_response')
+               OR (m.type = 'system' AND m.from_user_id IS NOT NULL AND m.from_user_id != 1)
+           )
+         ORDER BY m.created_at DESC
+         LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+    );
+    return result.rows;
+}
+
+/**
  * סימון הודעה כנקראה אחרי שהמשתמש שמע אותה.
  */
 async function markMessageReadFromIvr(messageId, userId) {
@@ -769,7 +791,7 @@ module.exports = {
     markConnectionViewedFromIvr,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
-    getMessagesForIvr, markMessageReadFromIvr,
+    getMessagesForIvr, getRecentMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed,
     requestAdditionalReferenceFromIvr,
     respondToReferenceRequestFromIvr
