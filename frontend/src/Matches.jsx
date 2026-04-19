@@ -321,12 +321,35 @@ function Matches() {
             <div style={styles.container}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <h1 style={{ ...styles.title, margin: 0 }}>✨ הצעות שידוך</h1>
-                    <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
+                    <div style={{ position: 'relative' }}
+                        onMouseEnter={e => e.currentTarget.querySelector('.recycle-tip').style.display = 'block'}
+                        onMouseLeave={e => e.currentTarget.querySelector('.recycle-tip').style.display = 'none'}
+                    >
+                        <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
+                        <div className="recycle-tip" style={{
+                            display: 'none',
+                            position: 'absolute',
+                            top: 'calc(100% + 8px)',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            background: '#1e3a5f',
+                            color: 'white',
+                            fontSize: '0.82rem',
+                            lineHeight: 1.6,
+                            padding: '10px 14px',
+                            borderRadius: '10px',
+                            width: '260px',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                            zIndex: 100,
+                            pointerEvents: 'none',
+                            textAlign: 'right',
+                            border: '1px solid rgba(255,255,255,0.2)'
+                        }}>
+                            💡 לחץ על 🗑️ בכרטיס הצעה כדי להכניסה לסל — ההצעה תוסתר גם ממך <strong>וגם מהצד השני</strong>. תוכל לשחזר אותה בכל עת.
+                        </div>
+                    </div>
                 </div>
                 <p style={styles.subtitle}>נמצאו {matches.length} התאמות פוטנציאליות</p>
-                <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '10px', padding: '10px 16px', marginBottom: '18px', color: 'rgba(255,255,255,0.9)', fontSize: '0.85rem', lineHeight: 1.6 }}>
-                    💡 לחץ על 🗑️ בכרטיס הצעה כדי להכניסה לסל המיחזור — ההצעה תוסתר גם ממך <strong>וגם מהצד השני</strong>. תוכל לשחזר אותה בכל עת מכפתור "סל המיחזור".
-                </div>
 
                 {matches.length === 0 ? (
                     <div style={{ textAlign: 'center', color: 'white', marginTop: '60px' }}>
