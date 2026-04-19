@@ -322,35 +322,19 @@ function Matches() {
             <div style={styles.container}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <h1 style={{ ...styles.title, margin: 0 }}>✨ הצעות שידוך</h1>
-                    <div style={{ position: 'relative' }}
-                        onMouseEnter={() => setShowRecycleTip(true)}
-                        onMouseLeave={() => setShowRecycleTip(false)}
-                    >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
-                        {showRecycleTip && (
-                            <div style={{
-                                position: 'absolute',
-                                top: 'calc(100% + 8px)',
-                                left: '50%',
-                                transform: 'translateX(-50%)',
-                                background: '#1e3a5f',
-                                color: 'white',
-                                fontSize: '0.82rem',
-                                lineHeight: 1.6,
-                                padding: '10px 14px',
-                                borderRadius: '10px',
-                                width: '260px',
-                                boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                                zIndex: 100,
-                                pointerEvents: 'none',
-                                textAlign: 'right',
-                                border: '1px solid rgba(255,255,255,0.25)'
-                            }}>
-                                💡 לחץ על 🗑️ בכרטיס הצעה כדי להכניסה לסל — ההצעה תוסתר גם ממך <strong>וגם מהצד השני</strong>. תוכל לשחזר אותה בכל עת.
-                            </div>
-                        )}
+                        <button
+                            onClick={() => setShowRecycleTip(v => !v)}
+                            style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold', padding: 0, lineHeight: 1, fontFamily: 'inherit' }}
+                        >?</button>
                     </div>
                 </div>
+                {showRecycleTip && (
+                    <div style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: '10px', padding: '10px 16px', marginBottom: '10px', color: 'white', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                        💡 לחץ על 🗑️ בכרטיס הצעה כדי להכניסה לסל המיחזור — ההצעה תוסתר גם ממך <strong>וגם מהצד השני</strong>. תוכל לשחזר אותה בכל עת מכפתור "סל המיחזור".
+                    </div>
+                )}
                 <p style={styles.subtitle}>נמצאו {matches.length} התאמות פוטנציאליות</p>
 
                 {matches.length === 0 ? (
