@@ -157,6 +157,19 @@ function buildMenuText(gender, counts = {}) {
 }
 
 // ==========================================
+// ניקוי טקסט הודעה לפני TTS
+// מסיר אמוג'י, סוגריים עם לוכסן (יכול/ה → יכול), ומפרמט טלפונים
+// ==========================================
+function cleanMsgForTts(content) {
+    return (content || '')
+        .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
+        .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+        .replace(/\/[\u05D0-\u05EA]{1,3}/g, '')
+        .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (p) => formatPhoneForTts(p))
+        .trim();
+}
+
+// ==========================================
 // goToMenu — מחזיר ישר לתפריט הראשי עם סטטוס
 // מוחלף בכל נקודות החזרה (# ומצבים ריקים)
 // ==========================================
@@ -688,10 +701,7 @@ router.get('/call', async (req, res) => {
                 return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות חדשות הדורשות תשומת לבך.');
             }
             const msg6 = messages[0];
-            const cleanContent6 = (msg6.content || '')
-                .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
-                .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
-                .trim();
+            const cleanContent6 = cleanMsgForTts(msg6.content);
             await updateSession(enterId, 'messages', { page: 0, currentMessageId: msg6.id, currentMessageText: cleanContent6 });
             const actionsText6 = g(user.gender,
                 'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',
@@ -728,11 +738,7 @@ router.get('/call', async (req, res) => {
                 return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות מהשבוע האחרון.');
             }
             const rm = recentMsgs[0];
-            const cleanRm = (rm.content || '')
-                .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
-                .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
-                .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (p) => formatPhoneForTts(p))
-                .trim();
+            const cleanRm = cleanMsgForTts(rm.content);
             let rmRequestId = null;
             if (rm.type === 'reference_request' && rm.meta) {
                 try { rmRequestId = JSON.parse(rm.meta).requestId || null; } catch {}
@@ -1005,11 +1011,7 @@ router.get('/call', async (req, res) => {
                     return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות נוספות.');
                 }
                 const nextMsg = nextMsgs[0];
-                const nextClean = (nextMsg.content || '')
-                    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
-                    .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
-                    .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (phone) => formatPhoneForTts(phone))
-                    .trim();
+                const nextClean = cleanMsgForTts(nextMsg.content);
                 await updateSession(enterId, 'messages', { page: offset, currentMessageId: nextMsg.id, currentMessageText: nextClean });
                 markMessageReadFromIvr(nextMsg.id, user.id).catch(() => {});
                 const nextAct = g(user.gender,
@@ -1043,12 +1045,7 @@ router.get('/call', async (req, res) => {
 
         const msg = messages[0];
 
-        // ניקוי אמוג'י והכנת הטקסט לקריאה
-        const cleanContent = (msg.content || '')
-            .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
-            .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
-            .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (phone) => formatPhoneForTts(phone))
-            .trim();
+        const cleanContent = cleanMsgForTts(msg.content);
 
         const isRefReq = msg.type === 'reference_request';
         let requestId = null;
@@ -1694,11 +1691,7 @@ router.get('/call', async (req, res) => {
                 try { nextMsgs = await getRecentMessagesForIvr(user.id, offset, 1); } catch {}
                 if (nextMsgs.length === 0) return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות נוספות.');
                 const nm = nextMsgs[0];
-                const nc = (nm.content || '')
-                    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
-                    .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
-                    .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (p) => formatPhoneForTts(p))
-                    .trim();
+                const nc = cleanMsgForTts(nm.content);
                 let nmRequestId = null;
                 if (nm.type === 'reference_request' && nm.meta) {
                     try { nmRequestId = JSON.parse(nm.meta).requestId || null; } catch {}
