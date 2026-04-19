@@ -32,7 +32,7 @@ export default function WelcomeModal({ user }) {
                 <button onClick={handleClose} style={s.closeX} aria-label="סגור">✕</button>
 
                 <div style={s.sparkles}>✨</div>
-                <h2 style={s.title}>ברוכים הבאים להפנקס!</h2>
+                <h2 style={s.title}>ברוכים הבאים ל"פנקס"!</h2>
                 <p style={s.subtitle}>שמחים שהצטרפתם — ממש שמחים.</p>
 
                 <div style={s.divider} />
@@ -42,9 +42,9 @@ export default function WelcomeModal({ user }) {
                     <div>
                         <strong style={s.sectionTitle}>האתר בימי ההשקה הראשונים</strong>
                         <p style={s.sectionText}>
-                            בנינו אותו בלב ונשמה ועשינו את המיטב שיהיה מדויק ונוח.
+                            בנינו אותו בלב ובנשמה ועשינו את המיטב כדי שיהיה מדויק ונוח.
                             ייתכן שיצוצו גם תקלות קטנות בדרך —
-                            כל הערה ומשוב שתשלחו עוזרים לנו להשתפר.
+                            כל הערה ומשוב שתשלחו יעזרו לנו להשתפר.
                         </p>
                     </div>
                 </div>
@@ -56,7 +56,7 @@ export default function WelcomeModal({ user }) {
                         <p style={s.sectionText}>
                             המערכת שומרת על פרטיות מלאה: היא לא מציגה אתכם לכל אחד,
                             אלא רק למי שמתאים ברצינות. בדיוק כפי שאתם לא רואים את כולם —
-                            גם אתכם שומרים. ככל שיצטרפו יותר אנשים, כך יגדלו גם ההזדמנויות.
+                            כך גם עליכם שומרים. ככל שיצטרפו יותר אנשים, כך יגדלו גם ההזדמנויות.
                         </p>
                     </div>
                 </div>
