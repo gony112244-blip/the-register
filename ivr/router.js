@@ -702,11 +702,31 @@ router.get('/call', async (req, res) => {
             }
             const msg6 = messages[0];
             const cleanContent6 = cleanMsgForTts(msg6.content);
-            await updateSession(enterId, 'messages', { page: 0, currentMessageId: msg6.id, currentMessageText: cleanContent6 });
-            const actionsText6 = g(user.gender,
-                'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',
-                'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט הראשי.'
-            );
+            const isRefReq6 = msg6.type === 'reference_request';
+            let requestId6 = null;
+            if (isRefReq6 && msg6.meta) {
+                try {
+                    const mo = typeof msg6.meta === 'string' ? JSON.parse(msg6.meta) : msg6.meta;
+                    requestId6 = mo.requestId || null;
+                } catch {}
+            }
+            await updateSession(enterId, 'messages', {
+                page: 0,
+                currentMessageId:   msg6.id,
+                currentMessageText: cleanContent6,
+                currentMessageType: msg6.type || null,
+                currentRequestId:   requestId6
+            });
+            markMessageReadFromIvr(msg6.id, user.id).catch(() => {});
+            const actionsText6 = isRefReq6
+                ? g(user.gender,
+                    'הקש אחת להסכמה ומעבר לאתר להשלמת הפרטים. הקש שתיים לציון שאינך יכול לספק ממליץ. הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                    'הקשי אחת להסכמה ומעבר לאתר להשלמת הפרטים. הקשי שתיים לציון שאינך יכולה לספק ממליץ. הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+                )
+                : g(user.gender,
+                    'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',
+                    'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט הראשי.'
+                );
             const file6 = await textToYemot(`הודעה חדשה: ${cleanContent6} ${actionsText6}`);
             return yemotRead(res, file6, 'digits', 1, 1, 8);
         }
