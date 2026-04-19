@@ -677,6 +677,46 @@ async function markMessageReadFromIvr(messageId, userId) {
 }
 
 /**
+ * בקשת ממליץ נוסף מה-IVR — שולח הודעה לצד השני
+ * reason קבוע: no_answer (מהטלפון לא ניתן לפרט)
+ */
+async function requestAdditionalReferenceFromIvr(connectionId, requesterId, count = 1) {
+    const connCheck = await pool.query(
+        `SELECT c.id, c.sender_id, c.receiver_id,
+                u_req.full_name AS requester_name
+         FROM connections c
+         JOIN users u_req ON u_req.id = $2
+         WHERE c.id = $1 AND (c.sender_id = $2 OR c.receiver_id = $2)
+           AND c.status IN ('active','waiting_for_shadchan')`,
+        [connectionId, requesterId]
+    );
+    if (connCheck.rowCount === 0) return 'not_found';
+
+    const conn = connCheck.rows[0];
+    const otherUserId = conn.sender_id === requesterId ? conn.receiver_id : conn.sender_id;
+    const countNum = count === 2 ? 2 : 1;
+    const reason = 'no_answer';
+
+    const inserted = await pool.query(
+        `INSERT INTO reference_requests (connection_id, requester_id, reason, count)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [connectionId, requesterId, reason, countNum]
+    );
+    const requestId = inserted.rows[0].id;
+
+    const countText = countNum === 2 ? 'שניים' : 'אחד';
+    const msg = `📋 בקשה לממליץ נוסף\n\n${conn.requester_name} מבקש/ת ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nהבקשה הגיעה דרך מערכת הטלפון.`;
+
+    await pool.query(
+        `INSERT INTO messages (from_user_id, to_user_id, content, type, meta)
+         VALUES ($1, $2, $3, 'reference_request', $4)`,
+        [requesterId, otherUserId, msg, JSON.stringify({ requestId, connectionId, count: countNum })]
+    );
+
+    return 'ok';
+}
+
+/**
  * עדכון tts_last_played — נקרא כשפרופיל מושמע ב-IVR
  */
 async function updateTtsLastPlayed(profileUserId) {
@@ -696,5 +736,6 @@ module.exports = {
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
-    updateTtsLastPlayed
+    updateTtsLastPlayed,
+    requestAdditionalReferenceFromIvr
 };

@@ -14,6 +14,7 @@ const {
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, cancelActiveConnectionFromIvr, getAwaitingMyApproval,
+    requestAdditionalReferenceFromIvr,
     markConnectionViewedFromIvr,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
@@ -1410,14 +1411,14 @@ router.get('/call', async (req, res) => {
                 const cardTxt = [buildBeiurimCard(c), otherViewedTxt].filter(Boolean).join(' ');
                 if (canFinalize) {
                     act = g(user.gender,
-                        'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לביטול ההצעה הָקֵשׁ שתיים. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                        'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לביטול ההצעה הָקִישִׁי שתיים. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                        'לאישור התקדמות לשדכנית הָקֵשׁ אחת. לביטול ההצעה הָקֵשׁ שתיים. לבקשת ממליץ נוסף הָקֵשׁ שבע. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                        'לאישור התקדמות לשדכנית הָקִישִׁי אחת. לביטול ההצעה הָקִישִׁי שתיים. לבקשת ממליץ נוסף הָקִישִׁי שבע. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                     );
                 } else {
                     // אישרתי כבר — אין מקש 1, יש מקש 2 לעצירה
                     act = g(user.gender,
-                        'לבקשת עצירת ההתקדמות הָקֵשׁ שתיים. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
-                        'לבקשת עצירת ההתקדמות הָקִישִׁי שתיים. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
+                        'לבקשת עצירת ההתקדמות הָקֵשׁ שתיים. לבקשת ממליץ נוסף הָקֵשׁ שבע. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעת פרטי הבירורים הָקֵשׁ תשע. הָקֵשׁ שמונה לשידוך הבא. הָקֵשׁ אפס לתפריט.',
+                        'לבקשת עצירת ההתקדמות הָקִישִׁי שתיים. לבקשת ממליץ נוסף הָקִישִׁי שבע. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעת פרטי הבירורים הָקִישִׁי תשע. הָקִישִׁי שמונה לשידוך הבא. הָקִישִׁי אפס לתפריט.'
                     );
                 }
                 // פרטי בירורים — רק אם לא אישרתי עדיין (או אם יש prefix = אחרי פעולה)
@@ -1431,6 +1432,29 @@ router.get('/call', async (req, res) => {
         if (!key && connId) return await goToMenu(enterId, user.id, user.gender, res);
 
         if (key && connId) {
+            // תפריט בקשת ממליץ נוסף — בחירת כמות
+            if (data.inRefRequestMenu) {
+                if (key === '0') {
+                    await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
+                    return await loadNextActive();
+                }
+                const count = parseInt(key, 10);
+                if (count === 1 || count === 2) {
+                    const result = await requestAdditionalReferenceFromIvr(connId, user.id, count).catch(() => 'error');
+                    const pfx = result === 'ok'
+                        ? `הבקשה ל${count === 2 ? 'שני ממליצים' : 'ממליץ אחד'} נשלחה לצד השני.`
+                        : 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                    await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
+                    return await loadNextActive(pfx);
+                }
+                const refUnknown = g(user.gender,
+                    'מקש לא מוכר. לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לחזרה הָקֵשׁ אפס.',
+                    'מקש לא מוכר. לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לחזרה הָקִישִׁי אפס.'
+                );
+                const file = await textToYemot(refUnknown);
+                return yemotRead(res, file, 'digits', 1, 1, 8);
+            }
+
             if (data.inCancelReasonMenu) {
                 if (key === '0') {
                     await updateSession(enterId, 'active_sent', {
@@ -1525,6 +1549,18 @@ router.get('/call', async (req, res) => {
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
+            // מקש 7 — בקשת ממליץ נוסף
+            if (key === '7') {
+                if (connStatus !== 'active') return await loadNextActive();
+                const refPrompt = g(user.gender,
+                    'כמה מספרי ממליצים לבקש? לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לחזרה הָקֵשׁ אפס.',
+                    'כמה מספרי ממליצים לבקש? לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לחזרה הָקִישִׁי אפס.'
+                );
+                const file = await textToYemot(refPrompt);
+                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: true });
+                return yemotRead(res, file, 'digits', 1, 1, 8);
+            }
+
             if (key === '8') {
                 offset++;
                 await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: null });
@@ -1532,11 +1568,11 @@ router.get('/call', async (req, res) => {
             }
             const unknownText = g(user.gender,
                 data.currentMyApproved
-                    ? 'מקש לא מוכר. הָקֵשׁ שתיים לעצירת ההתקדמות. הָקֵשׁ שש לפרופיל המלא. הָקֵשׁ תשע לפרטי הבירורים. הָקֵשׁ שמונה להמשך. הָקֵשׁ אפס לתפריט.'
-                    : 'מקש לא מוכר. הָקֵשׁ אחת לאישור התקדמות. הָקֵשׁ שתיים לביטול ההצעה. הָקֵשׁ שש לפרופיל המלא. הָקֵשׁ תשע לפרטי הבירורים. הָקֵשׁ שמונה להמשך. הָקֵשׁ אפס לתפריט.',
+                    ? 'מקש לא מוכר. הָקֵשׁ שתיים לעצירת ההתקדמות. הָקֵשׁ שבע לממליץ נוסף. הָקֵשׁ שש לפרופיל המלא. הָקֵשׁ תשע לפרטי הבירורים. הָקֵשׁ שמונה להמשך. הָקֵשׁ אפס לתפריט.'
+                    : 'מקש לא מוכר. הָקֵשׁ אחת לאישור התקדמות. הָקֵשׁ שתיים לביטול ההצעה. הָקֵשׁ שבע לממליץ נוסף. הָקֵשׁ שש לפרופיל המלא. הָקֵשׁ תשע לפרטי הבירורים. הָקֵשׁ שמונה להמשך. הָקֵשׁ אפס לתפריט.',
                 data.currentMyApproved
-                    ? 'מקש לא מוכר. הָקִישִׁי שתיים לעצירת ההתקדמות. הָקִישִׁי שש לפרופיל המלא. הָקִישִׁי תשע לפרטי הבירורים. הָקִישִׁי שמונה להמשך. הָקִישִׁי אפס לתפריט.'
-                    : 'מקש לא מוכר. הָקִישִׁי אחת לאישור התקדמות. הָקִישִׁי שתיים לביטול ההצעה. הָקִישִׁי שש לפרופיל המלא. הָקִישִׁי תשע לפרטי הבירורים. הָקִישִׁי שמונה להמשך. הָקִישִׁי אפס לתפריט.'
+                    ? 'מקש לא מוכר. הָקִישִׁי שתיים לעצירת ההתקדמות. הָקִישִׁי שבע לממליץ נוסף. הָקִישִׁי שש לפרופיל המלא. הָקִישִׁי תשע לפרטי הבירורים. הָקִישִׁי שמונה להמשך. הָקִישִׁי אפס לתפריט.'
+                    : 'מקש לא מוכר. הָקִישִׁי אחת לאישור התקדמות. הָקִישִׁי שתיים לביטול ההצעה. הָקִישִׁי שבע לממליץ נוסף. הָקִישִׁי שש לפרופיל המלא. הָקִישִׁי תשע לפרטי הבירורים. הָקִישִׁי שמונה להמשך. הָקִישִׁי אפס לתפריט.'
             );
             const file = await textToYemot(unknownText);
             return yemotRead(res, file, 'digits', 1, 1, 8);
