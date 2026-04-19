@@ -741,7 +741,10 @@ router.get('/call', async (req, res) => {
             const cleanRm = cleanMsgForTts(rm.content);
             let rmRequestId = null;
             if (rm.type === 'reference_request' && rm.meta) {
-                try { rmRequestId = JSON.parse(rm.meta).requestId || null; } catch {}
+                try {
+                    const metaObj = typeof rm.meta === 'string' ? JSON.parse(rm.meta) : rm.meta;
+                    rmRequestId = metaObj.requestId || null;
+                } catch {}
             }
             await updateSession(enterId, 'recent_messages', {
                 page: 0, currentMessageId: rm.id, currentMessageText: cleanRm,
@@ -1000,11 +1003,9 @@ router.get('/call', async (req, res) => {
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
-            // מקש 8 — הודעה הבאה (ההודעה כבר סומנה כנקראה בטעינה)
+            // מקש 8 — הודעה הבאה
             if (key === '8') {
                 offset++;
-                await updateSession(enterId, 'messages', { page: offset });
-                // טוען הודעה הבאה ישירות — לא yemotPlayback שמנתק
                 let nextMsgs = [];
                 try { nextMsgs = await getMessagesForIvr(user.id, offset, 1); } catch {}
                 if (nextMsgs.length === 0) {
@@ -1012,13 +1013,32 @@ router.get('/call', async (req, res) => {
                 }
                 const nextMsg = nextMsgs[0];
                 const nextClean = cleanMsgForTts(nextMsg.content);
-                await updateSession(enterId, 'messages', { page: offset, currentMessageId: nextMsg.id, currentMessageText: nextClean });
+                const nextIsRefReq = nextMsg.type === 'reference_request';
+                let nextRequestId = null;
+                if (nextIsRefReq && nextMsg.meta) {
+                    try {
+                        const mo = typeof nextMsg.meta === 'string' ? JSON.parse(nextMsg.meta) : nextMsg.meta;
+                        nextRequestId = mo.requestId || null;
+                    } catch {}
+                }
+                await updateSession(enterId, 'messages', {
+                    page: offset,
+                    currentMessageId:   nextMsg.id,
+                    currentMessageText: nextClean,
+                    currentMessageType: nextMsg.type || null,
+                    currentRequestId:   nextRequestId
+                });
                 markMessageReadFromIvr(nextMsg.id, user.id).catch(() => {});
-                const nextAct = g(user.gender,
-                    'הַקֵּשׁ תשע לשמיעה חוזרת. הַקֵּשׁ שמונה להודעה הבאה. הַקֵּשׁ אפס לתפריט הראשי.',
-                    'הַקִּישִׁי תשע לשמיעה חוזרת. הַקִּישִׁי שמונה להודעה הבאה. הַקִּישִׁי אפס לתפריט הראשי.'
-                );
-                const nextFile = await textToYemot(`הודעה חדשה: ${nextClean} ${nextAct}`);
+                const nextAct = nextIsRefReq
+                    ? g(user.gender,
+                        'הַקֵּשׁ אחת להסכמה ומעבר לאתר. הַקֵּשׁ שתיים לציון שאינך יכול לספק. הַקֵּשׁ תשע לשמיעה חוזרת. הַקֵּשׁ שמונה להודעה הבאה. הַקֵּשׁ אפס לתפריט.',
+                        'הַקִּישִׁי אחת להסכמה ומעבר לאתר. הַקִּישִׁי שתיים לציון שאינך יכולה לספק. הַקִּישִׁי תשע לשמיעה חוזרת. הַקִּישִׁי שמונה להודעה הבאה. הַקִּישִׁי אפס לתפריט.'
+                    )
+                    : g(user.gender,
+                        'הַקֵּשׁ תשע לשמיעה חוזרת. הַקֵּשׁ שמונה להודעה הבאה. הַקֵּשׁ אפס לתפריט הראשי.',
+                        'הַקִּישִׁי תשע לשמיעה חוזרת. הַקִּישִׁי שמונה להודעה הבאה. הַקִּישִׁי אפס לתפריט הראשי.'
+                    );
+                const nextFile = await textToYemot(`הודעה: ${nextClean} ${nextAct}`);
                 return yemotRead(res, nextFile, 'digits', 1, 1, 8);
             }
 
@@ -1050,7 +1070,10 @@ router.get('/call', async (req, res) => {
         const isRefReq = msg.type === 'reference_request';
         let requestId = null;
         if (isRefReq && msg.meta) {
-            try { requestId = JSON.parse(msg.meta).requestId || null; } catch {}
+            try {
+                const metaObj = typeof msg.meta === 'string' ? JSON.parse(msg.meta) : msg.meta;
+                requestId = metaObj.requestId || null;
+            } catch {}
         }
 
         await updateSession(enterId, 'messages', {
@@ -1694,7 +1717,10 @@ router.get('/call', async (req, res) => {
                 const nc = cleanMsgForTts(nm.content);
                 let nmRequestId = null;
                 if (nm.type === 'reference_request' && nm.meta) {
-                    try { nmRequestId = JSON.parse(nm.meta).requestId || null; } catch {}
+                    try {
+                        const metaObj = typeof nm.meta === 'string' ? JSON.parse(nm.meta) : nm.meta;
+                        nmRequestId = metaObj.requestId || null;
+                    } catch {}
                 }
                 await updateSession(enterId, 'recent_messages', {
                     page: offset, currentMessageId: nm.id, currentMessageText: nc,
