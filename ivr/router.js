@@ -1553,21 +1553,52 @@ router.get('/call', async (req, res) => {
                     await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
                     return await loadNextActive();
                 }
-                const count = parseInt(key, 10);
-                if (count === 1 || count === 2) {
-                    const result = await requestAdditionalReferenceFromIvr(connId, user.id, count).catch(() => 'error');
-                    const pfx = result === 'ok'
-                        ? `הבקשה ל${count === 2 ? 'שני ממליצים' : 'ממליץ אחד'} נשלחה לצד השני.`
-                        : 'אירעה תקלה. אנא נסה שוב מהאתר.';
-                    await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
-                    return await loadNextActive(pfx);
+
+                // שלב א — בחירת כמות
+                if (data.refRequestStep === 'count' || !data.refRequestStep) {
+                    const count = parseInt(key, 10);
+                    if (count === 1 || count === 2) {
+                        // מעבר לשלב בחירת סיבה
+                        await updateSession(enterId, 'active_sent', {
+                            page: offset, currentConnectionId: connId,
+                            currentConnectionStatus: connStatus,
+                            currentMyApproved: !!data.currentMyApproved,
+                            inRefRequestMenu: true, refRequestStep: 'reason', refRequestCount: count
+                        });
+                        const reasonPrompt = g(user.gender,
+                            `בחר סיבה לבקשה. אחת — הממליצים לא ענו. שתיים — לא הספיק לברר. שלוש — מבקש מכר מהמשפחה. אפס — ביטול.`,
+                            `בחרי סיבה לבקשה. אחת — הממליצים לא ענו. שתיים — לא הספיק לברר. שלוש — מבקשת מכר מהמשפחה. אפס — ביטול.`
+                        );
+                        const f = await textToYemot(reasonPrompt);
+                        return yemotRead(res, f, 'digits', 1, 1, 8);
+                    }
+                    const refUnknown = g(user.gender,
+                        'מקש לא מוכר. לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לחזרה הָקֵשׁ אפס.',
+                        'מקש לא מוכר. לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לחזרה הָקִישִׁי אפס.'
+                    );
+                    const file = await textToYemot(refUnknown);
+                    return yemotRead(res, file, 'digits', 1, 1, 8);
                 }
-                const refUnknown = g(user.gender,
-                    'מקש לא מוכר. לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לחזרה הָקֵשׁ אפס.',
-                    'מקש לא מוכר. לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לחזרה הָקִישִׁי אפס.'
-                );
-                const file = await textToYemot(refUnknown);
-                return yemotRead(res, file, 'digits', 1, 1, 8);
+
+                // שלב ב — בחירת סיבה
+                if (data.refRequestStep === 'reason') {
+                    const REASON_MAP = { '1': 'no_answer', '2': 'not_enough', '3': 'family_ref' };
+                    const reason = REASON_MAP[key];
+                    if (reason) {
+                        const result = await requestAdditionalReferenceFromIvr(connId, user.id, data.refRequestCount || 1, reason).catch(() => 'error');
+                        const pfx = result === 'ok'
+                            ? `הבקשה ל${data.refRequestCount === 2 ? 'שני ממליצים' : 'ממליץ אחד'} נשלחה לצד השני.`
+                            : 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                        await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
+                        return await loadNextActive(pfx);
+                    }
+                    const reasonUnknown = g(user.gender,
+                        'מקש לא מוכר. אחת — לא ענו. שתיים — לא הספיק לברר. שלוש — מכר מהמשפחה. אפס — ביטול.',
+                        'מקש לא מוכר. אחת — לא ענו. שתיים — לא הספיק לברר. שלוש — מכר מהמשפחה. אפס — ביטול.'
+                    );
+                    const f = await textToYemot(reasonUnknown);
+                    return yemotRead(res, f, 'digits', 1, 1, 8);
+                }
             }
 
             if (data.inCancelReasonMenu) {

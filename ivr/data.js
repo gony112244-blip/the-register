@@ -738,7 +738,7 @@ async function markMessageReadFromIvr(messageId, userId) {
  * בקשת ממליץ נוסף מה-IVR — שולח הודעה לצד השני
  * reason קבוע: no_answer (מהטלפון לא ניתן לפרט)
  */
-async function requestAdditionalReferenceFromIvr(connectionId, requesterId, count = 1) {
+async function requestAdditionalReferenceFromIvr(connectionId, requesterId, count = 1, reason = 'no_answer') {
     const connCheck = await pool.query(
         `SELECT c.id, c.sender_id, c.receiver_id,
                 u_req.full_name AS requester_name,
@@ -754,19 +754,21 @@ async function requestAdditionalReferenceFromIvr(connectionId, requesterId, coun
     const conn = connCheck.rows[0];
     const otherUserId = conn.sender_id === requesterId ? conn.receiver_id : conn.sender_id;
     const countNum = count === 2 ? 2 : 1;
-    const reason = 'no_answer';
+    const VALID_REASONS = { no_answer: 'הממליצים שסיפקת לא ענו לנו', not_enough: 'לא הספיק לנו לברר באמצעות הממליצים שסיפקת', family_ref: 'נבקש מכר שמכיר את המשפחה' };
+    const validReason = VALID_REASONS[reason] ? reason : 'no_answer';
+    const reasonText  = VALID_REASONS[validReason];
     const isFemale = conn.requester_gender === 'female';
 
     const inserted = await pool.query(
         `INSERT INTO reference_requests (connection_id, requester_id, reason, count)
          VALUES ($1, $2, $3, $4) RETURNING id`,
-        [connectionId, requesterId, reason, countNum]
+        [connectionId, requesterId, validReason, countNum]
     );
     const requestId = inserted.rows[0].id;
 
     const countText = countNum === 2 ? 'שניים' : 'אחד';
     const mevakesh = isFemale ? 'מבקשת' : 'מבקש';
-    const msg = `📋 בקשה לממליץ נוסף\n\n${conn.requester_name} ${mevakesh} ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nהבקשה הגיעה דרך מערכת הטלפון.`;
+    const msg = `📋 בקשה לממליץ נוסף\n\n${conn.requester_name} ${mevakesh} ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nסיבה: ${reasonText}.\n\nתוכל/י להגיב להודעה זו ישירות.`;
 
     await pool.query(
         `INSERT INTO messages (from_user_id, to_user_id, content, type, meta)
