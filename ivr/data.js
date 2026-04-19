@@ -668,7 +668,7 @@ async function getMessagesForIvr(userId, offset = 0, limit = 1) {
  * תגובה לבקשת ממליץ נוסף מה-IVR
  * response: 'provide' (יגיב דרך האתר) | 'cannot' (לא יכול לספק)
  */
-async function respondToReferenceRequestFromIvr(requestId, responderId, response) {
+async function respondToReferenceRequestFromIvr(requestId, responderId, response, refPhone = null) {
     const reqRow = await pool.query(
         `SELECT rr.requester_id, u_resp.full_name AS responder_name, u_resp.gender AS responder_gender
          FROM reference_requests rr
@@ -683,9 +683,14 @@ async function respondToReferenceRequestFromIvr(requestId, responderId, response
     const isFemale = responder_gender === 'female';
     await pool.query(`UPDATE reference_requests SET status = $1 WHERE id = $2`, [response, requestId]);
 
-    const msg = response === 'provide'
-        ? `✅ ${responder_name} ${isFemale ? 'אישרה שתשלח' : 'אישר שישלח'} ממליץ נוסף — יצרו קשר ישירות.`
-        : `ℹ️ ${responder_name} ${isFemale ? 'ציינה' : 'ציין'} שלצערם בשלב זה אינם יכולים לספק ממליץ נוסף.`;
+    let msg;
+    if (response === 'provide' && refPhone) {
+        msg = `✅ ${responder_name} ${isFemale ? 'שלחה' : 'שלח'} ממליץ נוסף:\n\nטלפון: 📞 ${refPhone}\n\n(הבקשה הגיעה דרך מערכת הטלפון — ללא שם)`;
+    } else if (response === 'provide') {
+        msg = `✅ ${responder_name} ${isFemale ? 'אישרה שתשלח' : 'אישר שישלח'} ממליץ נוסף — יצרו קשר ישירות.`;
+    } else {
+        msg = `ℹ️ ${responder_name} ${isFemale ? 'ציינה' : 'ציין'} שלצערם בשלב זה אינם יכולים לספק ממליץ נוסף.`;
+    }
 
     await pool.query(
         `INSERT INTO messages (from_user_id, to_user_id, content, type)

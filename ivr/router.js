@@ -991,13 +991,19 @@ router.get('/call', async (req, res) => {
                 return await goToMenu(enterId, user.id, user.gender, res);
             }
 
-            // תגובה לבקשת ממליץ נוסף (מקש 1 = אגיב דרך האתר, מקש 2 = לא יכול)
+            // תגובה לבקשת ממליץ נוסף (מקש 1 = הקש טלפון ממליץ, מקש 2 = לא יכול)
             if (data.currentMessageType === 'reference_request' && data.currentRequestId) {
                 if (key === '1') {
-                    const result = await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'provide').catch(() => 'error');
-                    const pfx = result === 'ok' ? 'תגובתך נשלחה. היכנס לאתר להשלמת הפרטים.' : 'אירעה תקלה.';
-                    await updateSession(enterId, 'messages', { page: offset + 1, currentMessageType: null, currentRequestId: null });
-                    return await goToMenu(enterId, user.id, user.gender, res, pfx);
+                    await updateSession(enterId, 'collecting_ref_phone', {
+                        requestId: data.currentRequestId,
+                        returnState: 'messages'
+                    });
+                    const prompt = g(user.gender,
+                        'הקש את מספר הטלפון של הממליץ, עשר ספרות, ולחץ כוכב בסיום.',
+                        'הקישי את מספר הטלפון של הממליץ, עשר ספרות, ולחצי כוכב בסיום.'
+                    );
+                    const promptFile = await textToYemot(prompt);
+                    return yemotRead(res, promptFile, 'digits', 10, 15, 30);
                 }
                 if (key === '2') {
                     const result = await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => 'error');
@@ -1704,8 +1710,16 @@ router.get('/call', async (req, res) => {
 
             if (data.currentMessageType === 'reference_request' && data.currentRequestId) {
                 if (key === '1') {
-                    await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'provide').catch(() => {});
-                    return await goToMenu(enterId, user.id, user.gender, res, 'תגובתך נשלחה. היכנס לאתר להשלמת הפרטים.');
+                    await updateSession(enterId, 'collecting_ref_phone', {
+                        requestId: data.currentRequestId,
+                        returnState: 'recent_messages'
+                    });
+                    const prompt = g(user.gender,
+                        'הקש את מספר הטלפון של הממליץ, עשר ספרות, ולחץ כוכב בסיום.',
+                        'הקישי את מספר הטלפון של הממליץ, עשר ספרות, ולחצי כוכב בסיום.'
+                    );
+                    const promptFile = await textToYemot(prompt);
+                    return yemotRead(res, promptFile, 'digits', 10, 15, 30);
                 }
                 if (key === '2') {
                     await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => {});
@@ -1763,6 +1777,45 @@ router.get('/call', async (req, res) => {
         }
 
         return await goToMenu(enterId, user.id, user.gender, res);
+    }
+
+    // --- מצב: collecting_ref_phone — קבלת מספר טלפון של ממליץ ---
+    if (session.state === 'collecting_ref_phone') {
+        const data      = session.data || {};
+        const requestId = data.requestId || null;
+
+        if (!requestId) return await goToMenu(enterId, user.id, user.gender, res, 'אירעה תקלה.');
+
+        // timeout / # בלי קלט — שאל שוב
+        if (!key || key === '#') {
+            const prompt = g(user.gender,
+                'לא התקבל מספר. הקש את מספר הטלפון של הממליץ, עשר ספרות, ולחץ כוכב בסיום.',
+                'לא התקבל מספר. הקישי את מספר הטלפון של הממליץ, עשר ספרות, ולחצי כוכב בסיום.'
+            );
+            const f = await textToYemot(prompt);
+            return yemotRead(res, f, 'digits', 10, 15, 30);
+        }
+
+        // key = הספרות שהוקשו
+        const digits = key.replace(/\D/g, '');
+        if (digits.length < 9 || digits.length > 11 || !digits.startsWith('0')) {
+            const errPrompt = g(user.gender,
+                'מספר לא תקין. הקש שוב מספר טלפון ישראלי בן עשר ספרות ולחץ כוכב.',
+                'מספר לא תקין. הקישי שוב מספר טלפון ישראלי בן עשר ספרות ולחצי כוכב.'
+            );
+            const f = await textToYemot(errPrompt);
+            return yemotRead(res, f, 'digits', 10, 15, 30);
+        }
+
+        const result = await respondToReferenceRequestFromIvr(requestId, user.id, 'provide', digits).catch(() => 'error');
+        if (result === 'error' || result === 'not_found') {
+            return await goToMenu(enterId, user.id, user.gender, res, 'אירעה תקלה בשמירת התגובה.');
+        }
+
+        const phoneForTts = formatPhoneForTts(digits);
+        return await goToMenu(enterId, user.id, user.gender, res,
+            `תגובתך נשלחה. מספר הממליץ שנשמר: ${phoneForTts}.`
+        );
     }
 
     // מצב לא מוכר — חזרה לתפריט (בטוח יותר מניתוק)
