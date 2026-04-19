@@ -31,9 +31,10 @@ export default function WelcomeModal({ user }) {
             <div style={s.modal}>
                 <button onClick={handleClose} style={s.closeX} aria-label="סגור">✕</button>
 
+                <p style={s.bsd}>בסייעתא דשמיא</p>
                 <div style={s.sparkles}>✨</div>
                 <h2 style={s.title}>ברוכים הבאים ל"פנקס"!</h2>
-                <p style={s.subtitle}>שמחים שהצטרפתם — ממש שמחים. בסייעתא דשמיא נמצא כאן את ההתאמה הנכונה.</p>
+                <p style={s.subtitle}>שמחים שהצטרפתם — ממש שמחים.</p>
 
                 <div style={s.divider} />
 
@@ -62,7 +63,7 @@ export default function WelcomeModal({ user }) {
                 </div>
 
                 <div style={s.section}>
-                    <span style={s.sectionIcon}>💌</span>
+                    <span style={s.sectionIcon}>📢</span>
                     <div>
                         <strong style={s.sectionTitle}>מכירים מישהו שמחפש?</strong>
                         <p style={s.sectionText}>
@@ -110,6 +111,11 @@ const s = {
         width: '32px', height: '32px', borderRadius: '50%',
         fontSize: '14px', cursor: 'pointer', color: '#64748b',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+    },
+    bsd: {
+        margin: '0 0 8px', fontSize: '13px', fontWeight: '600',
+        color: '#a6851d', letterSpacing: '0.05em',
+        fontStyle: 'italic',
     },
     sparkles: { fontSize: '44px', lineHeight: 1, marginBottom: '10px' },
     title: {
