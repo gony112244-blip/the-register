@@ -14,7 +14,7 @@ const {
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, cancelActiveConnectionFromIvr, getAwaitingMyApproval,
-    requestAdditionalReferenceFromIvr,
+    requestAdditionalReferenceFromIvr, respondToReferenceRequestFromIvr,
     markConnectionViewedFromIvr,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
@@ -930,12 +930,34 @@ router.get('/call', async (req, res) => {
                 return await goToMenu(enterId, user.id, user.gender, res);
             }
 
+            // תגובה לבקשת ממליץ נוסף (מקש 1 = אגיב דרך האתר, מקש 2 = לא יכול)
+            if (data.currentMessageType === 'reference_request' && data.currentRequestId) {
+                if (key === '1') {
+                    const result = await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'provide').catch(() => 'error');
+                    const pfx = result === 'ok' ? 'תגובתך נשלחה. היכנס לאתר להשלמת הפרטים.' : 'אירעה תקלה.';
+                    await updateSession(enterId, 'messages', { page: offset + 1, currentMessageType: null, currentRequestId: null });
+                    return await goToMenu(enterId, user.id, user.gender, res, pfx);
+                }
+                if (key === '2') {
+                    const result = await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => 'error');
+                    const pfx = result === 'ok' ? 'תגובתך נשלחה.' : 'אירעה תקלה.';
+                    await updateSession(enterId, 'messages', { page: offset + 1, currentMessageType: null, currentRequestId: null });
+                    return await goToMenu(enterId, user.id, user.gender, res, pfx);
+                }
+            }
+
             // מקש 9 — שמע שוב (מנגן את ההודעה הנוכחית מחדש)
             if (key === '9' && msgText) {
-                const actionsText = g(user.gender,
-                    'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',
-                    'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט הראשי.'
-                );
+                const isRefReq = data.currentMessageType === 'reference_request';
+                const actionsText = isRefReq
+                    ? g(user.gender,
+                        'הקש אחת להסכמה ומעבר לאתר. הקש שתיים לציון שאינך יכול לספק. הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                        'הקשי אחת להסכמה ומעבר לאתר. הקשי שתיים לציון שאינך יכולה לספק. הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+                    )
+                    : g(user.gender,
+                        'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',
+                        'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט הראשי.'
+                    );
                 const file = await textToYemot(`${msgText} ${actionsText}`);
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
@@ -994,19 +1016,32 @@ router.get('/call', async (req, res) => {
             .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
             .trim();
 
+        const isRefReq = msg.type === 'reference_request';
+        let requestId = null;
+        if (isRefReq && msg.meta) {
+            try { requestId = JSON.parse(msg.meta).requestId || null; } catch {}
+        }
+
         await updateSession(enterId, 'messages', {
             page:               offset,
             currentMessageId:   msg.id,
-            currentMessageText: cleanContent
+            currentMessageText: cleanContent,
+            currentMessageType: msg.type || null,
+            currentRequestId:   requestId
         });
 
         // סמן כנקראה ברגע שהוקראה — לא מחכים ללחיצת 8
         markMessageReadFromIvr(msg.id, user.id).catch(() => {});
 
-        const actionsText = g(user.gender,
-            'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',
-            'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט הראשי.'
-        );
+        const actionsText = isRefReq
+            ? g(user.gender,
+                'הקש אחת להסכמה ומעבר לאתר להשלמת הפרטים. הקש שתיים לציון שאינך יכול לספק ממליץ. הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט.',
+                'הקשי אחת להסכמה ומעבר לאתר להשלמת הפרטים. הקשי שתיים לציון שאינך יכולה לספק ממליץ. הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט.'
+            )
+            : g(user.gender,
+                'הקש תשע לשמיעה חוזרת. הקש שמונה להודעה הבאה. הקש אפס לתפריט הראשי.',
+                'הקשי תשע לשמיעה חוזרת. הקשי שמונה להודעה הבאה. הקשי אפס לתפריט הראשי.'
+            );
         const file = await textToYemot(`הודעה חדשה: ${cleanContent} ${actionsText}`);
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }

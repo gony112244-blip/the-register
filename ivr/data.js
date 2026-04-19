@@ -648,14 +648,14 @@ async function rejectPhotoRequestFromIvr(requesterId, userId) {
  */
 async function getMessagesForIvr(userId, offset = 0, limit = 1) {
     const result = await pool.query(
-        `SELECT m.id, m.content, m.type, m.created_at,
+        `SELECT m.id, m.content, m.type, m.meta, m.created_at,
                 u.full_name AS from_name
          FROM messages m
          LEFT JOIN users u ON u.id = m.from_user_id
          WHERE m.to_user_id = $1
            AND m.is_read = FALSE
            AND (
-               m.type IN ('admin_message', 'photo_response')
+               m.type IN ('admin_message', 'photo_response', 'reference_request', 'reference_response')
                OR (m.type = 'system' AND m.from_user_id IS NOT NULL AND m.from_user_id != 1)
            )
          ORDER BY m.created_at DESC
@@ -663,6 +663,37 @@ async function getMessagesForIvr(userId, offset = 0, limit = 1) {
         [userId, limit, offset]
     );
     return result.rows;
+}
+
+/**
+ * תגובה לבקשת ממליץ נוסף מה-IVR
+ * response: 'provide' (יגיב דרך האתר) | 'cannot' (לא יכול לספק)
+ */
+async function respondToReferenceRequestFromIvr(requestId, responderId, response) {
+    const reqRow = await pool.query(
+        `SELECT rr.requester_id, u_resp.full_name AS responder_name
+         FROM reference_requests rr
+         JOIN connections c ON c.id = rr.connection_id
+         JOIN users u_resp ON u_resp.id = $2
+         WHERE rr.id = $1 AND (c.sender_id = $2 OR c.receiver_id = $2)`,
+        [requestId, responderId]
+    );
+    if (reqRow.rowCount === 0) return 'not_found';
+
+    const { requester_id, responder_name } = reqRow.rows[0];
+    await pool.query(`UPDATE reference_requests SET status = $1 WHERE id = $2`, [response, requestId]);
+
+    const msg = response === 'provide'
+        ? `✅ ${responder_name} אישר/ה שישלח/ת ממליץ נוסף — יצרו קשר ישירות.`
+        : `ℹ️ ${responder_name} ציין/נה שלצערם בשלב זה אינם יכולים לספק ממליץ נוסף.`;
+
+    await pool.query(
+        `INSERT INTO messages (from_user_id, to_user_id, content, type)
+         VALUES ($1, $2, $3, 'reference_response')`,
+        [responderId, requester_id, msg]
+    );
+
+    return 'ok';
 }
 
 /**
@@ -737,5 +768,6 @@ module.exports = {
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
     getMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed,
-    requestAdditionalReferenceFromIvr
+    requestAdditionalReferenceFromIvr,
+    respondToReferenceRequestFromIvr
 };
