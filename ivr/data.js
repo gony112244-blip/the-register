@@ -87,8 +87,7 @@ async function countUnreadMessages(userId) {
          WHERE to_user_id = $1
            AND is_read = FALSE
            AND (
-               type = 'admin_message'
-               OR type = 'photo_response'
+               type IN ('admin_message', 'photo_response', 'reference_request', 'reference_response')
                OR (type = 'system' AND from_user_id IS NOT NULL AND from_user_id != 1)
            )`,
         [userId]
