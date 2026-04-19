@@ -670,7 +670,7 @@ async function getMessagesForIvr(userId, offset = 0, limit = 1) {
  */
 async function respondToReferenceRequestFromIvr(requestId, responderId, response) {
     const reqRow = await pool.query(
-        `SELECT rr.requester_id, u_resp.full_name AS responder_name
+        `SELECT rr.requester_id, u_resp.full_name AS responder_name, u_resp.gender AS responder_gender
          FROM reference_requests rr
          JOIN connections c ON c.id = rr.connection_id
          JOIN users u_resp ON u_resp.id = $2
@@ -679,12 +679,13 @@ async function respondToReferenceRequestFromIvr(requestId, responderId, response
     );
     if (reqRow.rowCount === 0) return 'not_found';
 
-    const { requester_id, responder_name } = reqRow.rows[0];
+    const { requester_id, responder_name, responder_gender } = reqRow.rows[0];
+    const isFemale = responder_gender === 'female';
     await pool.query(`UPDATE reference_requests SET status = $1 WHERE id = $2`, [response, requestId]);
 
     const msg = response === 'provide'
-        ? `✅ ${responder_name} אישר/ה שישלח/ת ממליץ נוסף — יצרו קשר ישירות.`
-        : `ℹ️ ${responder_name} ציין/נה שלצערם בשלב זה אינם יכולים לספק ממליץ נוסף.`;
+        ? `✅ ${responder_name} ${isFemale ? 'אישרה שתשלח' : 'אישר שישלח'} ממליץ נוסף — יצרו קשר ישירות.`
+        : `ℹ️ ${responder_name} ${isFemale ? 'ציינה' : 'ציין'} שלצערם בשלב זה אינם יכולים לספק ממליץ נוסף.`;
 
     await pool.query(
         `INSERT INTO messages (from_user_id, to_user_id, content, type)
@@ -713,7 +714,8 @@ async function markMessageReadFromIvr(messageId, userId) {
 async function requestAdditionalReferenceFromIvr(connectionId, requesterId, count = 1) {
     const connCheck = await pool.query(
         `SELECT c.id, c.sender_id, c.receiver_id,
-                u_req.full_name AS requester_name
+                u_req.full_name AS requester_name,
+                u_req.gender   AS requester_gender
          FROM connections c
          JOIN users u_req ON u_req.id = $2
          WHERE c.id = $1 AND (c.sender_id = $2 OR c.receiver_id = $2)
@@ -726,6 +728,7 @@ async function requestAdditionalReferenceFromIvr(connectionId, requesterId, coun
     const otherUserId = conn.sender_id === requesterId ? conn.receiver_id : conn.sender_id;
     const countNum = count === 2 ? 2 : 1;
     const reason = 'no_answer';
+    const isFemale = conn.requester_gender === 'female';
 
     const inserted = await pool.query(
         `INSERT INTO reference_requests (connection_id, requester_id, reason, count)
@@ -735,7 +738,8 @@ async function requestAdditionalReferenceFromIvr(connectionId, requesterId, coun
     const requestId = inserted.rows[0].id;
 
     const countText = countNum === 2 ? 'שניים' : 'אחד';
-    const msg = `📋 בקשה לממליץ נוסף\n\n${conn.requester_name} מבקש/ת ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nהבקשה הגיעה דרך מערכת הטלפון.`;
+    const mevakesh = isFemale ? 'מבקשת' : 'מבקש';
+    const msg = `📋 בקשה לממליץ נוסף\n\n${conn.requester_name} ${mevakesh} ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nהבקשה הגיעה דרך מערכת הטלפון.`;
 
     await pool.query(
         `INSERT INTO messages (from_user_id, to_user_id, content, type, meta)

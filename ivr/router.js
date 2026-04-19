@@ -976,6 +976,7 @@ router.get('/call', async (req, res) => {
                 const nextClean = (nextMsg.content || '')
                     .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
                     .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+                    .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (phone) => formatPhoneForTts(phone))
                     .trim();
                 await updateSession(enterId, 'messages', { page: offset, currentMessageId: nextMsg.id, currentMessageText: nextClean });
                 markMessageReadFromIvr(nextMsg.id, user.id).catch(() => {});
@@ -1014,6 +1015,7 @@ router.get('/call', async (req, res) => {
         const cleanContent = (msg.content || '')
             .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
             .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+            .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (phone) => formatPhoneForTts(phone))
             .trim();
 
         const isRefReq = msg.type === 'reference_request';
