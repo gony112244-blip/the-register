@@ -318,7 +318,10 @@ function Matches() {
                 </div>
             )}
 
-            <div style={{ maxWidth: '1200px', margin: '0 auto 10px', display: 'flex', justifyContent: 'flex-end', padding: '0 20px' }}>
+            <div style={{ maxWidth: '1200px', margin: '0 auto 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 20px' }}>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.82rem', margin: 0 }}>
+                    💡 לחץ על 🗑️ בכרטיס הצעה כדי להכניסה לסל המיחזור — ההצעה תוסתר גם ממך וגם מהצד השני. תוכל לשחזר אותה בכל עת.
+                </p>
                 <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
             </div>
 

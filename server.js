@@ -2279,8 +2279,9 @@ app.get('/matches', authenticateToken, async (req, res) => {
             // מסנן רק קשרים פעילים/גמורים — pending נשאר ומסומן על הכרטיס
             `id NOT IN (SELECT receiver_id FROM connections WHERE sender_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
             `id NOT IN (SELECT sender_id FROM connections WHERE receiver_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
-            // סינון מוסתרים (סל מחזור)
+            // סינון מוסתרים (סל מחזור) — גם מי שהכנסתי לסל וגם מי שהכניס אותי לסל שלו
             `id NOT IN (SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $1)`,
+            `id NOT IN (SELECT user_id FROM hidden_profiles WHERE hidden_user_id = $1)`,
             // סינון משתמשים שחסמו אותי
             `id NOT IN (SELECT blocker_id FROM user_blocks WHERE blocked_id = $1)`,
             // סינון משתמשים שחסמתי
