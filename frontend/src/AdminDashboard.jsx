@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 function AdminDashboard() {
     const navigate = useNavigate();
-    const [stats, setStats] = useState({ total: 0, pending: 0, matches: 0, sectors: [], monthly: [] });
+    const [stats, setStats] = useState({ total: 0, pending: 0, matches: 0, sectors: [], monthly: [], ivr: null, web: null });
     const [openTickets, setOpenTickets] = useState(0);
     const [loading, setLoading] = useState(true);
     const [showStats, setShowStats] = useState(false);
@@ -184,6 +184,57 @@ function AdminDashboard() {
                                     </div>
                                 </div>
                             )}
+
+                            {/* סטטיסטיקות IVR */}
+                            <div style={s.statsBlock}>
+                                <h3 style={s.statsBlockTitle}>📞 שיחות טלפון — 30 ימים אחרונים</h3>
+                                <div style={s.statsGrid}>
+                                    <div style={s.statRow}>
+                                        <span style={s.statRowLabel}>סה״כ שיחות</span>
+                                        <span style={s.statRowVal}>{stats.ivr?.total_calls ?? '—'}</span>
+                                    </div>
+                                    <div style={s.statRow}>
+                                        <span style={s.statRowLabel}>מתקשרים ייחודיים</span>
+                                        <span style={s.statRowVal}>{stats.ivr?.unique_callers ?? '—'}</span>
+                                    </div>
+                                    <div style={s.statRow}>
+                                        <span style={s.statRowLabel}>סה״כ דקות שיחה</span>
+                                        <span style={s.statRowVal}>{stats.ivr?.total_minutes ?? '—'} דק׳</span>
+                                    </div>
+                                    <div style={s.statRow}>
+                                        <span style={s.statRowLabel}>ממוצע לשיחה</span>
+                                        <span style={s.statRowVal}>{stats.ivr?.avg_seconds ? `${Math.round(stats.ivr.avg_seconds / 60)} דק׳ ${stats.ivr.avg_seconds % 60} שנ׳` : '—'}</span>
+                                    </div>
+                                </div>
+                                {stats.ivr?.daily?.length > 0 && (
+                                    <div style={{ marginTop: '12px' }}>
+                                        <div style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '6px' }}>לפי יום — שבוע אחרון</div>
+                                        <div style={s.statsGrid}>
+                                            {stats.ivr.daily.map((d, i) => (
+                                                <div key={i} style={s.statRow}>
+                                                    <span style={s.statRowLabel}>{d.day}</span>
+                                                    <span style={s.statRowVal}>{d.calls} שיחות · {d.minutes} דק׳</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* סטטיסטיקות התחברויות לאתר */}
+                            <div style={s.statsBlock}>
+                                <h3 style={s.statsBlockTitle}>🌐 התחברויות לאתר — 30 ימים אחרונים</h3>
+                                <div style={s.statsGrid}>
+                                    <div style={s.statRow}>
+                                        <span style={s.statRowLabel}>סה״כ התחברויות</span>
+                                        <span style={s.statRowVal}>{stats.web?.total_logins ?? '—'}</span>
+                                    </div>
+                                    <div style={s.statRow}>
+                                        <span style={s.statRowLabel}>משתמשים ייחודיים</span>
+                                        <span style={s.statRowVal}>{stats.web?.unique_users ?? '—'}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

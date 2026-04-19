@@ -6,6 +6,7 @@
 
 const express = require('express');
 const router = express.Router();
+const pool = require('../db');
 const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSession, updateUserPin } = require('./auth');
 const { textToYemot, numberToHebrew, formatPhoneForTts } = require('./tts');
 const {
@@ -1858,8 +1859,26 @@ router.get('/call', async (req, res) => {
 // GET /ivr/hangup — ניתוק (לוג בלבד כרגע)
 // ==========================================
 router.get('/hangup', async (req, res) => {
-    const { phone } = req.query;
+    const { phone, enter_id } = req.query;
     console.log(`[IVR] 📵 ניתוק | phone: ${phone}`);
+    // לוגינג משך שיחה ב-ivr_logs
+    try {
+        const sessRow = await pool.query(
+            `SELECT user_id, created_at FROM ivr_sessions WHERE enter_id = $1`,
+            [enter_id]
+        );
+        if (sessRow.rowCount > 0) {
+            const { user_id, created_at } = sessRow.rows[0];
+            const durationSec = Math.round((Date.now() - new Date(created_at).getTime()) / 1000);
+            await pool.query(
+                `INSERT INTO ivr_logs (user_id, caller_phone, call_duration_seconds, created_at)
+                 VALUES ($1, $2, $3, NOW())`,
+                [user_id, phone || null, durationSec > 0 ? durationSec : null]
+            );
+        }
+    } catch (e) {
+        console.error('[IVR hangup log]', e.message);
+    }
     return res.type('text').send('ok');
 });
 

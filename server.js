@@ -4150,13 +4150,57 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
             ORDER BY date_part('month', created_at)
         `);
 
+        // 4. שיחות IVR — 30 ימים אחרונים
+        const ivrStats = await pool.query(`
+            SELECT
+                COUNT(*)                                          AS total_calls,
+                COUNT(DISTINCT user_id)                           AS unique_callers,
+                COALESCE(SUM(call_duration_seconds), 0)           AS total_seconds,
+                COALESCE(ROUND(AVG(call_duration_seconds)), 0)    AS avg_seconds
+            FROM ivr_logs
+            WHERE created_at > NOW() - INTERVAL '30 days'
+        `);
+
+        // 5. התחברויות לאתר — 30 ימים אחרונים
+        const webLogins = await pool.query(`
+            SELECT
+                COUNT(*)                    AS total_logins,
+                COUNT(DISTINCT user_id)     AS unique_users
+            FROM activity_log
+            WHERE action = 'login_success'
+              AND created_at > NOW() - INTERVAL '30 days'
+        `);
+
+        // 6. שיחות IVR לפי יום — 7 ימים אחרונים (לגרף)
+        const ivrDaily = await pool.query(`
+            SELECT
+                to_char(created_at, 'DD/MM') AS day,
+                COUNT(*)                     AS calls,
+                COALESCE(ROUND(SUM(call_duration_seconds)/60.0), 0) AS minutes
+            FROM ivr_logs
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY 1, date_trunc('day', created_at)
+            ORDER BY date_trunc('day', created_at)
+        `);
+
         res.json({
             total: parseInt(totalUsers.rows[0].count),
             pending: parseInt(pendingUsers.rows[0].count),
             matches: parseInt(activeMatches.rows[0].count),
             open_tickets: parseInt(openTickets.rows[0].count),
             sectors: sectors.rows,
-            monthly: monthly.rows
+            monthly: monthly.rows,
+            ivr: {
+                total_calls:     parseInt(ivrStats.rows[0].total_calls),
+                unique_callers:  parseInt(ivrStats.rows[0].unique_callers),
+                total_minutes:   Math.round(parseInt(ivrStats.rows[0].total_seconds) / 60),
+                avg_seconds:     parseInt(ivrStats.rows[0].avg_seconds),
+                daily:           ivrDaily.rows
+            },
+            web: {
+                total_logins:  parseInt(webLogins.rows[0].total_logins),
+                unique_users:  parseInt(webLogins.rows[0].unique_users)
+            }
         });
 
     } catch (err) {
