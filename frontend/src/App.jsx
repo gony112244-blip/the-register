@@ -21,6 +21,7 @@ import PWAInstallPrompt from './components/PWAInstallPrompt'; // התקנת PWA
 import VerifyEmailLink from './VerifyEmailLink';
 import ReportWrongEmail from './ReportWrongEmail';
 
+import WelcomeModal from './components/WelcomeModal';
 import IvrSettings from './IvrSettings';
 import AdminMatches from './AdminMatches';
 import AdminPendingProfiles from './AdminPendingProfiles';
@@ -158,6 +159,7 @@ function AppContent() {
   return (
     <div className="App">
       {showNavbar && <Navbar />}
+      <WelcomeModal user={currentUser} />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />

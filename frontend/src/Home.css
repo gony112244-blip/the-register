@@ -248,11 +248,34 @@
 
 .phone-info .phone-number {
   color: var(--primary-gold-light);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 1.2rem;
   direction: ltr;
   display: inline-block;
-  margin-right: 8px;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.phone-info .phone-number:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+.phone-info .phone-number-secondary {
+  font-size: 1rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+.phone-info .phone-separator {
+  color: rgba(255,255,255,0.35);
+  margin: 0 6px;
+}
+.phone-footer-link {
+  color: inherit;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.phone-footer-link:hover {
+  opacity: 0.75;
+  text-decoration: underline;
 }
 
 /* Scroll Indicator */

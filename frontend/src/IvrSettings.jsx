@@ -76,7 +76,7 @@ function IvrSettings() {
         </div>
     );
 
-    const phoneNumber = '0772291821';
+    const phoneMain = '02-313-0778';
 
     return (
         <div style={styles.page}>
@@ -87,8 +87,41 @@ function IvrSettings() {
                     <div style={styles.headerIcon}>📞</div>
                     <h1 style={styles.title}>הגדרות מערכת הטלפון</h1>
                     <p style={styles.subtitle}>
-                        שלח {phoneNumber} להאזין לפניות, הצעות ועוד — ישירות מהטלפון
+                        חייג ל-<strong>{phoneMain}</strong> ונהל את השידוך ישירות מהטלפון
                     </p>
+                </div>
+
+                {/* מספר חיוג */}
+                <div style={styles.phoneBox}>
+                    <div style={styles.phoneRow}>
+                        <span style={styles.phoneLabel}>📲 מספר לחיוג</span>
+                        <a href="tel:0231307780" style={styles.phoneLink}>{phoneMain}</a>
+                    </div>
+                </div>
+
+                {/* מדריך מקשים */}
+                <div style={styles.guideBox}>
+                    <div style={styles.guideTitle}>🗝️ מפת המקשים — שמור אותה!</div>
+                    <div style={styles.keysGrid}>
+                        {[
+                            { key: '1', desc: 'כן / מעוניין / אישור' },
+                            { key: '2', desc: 'לא / דחייה' },
+                            { key: '4', desc: 'פרטים נוספים' },
+                            { key: '5', desc: 'תיאור מלא' },
+                            { key: '8', desc: 'הבא / דלג' },
+                            { key: '9', desc: 'הגדרות' },
+                            { key: '0', desc: 'תפריט ראשי' },
+                            { key: '#', desc: 'תפריט ראשי (מכל מקום)' },
+                        ].map(({ key, desc }) => (
+                            <div key={key} style={styles.keyItem}>
+                                <span style={styles.keyBadge}>{key}</span>
+                                <span style={styles.keyDesc}>{desc}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={styles.guideTip}>
+                        💡 <strong>טיפ:</strong> אפשר ללחוץ מיד — לא צריך להמתין לסוף ההקראה
+                    </div>
                 </div>
 
                 {/* הסבר */}
@@ -398,7 +431,90 @@ const styles = {
         cursor: 'pointer',
         fontSize: '0.95rem',
         fontWeight: '600'
-    }
+    },
+    phoneBox: {
+        background: '#f0fdf4',
+        border: '1.5px solid #86efac',
+        borderRadius: '14px',
+        padding: '16px 20px',
+        marginBottom: '20px',
+    },
+    phoneRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '4px 0',
+    },
+    phoneLabel: {
+        fontSize: '0.88rem',
+        color: '#374151',
+        fontWeight: '600',
+    },
+    phoneLink: {
+        fontSize: '1.15rem',
+        fontWeight: '800',
+        color: '#15803d',
+        textDecoration: 'none',
+        letterSpacing: '0.5px',
+        direction: 'ltr',
+    },
+    phoneDivider: {
+        height: '1px',
+        background: '#bbf7d0',
+        margin: '8px 0',
+    },
+    guideBox: {
+        background: '#fefce8',
+        border: '1.5px solid #fde68a',
+        borderRadius: '14px',
+        padding: '18px 20px',
+        marginBottom: '20px',
+    },
+    guideTitle: {
+        fontWeight: '700',
+        fontSize: '0.95rem',
+        color: '#92400e',
+        marginBottom: '14px',
+    },
+    keysGrid: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '8px',
+        marginBottom: '14px',
+    },
+    keyItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+    },
+    keyBadge: {
+        background: '#1e293b',
+        color: '#fff',
+        borderRadius: '6px',
+        width: '28px',
+        height: '28px',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: '800',
+        fontSize: '0.9rem',
+        flexShrink: 0,
+        fontFamily: 'monospace',
+        textAlign: 'center',
+    },
+    keyDesc: {
+        fontSize: '0.82rem',
+        color: '#374151',
+        lineHeight: '1.3',
+    },
+    guideTip: {
+        fontSize: '0.85rem',
+        color: '#78350f',
+        background: '#fef9c3',
+        borderRadius: '8px',
+        padding: '8px 12px',
+        lineHeight: '1.5',
+    },
 };
 
 export default IvrSettings;
