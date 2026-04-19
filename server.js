@@ -2415,6 +2415,23 @@ app.get('/matches', authenticateToken, async (req, res) => {
             }
         }
 
+        // סינון לפי מינימום עזרה בדיור — רק אם לא סימן "נדון בהמשך"
+        // apartment_amount מאוחסן לפעמים כ-"yes (100000)" — נשלוף את המספר
+        if (!currentUser.search_financial_discuss && currentUser.search_financial_min) {
+            const minAmt = parseInt(String(currentUser.search_financial_min).replace(/[,\s]/g, ''), 10);
+            if (!isNaN(minAmt) && minAmt > 0) {
+                conditions.push(`(
+                    apartment_help = 'full'
+                    OR (
+                        apartment_amount IS NOT NULL
+                        AND NULLIF(regexp_replace(apartment_amount, '[^0-9]', '', 'g'), '')::int >= $${paramIndex}
+                    )
+                )`);
+                params.push(minAmt);
+                paramIndex++;
+            }
+        }
+
         // =========================================
         // בדיקה שגם הצד השני מחפש אותי! (דו-כיווני)
         // =========================================
