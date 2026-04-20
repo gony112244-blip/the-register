@@ -835,7 +835,7 @@ router.get('/call', async (req, res) => {
         try { pool = await fetchFn(user.id, nextOffset, 1); } catch {}
         if (pool.length === 0) {
             const endMsg = stateName === 'matches'
-                ? (prefix ? `${prefix} סיימת את כל ההצעות החדשות. לעיון בכל ההצעות לחץ שבע בתפריט הראשי.` : 'סיימת את כל ההצעות החדשות. לעיון בכל ההצעות לחץ שבע בתפריט הראשי.')
+                ? (prefix ? `${prefix} סיימת את כל ההצעות החדשות. לעיון בכל ההצעות הָקֵשׁ שבע בתפריט הראשי.` : 'סיימת את כל ההצעות החדשות. לעיון בכל ההצעות הָקֵשׁ שבע בתפריט הראשי.')
                 : (prefix || 'סיימת את כל ההצעות הזמינות.');
             return await goToMenu(enterId, user.id, user.gender, res, endMsg);
         }
@@ -1034,8 +1034,8 @@ router.get('/call', async (req, res) => {
                         returnState: 'messages'
                     });
                     const prompt = g(user.gender,
-                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, ולחץ כוכב בסיום.',
-                        'הקישי את מספר הטלפון של הממליץ, עשר ספרות, ולחצי כוכב בסיום.'
+                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, וְלַחַץ כוכבית בסיום.',
+                        'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות, וְלַחֲצִי כוכבית בסיום.'
                     );
                     const promptFile = await textToYemot(prompt);
                     return yemotRead(res, promptFile, 'digits', 10, 15, 30);
@@ -1806,8 +1806,8 @@ router.get('/call', async (req, res) => {
                         returnState: 'recent_messages'
                     });
                     const prompt = g(user.gender,
-                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, ולחץ כוכב בסיום.',
-                        'הקישי את מספר הטלפון של הממליץ, עשר ספרות, ולחצי כוכב בסיום.'
+                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, וְלַחַץ כוכבית בסיום.',
+                        'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות, וְלַחֲצִי כוכבית בסיום.'
                     );
                     const promptFile = await textToYemot(prompt);
                     return yemotRead(res, promptFile, 'digits', 10, 15, 30);
@@ -1880,8 +1880,8 @@ router.get('/call', async (req, res) => {
         // timeout / # בלי קלט — שאל שוב
         if (!key || key === '#') {
             const prompt = g(user.gender,
-                'לא התקבל מספר. הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, ולחץ כוכב בסיום.',
-                'לא התקבל מספר. הקישי את מספר הטלפון של הממליץ, עשר ספרות, ולחצי כוכב בסיום.'
+                'לא התקבל מספר. הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, וְלַחַץ כוכבית בסיום.',
+                'לא התקבל מספר. הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות, וְלַחֲצִי כוכבית בסיום.'
             );
             const f = await textToYemot(prompt);
             return yemotRead(res, f, 'digits', 10, 15, 30);
@@ -1891,8 +1891,8 @@ router.get('/call', async (req, res) => {
         const digits = key.replace(/\D/g, '');
         if (digits.length < 9 || digits.length > 11 || !digits.startsWith('0')) {
             const errPrompt = g(user.gender,
-                'מספר לא תקין. הָקֵשׁ שוב מספר טלפון ישראלי בן עשר ספרות ולחץ כוכב.',
-                'מספר לא תקין. הקישי שוב מספר טלפון ישראלי בן עשר ספרות ולחצי כוכב.'
+                'מספר לא תקין. הָקֵשׁ שוב מספר טלפון ישראלי בן עשר ספרות וְלַחַץ כוכבית.',
+                'מספר לא תקין. הָקִישִׁי שוב מספר טלפון ישראלי בן עשר ספרות וְלַחֲצִי כוכבית.'
             );
             const f = await textToYemot(errPrompt);
             return yemotRead(res, f, 'digits', 10, 15, 30);
