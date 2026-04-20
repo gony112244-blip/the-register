@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MatchCardModal from './components/MatchCardModal';
 import { useToast } from './components/ToastProvider';
+import { forceLogout } from './App';
 
 const CANCEL_REASONS = [
     { id: 1, text: 'לצערנו, לאחר בירורים נראה שאנחנו פחות מתאימים זה לזה' },
@@ -55,7 +56,7 @@ function Connections() {
             });
 
             if (res.status === 401) {
-                navigate('/login');
+                forceLogout(navigate);
                 return;
             }
 

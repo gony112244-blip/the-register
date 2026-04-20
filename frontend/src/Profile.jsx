@@ -2,6 +2,7 @@ import { API_BASE, getSecureUrl } from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
+import { forceLogout } from './App';
 
 /** תוויות סטטוס לפי מגדר */
 function getMaritalStatusOptions(gender) {
@@ -203,7 +204,7 @@ function Profile() {
                         setUser(prev => ({ ...prev, age }));
                     }
                 } else {
-                    if (res.status === 401) navigate('/login');
+                    if (res.status === 401) forceLogout(navigate);
                 }
             } catch (err) {
                 console.error("Failed to load profile", err);

@@ -34,6 +34,18 @@ import './App.css';
 /** דקות ללא פעילות לפני ניתוק אוטומטי (מחשב משותף / עזיבת המחשב) */
 const IDLE_LOGOUT_MINUTES = 30;
 
+/**
+ * ניתוק גלובלי על 401 — מנקה token ומפנה ל-login.
+ * ייבוא אם צריך: import { forceLogout } from './App';
+ */
+export function forceLogout(navigateFn) {
+  localStorage.removeItem('user');
+  localStorage.removeItem('token');
+  sessionStorage.removeItem('email_reminder_shown');
+  window.dispatchEvent(new CustomEvent('userUpdated', { detail: null }));
+  if (navigateFn) navigateFn('/login');
+}
+
 function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -132,8 +144,15 @@ function AppContent() {
     idleLogoutDone.current = false;
     let lastActivity = Date.now();
     const bump = () => { lastActivity = Date.now(); };
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+
+    // mousemove — מכסה גלילה עם העכבר ותנועות בלי לחיצה
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown'];
     events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+
+    // visibilitychange — כשחוזרים לטאב אחרי היעדרות, מעדכנים lastActivity
+    // כך חזרה לטאב תמיד "מאפסת" את ספירת הדקות (הניתוק יתחיל רק אחרי חצי שעה של חוסר פעילות בתוך הטאב)
+    const onVisible = () => { if (document.visibilityState === 'visible') lastActivity = Date.now(); };
+    document.addEventListener('visibilitychange', onVisible);
 
     const tick = () => {
       if (!localStorage.getItem('token') || idleLogoutDone.current) return;
@@ -152,6 +171,7 @@ function AppContent() {
     const intervalId = setInterval(tick, 60 * 1000);
     return () => {
       events.forEach((ev) => window.removeEventListener(ev, bump));
+      document.removeEventListener('visibilitychange', onVisible);
       clearInterval(intervalId);
     };
   }, [navigate, showToast]);
