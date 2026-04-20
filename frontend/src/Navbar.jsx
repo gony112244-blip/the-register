@@ -196,7 +196,14 @@ function Navbar() {
             {!user.is_admin && (
               <>
                 <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיס שלי</Link>
-                <Link to="/ivr-settings" className="navbar-profile-btn" style={{ background: 'rgba(79,70,229,0.12)', color: '#4f46e5' }}>📞</Link>
+                <a
+                  href="tel:023130778"
+                  className="navbar-phone-btn"
+                  title="התקשר למערכת הטלפונית"
+                >
+                  📞 023130778
+                </a>
+                <Link to="/ivr-settings" className="navbar-profile-btn" style={{ background: 'rgba(79,70,229,0.12)', color: '#4f46e5', fontSize: '0.7rem', padding: '4px 8px' }} title="הגדרות טלפון כשר">הגדרות טלפון</Link>
               </>
             )}
             <button onClick={handleLogout} className="navbar-logout-btn">יציאה</button>

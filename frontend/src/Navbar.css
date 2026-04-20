@@ -133,6 +133,26 @@
     box-shadow: 0 4px 15px rgba(201, 162, 39, 0.4);
 }
 
+/* כפתור טלפון כשר */
+.navbar-phone-btn {
+    text-decoration: none;
+    color: #c9a227;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(201, 162, 39, 0.4);
+    background: rgba(201, 162, 39, 0.08);
+    transition: all 0.3s;
+    white-space: nowrap;
+    letter-spacing: 0.03em;
+}
+
+.navbar-phone-btn:hover {
+    background: rgba(201, 162, 39, 0.2);
+    border-color: #c9a227;
+}
+
 /* כפתור יציאה */
 .navbar-logout-btn {
     background: rgba(255, 255, 255, 0.1);
