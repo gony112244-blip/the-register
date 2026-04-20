@@ -8,8 +8,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['notebook.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['notebook.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'og-share.jpg', 'og-share.png', 'og-share-alt.png'],
       workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}'],
         skipWaiting: true,
         clientsClaim: true,
         // אל תכנס ל-cache בקשות POST/API
