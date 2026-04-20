@@ -18,6 +18,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const { body, validationResult } = require('express-validator');
+const { buildMatchConditions } = require('./match-engine');
 
 
 const app = express();
@@ -2251,329 +2252,12 @@ app.get('/my-profile-data', authenticateToken, async (req, res) => {
 // ==========================================
 
 app.get('/matches', authenticateToken, async (req, res) => {
-    // Force reload v2
     const userId = req.user.id;
 
     try {
-        // שלב 1: שליפת פרטי המשתמש הנוכחי
-        const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({ message: "משתמש לא נמצא" });
-        }
-        let currentUser = userResult.rows[0];
+        const mc = await buildMatchConditions(userId, pool, { includePendingSent: true });
+        if (!mc.valid) return res.json([]);
 
-        // רק משתמש מאושר רואה רשימת התאמות (הפרונט גם חוסם; כאן הגנה כפולה)
-        if (!currentUser.is_approved) {
-            return res.json([]);
-        }
-
-        // מיזוג pending_changes — כדי שקריטריוני החיפוש והפרטים האישיים
-        // (גובה, גוון עור, מגזר וכו') ישמשו אפילו לפני אישור המנהל
-        if (currentUser.pending_changes && typeof currentUser.pending_changes === 'object') {
-            const skip = new Set(['id', 'password', 'profile_images', 'profile_images_count', 'is_admin', 'is_blocked', 'is_approved', 'is_email_verified']);
-            currentUser = { ...currentUser };
-            Object.entries(currentUser.pending_changes).forEach(([key, val]) => {
-                if (!skip.has(key) && val !== null && val !== undefined && val !== '') {
-                    currentUser[key] = val;
-                }
-            });
-        }
-
-        // הגנה: אם אין מגדר - לא נוכל לחפש
-        if (!currentUser.gender) {
-            return res.json([]);
-        }
-
-        // שלב 2: בניית תנאי הסינון
-        let params = [userId];
-        let paramIndex = 2; // כי הפרמטר הראשון הוא userId
-        let conditions = [
-            `is_approved = TRUE`,        // רק מאושרים
-            `is_blocked = FALSE`,        // לא חסומים
-            `id != $1`,                  // לא אני עצמי
-            `gender != (SELECT gender FROM users WHERE id = $1)`, // מין נגדי
-            // מסנן רק קשרים פעילים/גמורים — pending נשאר ומסומן על הכרטיס
-            `id NOT IN (SELECT receiver_id FROM connections WHERE sender_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
-            `id NOT IN (SELECT sender_id FROM connections WHERE receiver_id = $1 AND status IN ('active','waiting_for_shadchan'))`,
-            // סינון מוסתרים (סל מחזור) — גם מי שהכנסתי לסל וגם מי שהכניס אותי לסל שלו
-            `id NOT IN (SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $1)`,
-            `id NOT IN (SELECT user_id FROM hidden_profiles WHERE hidden_user_id = $1)`,
-            // סינון משתמשים שחסמו אותי
-            `id NOT IN (SELECT blocker_id FROM user_blocks WHERE blocked_id = $1)`,
-            // סינון משתמשים שחסמתי
-            `id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = $1)`
-        ];
-
-        // סינון לפי גיל — מי שלא מילא גיל לא מוצג (שדה חובה)
-        if (currentUser.search_min_age) {
-            conditions.push(`(age IS NOT NULL AND age >= $${paramIndex})`);
-            params.push(currentUser.search_min_age);
-            paramIndex++;
-        }
-        if (currentUser.search_max_age) {
-            conditions.push(`(age IS NOT NULL AND age <= $${paramIndex})`);
-            params.push(currentUser.search_max_age);
-            paramIndex++;
-        }
-
-        // סינון לפי גובה — מי שלא מילא גובה לא מוצג (שדה חובה)
-        if (currentUser.search_height_min) {
-            conditions.push(`(height IS NOT NULL AND height >= $${paramIndex})`);
-            params.push(Math.round(Number(currentUser.search_height_min)));
-            paramIndex++;
-        }
-        if (currentUser.search_height_max) {
-            conditions.push(`(height IS NOT NULL AND height <= $${paramIndex})`);
-            params.push(Math.round(Number(currentUser.search_height_max)));
-            paramIndex++;
-        }
-
-        // סינון לפי מבנה גוף (אם הוגדר) — NULL מותר (לא מפסלים מי שלא מילא)
-        if (currentUser.search_body_types && currentUser.search_body_types !== '') {
-            const bodyTypes = currentUser.search_body_types.split(',').map(t => t.trim()).filter(Boolean);
-            if (bodyTypes.length > 0) {
-                const placeholders = bodyTypes.map((_, i) => `$${paramIndex + i}`).join(',');
-                conditions.push(`(body_type IS NULL OR body_type IN (${placeholders}))`);
-                params.push(...bodyTypes);
-                paramIndex += bodyTypes.length;
-            }
-        }
-
-        // סינון לפי מראה כללי — NULL מותר (לא מפסלים מי שלא מילא)
-        if (currentUser.search_appearances && currentUser.search_appearances !== '') {
-            const appearances = currentUser.search_appearances.split(',').map(t => t.trim()).filter(Boolean);
-            if (appearances.length > 0) {
-                const placeholders = appearances.map((_, i) => `$${paramIndex + i}`).join(',');
-                conditions.push(`(appearance IS NULL OR appearance IN (${placeholders}))`);
-                params.push(...appearances);
-                paramIndex += appearances.length;
-            }
-        }
-
-        // סינון לפי רקע משפחתי — NULL מותר
-        if (currentUser.search_backgrounds && currentUser.search_backgrounds !== '') {
-            const backgrounds = currentUser.search_backgrounds.split(',').map(t => t.trim()).filter(Boolean);
-            if (backgrounds.length > 0) {
-                const placeholders = backgrounds.map((_, i) => `$${paramIndex + i}`).join(',');
-                conditions.push(`(family_background IS NULL OR family_background IN (${placeholders}))`);
-                params.push(...backgrounds);
-                paramIndex += backgrounds.length;
-            }
-        }
-
-        // סינון לפי סטטוס — NULL מותר
-        if (currentUser.search_statuses && currentUser.search_statuses !== '') {
-            const statuses = currentUser.search_statuses.split(',').map(t => t.trim()).filter(Boolean);
-            if (statuses.length > 0) {
-                const placeholders = statuses.map((_, i) => `$${paramIndex + i}`).join(',');
-                conditions.push(`(status IS NULL OR status IN (${placeholders}))`);
-                params.push(...statuses);
-                paramIndex += statuses.length;
-            }
-        }
-
-        // סינון לפי מגזר עדתי — mixed_heritage_ok שלי: אם אני מסמן "מתאים כלאיים" מקבל גם מעורב
-        if (currentUser.search_heritage_sectors && currentUser.search_heritage_sectors !== '') {
-            const sectors = currentUser.search_heritage_sectors.split(',').map(t => t.trim()).filter(Boolean);
-            if (sectors.length > 0) {
-                const placeholders = sectors.map((_, i) => `$${paramIndex + i}`).join(',');
-                params.push(...sectors);
-                paramIndex += sectors.length;
-                const mixedAccept = currentUser.mixed_heritage_ok
-                    ? ` OR (heritage_sector = 'mixed')`
-                    : '';
-                conditions.push(`(heritage_sector IS NULL OR heritage_sector IN (${placeholders})${mixedAccept})`);
-            }
-        }
-
-        // סינון לפי עיסוק — NULL מותר
-        if (currentUser.search_occupations && currentUser.search_occupations !== '') {
-            const occupations = currentUser.search_occupations.split(',').map(t => t.trim()).filter(Boolean);
-            if (occupations.length > 0) {
-                const placeholders = occupations.map((_, i) => `$${paramIndex + i}`).join(',');
-                conditions.push(`(current_occupation IS NULL OR current_occupation IN (${placeholders}))`);
-                params.push(...occupations);
-                paramIndex += occupations.length;
-            }
-        }
-
-        // סינון לפי שאיפות חיים — NULL מותר
-        if (currentUser.search_life_aspirations && currentUser.search_life_aspirations !== '') {
-            const aspirations = currentUser.search_life_aspirations.split(',').map(t => t.trim()).filter(Boolean);
-            if (aspirations.length > 0) {
-                const placeholders = aspirations.map((_, i) => `$${paramIndex + i}`).join(',');
-                conditions.push(`(life_aspiration IS NULL OR life_aspiration IN (${placeholders}))`);
-                params.push(...aspirations);
-                paramIndex += aspirations.length;
-            }
-        }
-
-        // סינון לפי כיסוי ראש:
-        // 'paah' → מוצגים head_covering IN ('paah','flexible') OR head_covering IS NULL
-        // 'kisui' → מוצגים head_covering IN ('kisui','flexible') OR head_covering IS NULL
-        // 'not_relevant' / NULL → כולם
-        if (currentUser.search_head_covering && currentUser.search_head_covering !== 'not_relevant') {
-            conditions.push(
-                `(head_covering IS NULL OR head_covering = 'flexible' OR head_covering = $${paramIndex})`
-            );
-            params.push(currentUser.search_head_covering);
-            paramIndex++;
-        }
-
-        // סינון לפי גוון עור — NULL מותר (לא מפסלים מי שלא מילא)
-        if (currentUser.search_skin_tones && currentUser.search_skin_tones !== '') {
-            const skinTones = currentUser.search_skin_tones.split(',').map(t => t.trim()).filter(Boolean);
-            if (skinTones.length > 0) {
-                const placeholders = skinTones.map((_, i) => `$${paramIndex + i}`).join(',');
-                conditions.push(`(skin_tone IS NULL OR skin_tone IN (${placeholders}))`);
-                params.push(...skinTones);
-                paramIndex += skinTones.length;
-            }
-        }
-
-        // סינון לפי מינימום עזרה בדיור — רק אם לא סימן "נדון בהמשך"
-        // apartment_amount מאוחסן לפעמים כ-"yes (100000)" — נשלוף את המספר
-        if (!currentUser.search_financial_discuss && currentUser.search_financial_min) {
-            const minAmt = parseInt(String(currentUser.search_financial_min).replace(/[,\s]/g, ''), 10);
-            if (!isNaN(minAmt) && minAmt > 0) {
-                conditions.push(`(
-                    apartment_help = 'full'
-                    OR (
-                        apartment_amount IS NOT NULL
-                        AND NULLIF(regexp_replace(apartment_amount, '[^0-9]', '', 'g'), '')::int >= $${paramIndex}
-                    )
-                )`);
-                params.push(minAmt);
-                paramIndex++;
-            }
-        }
-
-        // =========================================
-        // בדיקה שגם הצד השני מחפש אותי! (דו-כיווני)
-        // =========================================
-        // המועמד צריך לרצות את הגיל שלי
-        if (currentUser.age) {
-            const myAge = Math.round(Number(currentUser.age));
-            conditions.push(`(search_min_age IS NULL OR search_min_age <= $${paramIndex})`);
-            params.push(myAge);
-            paramIndex++;
-            conditions.push(`(search_max_age IS NULL OR search_max_age >= $${paramIndex})`);
-            params.push(myAge);
-            paramIndex++;
-        } else {
-            // אם אין לי גיל, לא מציגים מועמדים שהגדירו טווח גיל (הם לא יראו אותי)
-            conditions.push(`(search_min_age IS NULL AND search_max_age IS NULL)`);
-        }
-
-        // המועמד צריך לרצות את הגובה שלי
-        if (currentUser.height) {
-            const myHeight = Math.round(Number(currentUser.height));
-            conditions.push(`(search_height_min IS NULL OR search_height_min <= $${paramIndex})`);
-            params.push(myHeight);
-            paramIndex++;
-            conditions.push(`(search_height_max IS NULL OR search_height_max >= $${paramIndex})`);
-            params.push(myHeight);
-            paramIndex++;
-        } else {
-            // אם אין לי גובה, לא מציגים מועמדים שהגדירו טווח גובה
-            conditions.push(`(search_height_min IS NULL AND search_height_max IS NULL)`);
-        }
-
-        // המועמד צריך לרצות את המגזר העדתי שלי
-        if (currentUser.heritage_sector) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_heritage_sectors,'')), E'\\\\s*,\\\\s*')`;
-            const mixedOk = currentUser.heritage_sector === 'mixed'
-                ? ' OR (mixed_heritage_ok = TRUE)'
-                : '';
-            conditions.push(`(search_heritage_sectors IS NULL OR trim(coalesce(search_heritage_sectors,'')) = '' OR $${paramIndex} = ANY(${arrExpr})${mixedOk})`);
-            params.push(currentUser.heritage_sector);
-            paramIndex++;
-        } else {
-            conditions.push(`(search_heritage_sectors IS NULL OR trim(coalesce(search_heritage_sectors,'')) = '')`);
-        }
-
-        // המועמד צריך לרצות את הסטטוס שלי (רווק/גרוש/אלמן)
-        if (currentUser.status) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_statuses,'')), E'\\\\s*,\\\\s*')`;
-            conditions.push(`(search_statuses IS NULL OR trim(coalesce(search_statuses,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
-            params.push(currentUser.status);
-            paramIndex++;
-        } else {
-            conditions.push(`(search_statuses IS NULL OR trim(coalesce(search_statuses,'')) = '')`);
-        }
-
-        // המועמד צריך לרצות את הרקע הדתי שלי
-        if (currentUser.family_background) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_backgrounds,'')), E'\\\\s*,\\\\s*')`;
-            conditions.push(`(search_backgrounds IS NULL OR trim(coalesce(search_backgrounds,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
-            params.push(currentUser.family_background);
-            paramIndex++;
-        } else {
-            conditions.push(`(search_backgrounds IS NULL OR trim(coalesce(search_backgrounds,'')) = '')`);
-        }
-
-        // המועמד צריך לרצות את מבנה הגוף שלי
-        if (currentUser.body_type) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_body_types,'')), E'\\\\s*,\\\\s*')`;
-            conditions.push(`(search_body_types IS NULL OR trim(coalesce(search_body_types,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
-            params.push(currentUser.body_type);
-            paramIndex++;
-        } else {
-            conditions.push(`(search_body_types IS NULL OR trim(coalesce(search_body_types,'')) = '')`);
-        }
-
-        // המועמד צריך לרצות את המראה שלי
-        if (currentUser.appearance) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_appearances,'')), E'\\\\s*,\\\\s*')`;
-            conditions.push(`(search_appearances IS NULL OR trim(coalesce(search_appearances,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
-            params.push(currentUser.appearance);
-            paramIndex++;
-        } else {
-            conditions.push(`(search_appearances IS NULL OR trim(coalesce(search_appearances,'')) = '')`);
-        }
-
-        // המועמד צריך לרצות את העיסוק שלי
-        if (currentUser.current_occupation) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_occupations,'')), E'\\\\s*,\\\\s*')`;
-            conditions.push(`(search_occupations IS NULL OR trim(coalesce(search_occupations,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
-            params.push(currentUser.current_occupation);
-            paramIndex++;
-        } else {
-            conditions.push(`(search_occupations IS NULL OR trim(coalesce(search_occupations,'')) = '')`);
-        }
-
-        // המועמד צריך לרצות את השאיפה שלי
-        if (currentUser.life_aspiration) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_life_aspirations,'')), E'\\\\s*,\\\\s*')`;
-            conditions.push(`(search_life_aspirations IS NULL OR trim(coalesce(search_life_aspirations,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
-            params.push(currentUser.life_aspiration);
-            paramIndex++;
-        } else {
-            conditions.push(`(search_life_aspirations IS NULL OR trim(coalesce(search_life_aspirations,'')) = '')`);
-        }
-
-        // המועמד צריך לקבל את כיסוי הראש שלי (דו-כיווני)
-        if (currentUser.head_covering && currentUser.head_covering !== 'not_relevant') {
-            if (currentUser.head_covering === 'flexible') {
-                // אני גמישה — כל העדפה של הצד השני מתאימה לי
-            } else {
-                conditions.push(
-                    `(search_head_covering IS NULL OR search_head_covering = 'not_relevant' OR search_head_covering = 'flexible' OR search_head_covering = $${paramIndex})`
-                );
-                params.push(currentUser.head_covering);
-                paramIndex++;
-            }
-        }
-
-        // המועמד צריך לקבל את גוון העור שלי (דו-כיווני)
-        if (currentUser.skin_tone) {
-            const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_skin_tones,'')), E'\\\\s*,\\\\s*')`;
-            conditions.push(`(search_skin_tones IS NULL OR trim(coalesce(search_skin_tones,'')) = '' OR $${paramIndex} = ANY(${arrExpr}))`);
-            params.push(currentUser.skin_tone);
-            paramIndex++;
-        }
-
-        // שלב 3: הרצת השאילתה הסופית
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const pageSize = 30;
         const offset = (page - 1) * pageSize;
@@ -2584,19 +2268,16 @@ app.get('/matches', authenticateToken, async (req, res) => {
                    current_occupation, about_me, profile_images_count, life_aspiration, study_place, work_field,
                    head_covering, city, status, has_children, children_count
             FROM users
-            WHERE ${conditions.join(' AND ')}
+            WHERE ${mc.conditions.join(' AND ')}
             ORDER BY id DESC
             LIMIT ${pageSize} OFFSET ${offset}
         `;
 
-        // Debug log (יש להסיר בפרודקשן)
-
-        const result = await pool.query(query, params);
+        const result = await pool.query(query, mc.params);
         res.json(result.rows);
 
     } catch (err) {
         console.error("Match error:", err.message);
-        if (typeof params !== 'undefined') console.error("Query params:", params);
         console.error("Full error:", err);
         res.status(500).json({ message: "תקלה בטעינת השידוכים" });
     }

@@ -1,11 +1,11 @@
 /**
  * IVR Data — שאילתות DB לתפריט הראשי
  *
- * עיקרון: הספירות כאן הן קצרות ויעילות.
- * הלוגיקה העסקית המלאה נמצאת ב-server.js — IVR לא משכפל אותה.
+ * הסינון משתמש ב-match-engine.js המשותף — אותו אלגוריתם כמו באתר.
  */
 
 const pool = require('../db');
+const { buildMatchConditions } = require('../match-engine');
 
 // ==========================================
 // ספירות לתפריט הראשי
@@ -40,39 +40,16 @@ async function countPhotoRequests(userId) {
 }
 
 /**
- * הצעות חדשות ממנוע ההתאמות — פרופילים מגדר נגדי שטרם יצרתי איתם קשר.
- * ספירה מהירה עם הסינון הבסיסי של אלגוריתם ההתאמות.
- * (הספירה המדויקת בוצעת דרך GET /matches שכולל ניקוד — כאן קירוב יעיל)
+ * הצעות חדשות ממנוע ההתאמות — ספירה מדויקת עם אותו אלגוריתם כמו באתר.
+ * IVR מסנן גם pending ששלחתי (בניגוד לאתר שמשאיר pending כסימון על הכרטיס).
  */
 async function countNewMatches(userId) {
-    const userResult = await pool.query(
-        `SELECT gender FROM users WHERE id = $1`,
-        [userId]
-    );
-    const user = userResult.rows[0];
-    if (!user || !user.gender) return 0;
-
-    const targetGender = user.gender === 'male' ? 'female' : 'male';
+    const mc = await buildMatchConditions(userId, pool, { includePendingSent: false });
+    if (!mc.valid) return 0;
 
     const result = await pool.query(
-        `SELECT COUNT(*)::int AS count
-         FROM users u
-         WHERE u.gender       = $1
-           AND u.is_approved  = TRUE
-           AND u.is_blocked   = FALSE
-           AND u.id          != $2
-           AND u.id NOT IN (
-               SELECT receiver_id FROM connections
-               WHERE sender_id = $2 AND status IN ('active','waiting_for_shadchan','pending')
-           )
-           AND u.id NOT IN (
-               SELECT sender_id FROM connections
-               WHERE receiver_id = $2 AND status IN ('active','waiting_for_shadchan')
-           )
-           AND u.id NOT IN (
-               SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $2
-           )`,
-        [targetGender, userId]
+        `SELECT COUNT(*)::int AS count FROM users WHERE ${mc.conditions.join(' AND ')}`,
+        mc.params
     );
     return result.rows[0].count;
 }
@@ -157,14 +134,8 @@ async function getFullProfileForIvr(targetUserId) {
 }
 
 async function getMatchesForIvr(userId, offset = 0, limit = 1) {
-    const userResult = await pool.query(
-        `SELECT gender FROM users WHERE id = $1`,
-        [userId]
-    );
-    const user = userResult.rows[0];
-    if (!user || !user.gender) return [];
-
-    const targetGender = user.gender === 'male' ? 'female' : 'male';
+    const mc = await buildMatchConditions(userId, pool, { includePendingSent: false });
+    if (!mc.valid) return [];
 
     const result = await pool.query(
         `SELECT id, full_name, last_name, age, city, study_place, height,
@@ -176,30 +147,10 @@ async function getMatchesForIvr(userId, offset = 0, limit = 1) {
                 has_children, children_count, country_of_birth,
                 apartment_help, apartment_amount, favorite_study, study_field, home_style
          FROM users
-         WHERE gender       = $1
-           AND is_approved  = TRUE
-           AND is_blocked   = FALSE
-           AND id          != $2
-           AND id NOT IN (
-               SELECT receiver_id FROM connections
-               WHERE sender_id = $2 AND status IN ('active','waiting_for_shadchan','pending')
-           )
-           AND id NOT IN (
-               SELECT sender_id FROM connections
-               WHERE receiver_id = $2 AND status IN ('active','waiting_for_shadchan')
-           )
-           AND id NOT IN (
-               SELECT hidden_user_id FROM hidden_profiles WHERE user_id = $2
-           )
-           AND id NOT IN (
-               SELECT blocker_id FROM user_blocks WHERE blocked_id = $2
-           )
-           AND id NOT IN (
-               SELECT blocked_id FROM user_blocks WHERE blocker_id = $2
-           )
+         WHERE ${mc.conditions.join(' AND ')}
          ORDER BY id
-         LIMIT $3 OFFSET $4`,
-        [targetGender, userId, limit, offset]
+         LIMIT $${mc.paramIndex} OFFSET $${mc.paramIndex + 1}`,
+        [...mc.params, limit, offset]
     );
     return result.rows;
 }
@@ -209,14 +160,8 @@ async function getMatchesForIvr(userId, offset = 0, limit = 1) {
  * מאפשר עיון מחדש בהצעות שנדחו/דולגו.
  */
 async function getAllMatchesForIvr(userId, offset = 0, limit = 1) {
-    const userResult = await pool.query(
-        `SELECT gender FROM users WHERE id = $1`,
-        [userId]
-    );
-    const user = userResult.rows[0];
-    if (!user || !user.gender) return [];
-
-    const targetGender = user.gender === 'male' ? 'female' : 'male';
+    const mc = await buildMatchConditions(userId, pool, { includeHidden: true, includePendingSent: false });
+    if (!mc.valid) return [];
 
     const result = await pool.query(
         `SELECT id, full_name, last_name, age, city, study_place, height,
@@ -228,27 +173,10 @@ async function getAllMatchesForIvr(userId, offset = 0, limit = 1) {
                 has_children, children_count, country_of_birth,
                 apartment_help, apartment_amount, favorite_study, study_field, home_style
          FROM users
-         WHERE gender       = $1
-           AND is_approved  = TRUE
-           AND is_blocked   = FALSE
-           AND id          != $2
-           AND id NOT IN (
-               SELECT receiver_id FROM connections
-               WHERE sender_id = $2 AND status IN ('active','waiting_for_shadchan','pending')
-           )
-           AND id NOT IN (
-               SELECT sender_id FROM connections
-               WHERE receiver_id = $2 AND status IN ('active','waiting_for_shadchan')
-           )
-           AND id NOT IN (
-               SELECT blocker_id FROM user_blocks WHERE blocked_id = $2
-           )
-           AND id NOT IN (
-               SELECT blocked_id FROM user_blocks WHERE blocker_id = $2
-           )
+         WHERE ${mc.conditions.join(' AND ')}
          ORDER BY id
-         LIMIT $3 OFFSET $4`,
-        [targetGender, userId, limit, offset]
+         LIMIT $${mc.paramIndex} OFFSET $${mc.paramIndex + 1}`,
+        [...mc.params, limit, offset]
     );
     return result.rows;
 }
