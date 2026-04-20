@@ -1563,6 +1563,17 @@ router.get('/call', async (req, res) => {
                 // שלב א — בחירת כמות
                 if (data.refRequestStep === 'count' || !data.refRequestStep) {
                     const count = parseInt(key, 10);
+
+                    // מקש 9 — שמיעה חוזרת של שאלת הכמות
+                    if (key === '9') {
+                        const repeatCount = g(user.gender,
+                            'כַּמָּה ממליצים לבקש? לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לשמיעה חוזרת הָקֵשׁ תשע. לחזרה הָקֵשׁ אפס.',
+                            'כַּמָּה ממליצים לבקש? לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לשמיעה חוזרת הָקִישִׁי תשע. לחזרה הָקִישִׁי אפס.'
+                        );
+                        const rf = await textToYemot(repeatCount);
+                        return yemotRead(res, rf, 'digits', 1, 1, 8);
+                    }
+
                     if (count === 1 || count === 2) {
                         // מעבר לשלב בחירת סיבה
                         await updateSession(enterId, 'active_sent', {
@@ -1572,15 +1583,15 @@ router.get('/call', async (req, res) => {
                             inRefRequestMenu: true, refRequestStep: 'reason', refRequestCount: count
                         });
                         const reasonPrompt = g(user.gender,
-                            `בחר סיבה לבקשה. אחת — הממליצים לא ענו. שתיים — לא הספיק לברר. שלוש — מבקש מכר מהמשפחה. אפס — ביטול.`,
-                            `בחרי סיבה לבקשה. אחת — הממליצים לא ענו. שתיים — לא הספיק לברר. שלוש — מבקשת מכר מהמשפחה. אפס — ביטול.`
+                            'בחר את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקש ממליץ ממכרי המשפחה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
+                            'בחרי את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקשת ממליץ ממכרי המשפחה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
                         );
                         const f = await textToYemot(reasonPrompt);
                         return yemotRead(res, f, 'digits', 1, 1, 8);
                     }
                     const refUnknown = g(user.gender,
-                        'מקש לא מוכר. לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לחזרה הָקֵשׁ אפס.',
-                        'מקש לא מוכר. לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לחזרה הָקִישִׁי אפס.'
+                        'מקש לא מוכר. לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לשמיעה חוזרת הָקֵשׁ תשע. לחזרה הָקֵשׁ אפס.',
+                        'מקש לא מוכר. לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לשמיעה חוזרת הָקִישִׁי תשע. לחזרה הָקִישִׁי אפס.'
                     );
                     const file = await textToYemot(refUnknown);
                     return yemotRead(res, file, 'digits', 1, 1, 8);
@@ -1588,6 +1599,16 @@ router.get('/call', async (req, res) => {
 
                 // שלב ב — בחירת סיבה
                 if (data.refRequestStep === 'reason') {
+                    // מקש 9 — שמיעה חוזרת של תפריט הסיבות
+                    if (key === '9') {
+                        const repeatReason = g(user.gender,
+                            'בחר את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקש ממליץ ממכרי המשפחה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
+                            'בחרי את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקשת ממליץ ממכרי המשפחה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
+                        );
+                        const rf = await textToYemot(repeatReason);
+                        return yemotRead(res, rf, 'digits', 1, 1, 8);
+                    }
+
                     const REASON_MAP = { '1': 'no_answer', '2': 'not_enough', '3': 'family_ref' };
                     const reason = REASON_MAP[key];
                     if (reason) {
@@ -1599,8 +1620,8 @@ router.get('/call', async (req, res) => {
                         return await loadNextActive(pfx);
                     }
                     const reasonUnknown = g(user.gender,
-                        'מקש לא מוכר. אחת — לא ענו. שתיים — לא הספיק לברר. שלוש — מכר מהמשפחה. אפס — ביטול.',
-                        'מקש לא מוכר. אחת — לא ענו. שתיים — לא הספיק לברר. שלוש — מכר מהמשפחה. אפס — ביטול.'
+                        'מקש לא מוכר. אחת — לא ענו. שתיים — הבירורים לא הסתיימו. שלוש — מכר מהמשפחה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
+                        'מקש לא מוכר. אחת — לא ענו. שתיים — הבירורים לא הסתיימו. שלוש — מכר מהמשפחה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
                     );
                     const f = await textToYemot(reasonUnknown);
                     return yemotRead(res, f, 'digits', 1, 1, 8);
@@ -1705,11 +1726,11 @@ router.get('/call', async (req, res) => {
             if (key === '7') {
                 if (connStatus !== 'active') return await loadNextActive();
                 const refPrompt = g(user.gender,
-                    'כמה מספרי ממליצים לבקש? לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לחזרה הָקֵשׁ אפס.',
-                    'כמה מספרי ממליצים לבקש? לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לחזרה הָקִישִׁי אפס.'
+                    'כַּמָּה ממליצים לבקש? לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לשמיעה חוזרת הָקֵשׁ תשע. לחזרה הָקֵשׁ אפס.',
+                    'כַּמָּה ממליצים לבקש? לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לשמיעה חוזרת הָקִישִׁי תשע. לחזרה הָקִישִׁי אפס.'
                 );
                 const file = await textToYemot(refPrompt);
-                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: true });
+                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: true, refRequestStep: 'count' });
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
