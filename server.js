@@ -118,6 +118,21 @@ async function initMailer() {
                 },
             });
             console.log('📧 Mailer initialized: Using Ethereal (Development Mode)');
+        } else if (process.env.EMAIL_SERVICE === 'resend') {
+            const apiKey = process.env.RESEND_API_KEY || process.env.EMAIL_PASS;
+            if (!apiKey) {
+                throw new Error('RESEND_API_KEY (או EMAIL_PASS) חסר ל-Resend');
+            }
+            transporter = nodemailer.createTransport({
+                host: 'smtp.resend.com',
+                port: 465,
+                secure: true,
+                auth: {
+                    user: 'resend',
+                    pass: apiKey,
+                },
+            });
+            console.log('📧 Mailer initialized: Resend SMTP (smtp.resend.com)');
         } else {
             // שימוש בשירות אמיתי (Gmail וכו')
             transporter = nodemailer.createTransport({
@@ -188,8 +203,9 @@ async function sendEmail(to, subject, htmlContent, userId = null) {
     }
 
     try {
+        const fromAddr = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'hapinkas.contact@gmail.com';
         const info = await transporter.sendMail({
-            from: `"הפנקס - שידוכים" <${process.env.EMAIL_USER || 'hapinkas.contact@gmail.com'}>`,
+            from: `"הפנקס - שידוכים" <${fromAddr}>`,
             to: to,
             subject: subject,
             html: htmlContent,
