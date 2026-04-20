@@ -7,6 +7,7 @@ import './Navbar.css';
 // ── כפתור בקשות עם badge ──
 function RequestsLink({ token, userId }) {
   const [count, setCount] = useState(0);
+  const location = useLocation();
 
   const fetchCount = useCallback(() => {
     if (!token || !userId) return;
@@ -14,8 +15,13 @@ function RequestsLink({ token, userId }) {
     Promise.all([
       fetch(`${API_BASE}/my-requests?userId=${userId}`, { headers: h }).then(r => r.json()).catch(() => []),
       fetch(`${API_BASE}/pending-photo-requests`, { headers: h }).then(r => r.json()).catch(() => []),
-    ]).then(([conn, photo]) => {
-      setCount((Array.isArray(conn) ? conn.length : 0) + (Array.isArray(photo) ? photo.length : 0));
+      fetch(`${API_BASE}/connections-awaiting-approval`, { headers: h }).then(r => r.json()).catch(() => ({ count: 0 })),
+    ]).then(([conn, photo, adv]) => {
+      setCount(
+        (Array.isArray(conn) ? conn.length : 0) +
+        (Array.isArray(photo) ? photo.length : 0) +
+        (adv?.count || 0)
+      );
     });
   }, [token, userId]);
 
@@ -26,11 +32,13 @@ function RequestsLink({ token, userId }) {
     return () => window.removeEventListener('requestsUpdated', fetchCount);
   }, [fetchCount]);
 
+  const isActive = location.pathname === '/requests';
+
   return (
     <Link to="/requests" style={{ position: 'relative' }}>
       📋 בקשות
-      {count > 0 && (
-        <span className="admin-badge" style={{ top: -6, right: -10 }}>{count}</span>
+      {count > 0 && !isActive && (
+        <span className="admin-badge" style={{ top: -6, right: -10, background: '#ef4444' }}>{count}</span>
       )}
     </Link>
   );

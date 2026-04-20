@@ -185,12 +185,27 @@ async function getAllMatchesForIvr(userId, offset = 0, limit = 1) {
  * שליחת פנייה מהמערכת הטלפונית
  */
 async function sendConnectionFromIvr(senderId, receiverId) {
-    // בדיקה שלא קיים חיבור
+    // בדיקה בשני כיוונים — כולל מקרה שהצד השני כבר שלח pending
     const existing = await pool.query(
-        `SELECT id FROM connections WHERE sender_id = $1 AND receiver_id = $2`,
+        `SELECT id, sender_id, status FROM connections
+         WHERE (sender_id = $1 AND receiver_id = $2)
+            OR (sender_id = $2 AND receiver_id = $1)`,
         [senderId, receiverId]
     );
-    if (existing.rows.length > 0) return { status: 'exists' };
+
+    if (existing.rows.length > 0) {
+        const conn = existing.rows[0];
+        // אם הצד השני שלח pending ואני לוחץ "1" → אשר אוטומטית
+        if (conn.status === 'pending' && conn.sender_id === receiverId) {
+            await pool.query(
+                `UPDATE connections SET status = 'active', updated_at = NOW()
+                 WHERE id = $1`,
+                [conn.id]
+            );
+            return { status: 'approved_existing' };
+        }
+        return { status: 'exists' };
+    }
 
     await pool.query(
         `INSERT INTO connections (sender_id, receiver_id) VALUES ($1, $2)`,

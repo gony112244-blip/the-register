@@ -2878,6 +2878,26 @@ app.post('/cancel-active-connection', authenticateToken, async (req, res) => {
 });
 
 // השיחות הפעילות שלי
+// ספירת חיבורים שהצד השני כבר אישר התקדמות אבל אני עדיין לא
+app.get('/connections-awaiting-approval', authenticateToken, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const result = await pool.query(
+            `SELECT COUNT(*)::int AS count FROM connections
+             WHERE status = 'active'
+               AND (
+                 (sender_id = $1 AND receiver_final_approve = TRUE AND sender_final_approve = FALSE)
+                 OR
+                 (receiver_id = $1 AND sender_final_approve = TRUE AND receiver_final_approve = FALSE)
+               )`,
+            [userId]
+        );
+        res.json({ count: result.rows[0].count });
+    } catch (err) {
+        res.status(500).json({ count: 0 });
+    }
+});
+
 app.get('/my-connections', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     try {

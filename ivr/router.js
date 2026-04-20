@@ -909,8 +909,9 @@ router.get('/call', async (req, res) => {
             if (key === '1') {
                 let prefix = 'פנייתך נקלטה.';
                 try {
-                    await sendConnectionFromIvr(user.id, matchId);
-                    console.log(`[IVR] 💌 פנייה נשלחה: ${user.id} → ${matchId}`);
+                    const r = await sendConnectionFromIvr(user.id, matchId);
+                    if (r.status === 'approved_existing') prefix = 'הפנייה אושרה.';
+                    console.log(`[IVR] 💌 פנייה/אישור: ${user.id} → ${matchId} (${r.status})`);
                 } catch (e) {
                     prefix = 'אירעה תקלה בשליחת הפנייה.';
                     console.error('[IVR] ❌ שגיאה בשליחת פנייה:', e.message);
@@ -958,8 +959,9 @@ router.get('/call', async (req, res) => {
             if (key === '1') {
                 let prefix = 'פנייתך נקלטה.';
                 try {
-                    await sendConnectionFromIvr(user.id, matchId);
-                    console.log(`[IVR] 💌 פנייה (all): ${user.id} → ${matchId}`);
+                    const r = await sendConnectionFromIvr(user.id, matchId);
+                    if (r.status === 'approved_existing') prefix = 'הפנייה אושרה.';
+                    console.log(`[IVR] 💌 פנייה/אישור (all): ${user.id} → ${matchId} (${r.status})`);
                 } catch (e) { prefix = 'אירעה תקלה.'; }
                 return await loadNextMatch(getAllMatchesForIvr, 'all_matches', nextOffset, prefix);
             }
