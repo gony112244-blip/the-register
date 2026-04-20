@@ -791,6 +791,7 @@ async function updateTtsLastPlayed(profileUserId) {
 
 module.exports = {
     getMenuCounts,
+    countNewMatches, countIncomingRequests, countPhotoRequests, countPendingSent, countActiveSent, countUnreadMessages,
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,

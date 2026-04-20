@@ -11,6 +11,7 @@ const { validateIvrToken, getUserByPhone, checkPin, getOrCreateSession, updateSe
 const { textToYemot, numberToHebrew, formatPhoneForTts } = require('./tts');
 const {
     getMenuCounts,
+    countNewMatches, countIncomingRequests, countPhotoRequests, countPendingSent, countActiveSent, countUnreadMessages,
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
@@ -202,6 +203,19 @@ async function goToMenu(enterId, userId, gender, res, prefix = '') {
 
 // phonetic-map נטען פעם אחת
 const pm = require('./phonetic-map.json');
+
+// ==========================================
+// הכרזת כמות לפני תחילת שמיעת רשימה
+// count    — מספר הפריטים
+// singular — ביטוי לפריט יחיד  (למשל "הצעה חדשה")
+// plural   — ביטוי לרבים       (למשל "הצעות חדשות")
+// first    — ביטוי ל"ראשונה"   (למשל "הצעה ראשונה")
+// ==========================================
+function buildSectionIntro(count, singular, plural, first) {
+    if (count <= 0) return '';
+    if (count === 1) return `${singular} אחת. `;
+    return `יש לך ${numberToHebrew(count, true)} ${plural}. ${first}: `;
+}
 
 // מעקב אחר הודעות סיום (playback ללא read) כדי לנתק בקריאה החוזרת.
 // מפתח: `${phone}:${enterId}` → timestamp
@@ -606,32 +620,38 @@ router.get('/call', async (req, res) => {
 
         // key=1 → הצעות חדשות
         if (key === '1') {
-            let newMatches = [];
-            try { newMatches = await getMatchesForIvr(user.id, 0, 1); } catch {}
+            const [newMatches, totalMatches] = await Promise.all([
+                getMatchesForIvr(user.id, 0, 1).catch(() => []),
+                countNewMatches(user.id).catch(() => 0)
+            ]);
             if (newMatches.length === 0) {
                 return await goToMenu(enterId, user.id, user.gender, res, 'אין הצעות זמינות כרגע.');
             }
             const m = newMatches[0];
             await updateSession(enterId, 'matches', { page: 0, currentMatchId: m.id });
             updateTtsLastPlayed(m.id);
+            const intro = buildSectionIntro(totalMatches, 'הצעה חדשה', 'הצעות חדשות', 'הצעה ראשונה');
             const mText = buildFullProfileText(m);
             const aText = g(user.gender,
                 'לשליחת בקשה הָקֵשׁ אחת. להצעה הבאה הָקֵשׁ שמונה. לשמיעה חוזרת הָקֵשׁ תשע. לתפריט הָקֵשׁ אפס.',
                 'לשליחת בקשה הָקִישִׁי אחת. להצעה הבאה הָקִישִׁי שמונה. לשמיעה חוזרת הָקִישִׁי תשע. לתפריט הָקִישִׁי אפס.'
             );
-            const file = await textToYemot(`${mText} ${aText}`);
+            const file = await textToYemot(`${intro}${mText} ${aText}`);
             return yemotRead(res, file, 'digits', 1, 1, 8);
         }
 
         // key=2 → תמונות ממתינות
         if (key === '2') {
-            let photos = [];
-            try { photos = await getPhotoRequestsForIvr(user.id, 0, 1); } catch {}
+            const [photos, totalPhotos] = await Promise.all([
+                getPhotoRequestsForIvr(user.id, 0, 1).catch(() => []),
+                countPhotoRequests(user.id).catch(() => 0)
+            ]);
             if (photos.length === 0) {
                 return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות תמונה ממתינות.');
             }
             const photo = photos[0];
             await updateSession(enterId, 'photos', { page: 0, currentRequesterId: photo.requester_id });
+            const intro2 = buildSectionIntro(totalPhotos, 'בקשת תמונה', 'בקשות תמונה', 'בקשה ראשונה');
             const pFullName = [photo.last_name, photo.full_name].filter(Boolean).join(' ') || 'ללא שם';
             const pAge   = photo.age  ? `, ${numberToHebrew(photo.age)} שנים` : '';
             const pCity  = photo.city ? `, ${photo.city}` : '';
@@ -640,69 +660,77 @@ router.get('/call', async (req, res) => {
                 'הָקֵשׁ אחת — הסכם. הָקֵשׁ שתיים — דחה. הָקֵשׁ ארבע לפרטים על המבקש. הָקֵשׁ שמונה — דלג. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
                 'הָקִישִׁי אחת — הסכמי. הָקִישִׁי שתיים — דחי. הָקִישִׁי ארבע לפרטים על המבקשת. הָקִישִׁי שמונה — דלגי. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
-            const file2 = await textToYemot(`${pFullName}${pAge}${pCity} ${pWord} לראות את תמונתך. ${actionsText2}`);
+            const file2 = await textToYemot(`${intro2}${pFullName}${pAge}${pCity} ${pWord} לראות את תמונתך. ${actionsText2}`);
             return yemotRead(res, file2, 'digits', 1, 1, 8);
         }
 
         // key=3 → בקשות שידוך שהגיעו אליך
         if (key === '3') {
-            let reqs = [];
-            try { reqs = await getIncomingRequestsForIvr(user.id, 0, 1); } catch {}
+            const [reqs, totalReqs] = await Promise.all([
+                getIncomingRequestsForIvr(user.id, 0, 1).catch(() => []),
+                countIncomingRequests(user.id).catch(() => 0)
+            ]);
             if (reqs.length === 0) {
                 return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות שידוך ממתינות לתשובה.');
             }
             const req = reqs[0];
             await updateSession(enterId, 'requests', { page: 0, currentConnectionId: req.connection_id });
             updateTtsLastPlayed(req.id);
-            const reqText     = buildFullProfileText(req);
+            const intro3  = buildSectionIntro(totalReqs, 'בקשת שידוך', 'בקשות שידוך', 'בקשה ראשונה');
+            const reqText = buildFullProfileText(req);
             const actionsText3 = g(user.gender,
                 'לאישור הָקֵשׁ אחת. לדחייה הָקֵשׁ שתיים. לדחייה לאחר יותר הָקֵשׁ שמונה. לשמיעה חוזרת הָקֵשׁ תשע. לתפריט הָקֵשׁ אפס.',
                 'לאישור הָקִישִׁי אחת. לדחייה הָקִישִׁי שתיים. לדחייה לאחר יותר הָקִישִׁי שמונה. לשמיעה חוזרת הָקִישִׁי תשע. לתפריט הָקִישִׁי אפס.'
             );
-            const file3 = await textToYemot(`בקשת שידוך שהגיעה אליך. ${reqText} ${actionsText3}`);
+            const file3 = await textToYemot(`${intro3}${reqText} ${actionsText3}`);
             return yemotRead(res, file3, 'digits', 1, 1, 8);
         }
 
         // key=4 → בקשות ששלחת שטרם נענו (pending בלבד)
         if (key === '4') {
-            let pending = [];
-            try { pending = await getPendingSentForIvr(user.id, 0, 1); } catch {}
+            const [pending, totalPending] = await Promise.all([
+                getPendingSentForIvr(user.id, 0, 1).catch(() => []),
+                countPendingSent(user.id).catch(() => 0)
+            ]);
             if (pending.length === 0) {
                 return await goToMenu(enterId, user.id, user.gender, res, 'אין בקשות ממתינות לתשובה כרגע.');
             }
             const conn4 = pending[0];
             await updateSession(enterId, 'pending_sent', { page: 0, currentConnectionId: conn4.connection_id });
-            const fn4   = [conn4.last_name, conn4.full_name].filter(Boolean).join(' ') || 'ללא שם';
-            const age4  = conn4.age  ? `, ${numberToHebrew(conn4.age)} שנים` : '';
-            const city4 = conn4.city ? `, ${conn4.city}` : '';
+            const intro4 = buildSectionIntro(totalPending, 'פנייה ממתינה לתשובה', 'פניות ממתינות לתשובה', 'פנייה ראשונה');
+            const fn4    = [conn4.last_name, conn4.full_name].filter(Boolean).join(' ') || 'ללא שם';
+            const age4   = conn4.age  ? `, ${numberToHebrew(conn4.age)} שנים` : '';
+            const city4  = conn4.city ? `, ${conn4.city}` : '';
             const actionsText4 = g(user.gender,
                 'הָקֵשׁ אחת לביטול הבקשה. הָקֵשׁ שמונה להמשך. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ אפס לתפריט.',
                 'הָקִישִׁי אחת לביטול הבקשה. הָקִישִׁי שמונה להמשך. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי אפס לתפריט.'
             );
-            const file4 = await textToYemot(`בקשה ששלחת ל${fn4}${age4}${city4} — טרם נענתה. ${actionsText4}`);
+            const file4 = await textToYemot(`${intro4}בקשה ששלחת ל${fn4}${age4}${city4} — טרם נענתה. ${actionsText4}`);
             return yemotRead(res, file4, 'digits', 1, 1, 8);
         }
 
         // key=5 → שידוכים פעילים — מאתחלים session ומפנים ל-active_sent state (loadNextActive)
         if (key === '5') {
+            const totalActive = await countActiveSent(user.id).catch(() => 0);
             await updateSession(enterId, 'active_sent', {
                 page: 0,
+                totalActive,
                 currentConnectionId: null,
                 currentConnectionStatus: null,
                 currentMyApproved: false,
                 inCancelReasonMenu: false
             });
-            // מנתבים לטיפול המאוחד ב-active_sent
-            const pseudoSession = { state: 'active_sent', data: { page: 0 } };
             session.state = 'active_sent';
-            session.data  = { page: 0 };
+            session.data  = { page: 0, totalActive };
             // fall through — הקוד שמתחת יטפל
         }
 
         // key=6 → הודעות חשובות
         if (key === '6') {
-            let messages = [];
-            try { messages = await getMessagesForIvr(user.id, 0, 1); } catch {}
+            const [messages, totalMsgs] = await Promise.all([
+                getMessagesForIvr(user.id, 0, 1).catch(() => []),
+                countUnreadMessages(user.id).catch(() => 0)
+            ]);
             if (messages.length === 0) {
                 return await goToMenu(enterId, user.id, user.gender, res, 'אין הודעות חדשות הדורשות תשומת לבך.');
             }
@@ -724,6 +752,7 @@ router.get('/call', async (req, res) => {
                 currentRequestId:   requestId6
             });
             markMessageReadFromIvr(msg6.id, user.id).catch(() => {});
+            const intro6 = buildSectionIntro(totalMsgs, 'הודעה חדשה', 'הודעות חדשות', 'הודעה ראשונה');
             const actionsText6 = isRefReq6
                 ? g(user.gender,
                     'הָקֵשׁ אחת להסכמה ומעבר לאתר להשלמת הפרטים. הָקֵשׁ שתיים לציון שאינך יכול לספק ממליץ. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
@@ -733,7 +762,7 @@ router.get('/call', async (req, res) => {
                     'הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט הראשי.',
                     'הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט הראשי.'
                 );
-            const file6 = await textToYemot(`הודעה חדשה: ${cleanContent6} ${actionsText6}`);
+            const file6 = await textToYemot(`${intro6}${cleanContent6} ${actionsText6}`);
             return yemotRead(res, file6, 'digits', 1, 1, 8);
         }
 
@@ -1468,6 +1497,10 @@ router.get('/call', async (req, res) => {
                 return await goToMenu(enterId, user.id, user.gender, res, prefix || 'אין שידוכים פעילים כרגע.');
             }
             const c    = rows[0];
+            // הכרזת כמות רק בכניסה ראשונה לרשימה (offset=0) ואם נשמרה כמות
+            if (!prefix && offset === 0 && data.totalActive > 0) {
+                prefix = buildSectionIntro(data.totalActive, 'שידוך פעיל', 'שידוכים פעילים', 'שידוך ראשון');
+            }
             const fn   = [c.last_name, c.full_name].filter(Boolean).join(' ');
             const nameStr = fn || 'ללא שם';
             const ageStr  = c.age  ? `, ${numberToHebrew(c.age)} שנים` : '';
