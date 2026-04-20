@@ -498,7 +498,7 @@ router.get('/call', async (req, res) => {
     if (!user) {
         console.log(`[IVR] 👤 מספר לא מזוהה: ${phone}`);
         if (shouldHangupAfterTerminal(phone, enterId)) return yemotHangup(res);
-        const file = await textToYemot('מספר הטלפון אינו רשום במערכת הפנקס. להרשמה, יש להיכנס לאתר פינקס.');
+        const file = await textToYemot('מִסְפַּר הַטֶּלֶפוֹן אֵינוֹ רָשׁוּם בְּמַעֲרֶכֶת הַפִּינְקָס. לְהַרְשָׁמָה, יֵשׁ לְהִכָּנֵס לְאַתָּר הַפִּינְקָס. כְּתוֹבֶת הָאַתָּר: פִּינְקָס נְקוּדָּה קְלַאוּד.');
         return yemotPlayback(res, file);
     }
 
