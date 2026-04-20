@@ -152,6 +152,9 @@ function buildMenuText(gender, counts = {}) {
     // 8 — הודעות אחרונות (תמיד — גם קרואות)
     parts.push(`לשמיעת הודעות אחרונות מהשבוע האחרון, ${hk} שמונה.`);
 
+    // 9 — הגדרות (שינוי PIN)
+    parts.push(`להגדרות, ${hk} תשע.`);
+
     // חזרה על התפריט — תמיד בסוף
     parts.push(`לשמיעה חוזרת של התפריט, ${hk} אפס.`);
 
@@ -164,10 +167,11 @@ function buildMenuText(gender, counts = {}) {
 // ==========================================
 function cleanMsgForTts(content) {
     return (content || '')
-        .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}]/gu, '')
-        .replace(/ℹ️|📷|✅|❌|⚠️/g, '')
+        .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1FFFF}\u{FE00}-\u{FE0F}\u{200D}]/gu, '')
+        .replace(/ℹ️|📷|✅|❌|⚠️|📋/g, '')
         .replace(/\/[\u05D0-\u05EA]{1,3}/g, '')
         .replace(/\b(0\d{1,2}[-\s]?\d{7,8})\b/g, (p) => formatPhoneForTts(p))
+        .replace(/\s{2,}/g, ' ')
         .trim();
 }
 
@@ -270,7 +274,9 @@ function buildFullProfileText(match) {
         parts.push(`${ylidPrefix} ${match.country_of_birth}`);
     }
     if ((match.status === 'divorced' || match.status === 'widower') && match.has_children && match.children_count) {
-        parts.push(`${match.children_count} ילדים`);
+        const childNum = parseInt(match.children_count, 10);
+        const childWord = isNaN(childNum) ? String(match.children_count) : numberToHebrew(childNum);
+        parts.push(`${childWord} ילדים`);
     }
 
     // --- מוצא ורקע ---
@@ -814,15 +820,23 @@ router.get('/call', async (req, res) => {
             return yemotRead(res, rmFile, 'digits', 1, 1, 8);
         }
 
-        if (key && !['1','2','3','4','5','6','7','8','0','#'].includes(key)) {
-            console.warn(`[IVR] ⚠️ מקש לא מוכר בתפריט: ${key}`);
+        // key=9 → הגדרות (שינוי PIN)
+        if (key === '9') {
+            await updateSession(enterId, 'settings', { step: 'ask_current' });
+            const prompt = g(user.gender,
+                'להחלפת קוד הכניסה, הָקֵשׁ את הקוד הנוכחי, ארבע ספרות.',
+                'להחלפת קוד הכניסה, הָקִישִׁי את הקוד הנוכחי, ארבע ספרות.'
+            );
+            const file = await textToYemot(prompt);
+            return yemotRead(res, file, 'digits', 4, 4, 15);
         }
 
         // key=5 שינה את session.state ל-active_sent — נפנה לטיפול בלוק הבא
         if (session.state === 'active_sent') {
             // fall-through לבלוק active_sent שמתחת
+        } else if (key && !['1','2','3','4','5','6','7','8','9','0','#'].includes(key)) {
+            return await goToMenu(enterId, user.id, user.gender, res, 'מקש לא מוכר.');
         } else {
-            // כניסה ראשונה לתפריט, חזרה מ-#, או מקש לא מוכר
             return await goToMenu(enterId, user.id, user.gender, res);
         }
     }
@@ -1515,11 +1529,15 @@ router.get('/call', async (req, res) => {
             const myApprove    = iAmSender ? c.sender_final_approve   : c.receiver_final_approve;
             const otherApprove = iAmSender ? c.receiver_final_approve : c.sender_final_approve;
 
+            // מגדר הצד השני — לדיוק הגייה
+            const otherFemale = c.other_gender === 'female';
+            const otherVerb   = (m, f) => otherFemale ? f : m;
+
             // מתי הצד השני ראה לראשונה
             const otherViewedAt = iAmSender ? c.receiver_first_viewed_at : c.sender_first_viewed_at;
             const otherViewedTxt = otherViewedAt
-                ? `${nameStr} פתח את פרטי הבירורים לראשונה ב-${formatViewedDate(otherViewedAt)}.`
-                : `${nameStr} טרם פתח את פרטי הבירורים.`;
+                ? `${nameStr} ${otherVerb('פתח', 'פתחה')} את פרטי הבירורים לראשונה ב-${formatViewedDate(otherViewedAt)}.`
+                : `${nameStr} טרם ${otherVerb('פתח', 'פתחה')} את פרטי הבירורים.`;
 
             // טקסט סטטוס: שם + גיל + עיר + מצב בירורים
             let statusTxt;
@@ -1529,12 +1547,9 @@ router.get('/call', async (req, res) => {
                 // active — מצב אישורים
                 let approveTxt;
                 if (myApprove && !otherApprove) {
-                    approveTxt = g(user.gender,
-                        `כבר אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`,
-                        `כבר אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`
-                    );
+                    approveTxt = `כבר אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`;
                 } else if (!myApprove && otherApprove) {
-                    approveTxt = `${nameStr} כבר אישר התקדמות לשדכנית ומחכה לאישור שלך.`;
+                    approveTxt = `${nameStr} כבר ${otherVerb('אישר', 'אישרה')} התקדמות לשדכנית ${otherVerb('ומחכה', 'ומחכה')} לאישור שלך.`;
                 } else if (myApprove && otherApprove) {
                     approveTxt = `שני הצדדים אישרו — עובר לשדכנית.`;
                 } else {
@@ -1556,8 +1571,8 @@ router.get('/call', async (req, res) => {
             if (c.status === 'waiting_for_shadchan') {
                 // בטיפול שדכנית — רק הודעת סטטוס + ניווט בסיסי
                 act = g(user.gender,
-                    'לשידוך הבא הָקֵשׁ שמונה. לתפריט הראשי הָקֵשׁ אפס.',
-                    'לשידוך הבא הָקִישִׁי שמונה. לתפריט הראשי הָקִישִׁי אפס.'
+                    'לשמיעה חוזרת הָקֵשׁ תשע. לשידוך הבא הָקֵשׁ שמונה. לתפריט הראשי הָקֵשׁ אפס.',
+                    'לשמיעה חוזרת הָקִישִׁי תשע. לשידוך הבא הָקִישִׁי שמונה. לתפריט הראשי הָקִישִׁי אפס.'
                 );
                 text = [prefix, statusTxt, act].filter(Boolean).join(' ');
             } else {
@@ -1852,10 +1867,16 @@ router.get('/call', async (req, res) => {
                     page: offset, currentMessageId: nm.id, currentMessageText: nc,
                     currentMessageType: nm.type || null, currentRequestId: nmRequestId
                 });
-                const na = g(user.gender,
-                    'הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
-                    'הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
-                );
+                const nmIsRef = nm.type === 'reference_request';
+                const na = nmIsRef
+                    ? g(user.gender,
+                        'הָקֵשׁ אחת להסכמה. הָקֵשׁ שתיים לדחייה. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
+                        'הָקִישִׁי אחת להסכמה. הָקִישִׁי שתיים לדחייה. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
+                    )
+                    : g(user.gender,
+                        'הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
+                        'הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
+                    );
                 const nf = await textToYemot(`הודעה: ${nc} ${na}`);
                 return yemotRead(res, nf, 'digits', 1, 1, 8);
             }

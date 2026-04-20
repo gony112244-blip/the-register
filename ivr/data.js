@@ -391,7 +391,7 @@ async function getActiveSentForIvr(userId, offset = 0, limit = 1) {
                 c.sender_first_viewed_at,
                 c.receiver_first_viewed_at,
                 u.id AS user_id, u.full_name, u.last_name, u.age, u.city, u.study_place,
-                u.phone,
+                u.phone, u.gender AS other_gender,
                 u.father_full_name, u.mother_full_name,
                 u.reference_1_name, u.reference_1_phone,
                 u.reference_2_name, u.reference_2_phone,
