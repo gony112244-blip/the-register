@@ -23,10 +23,17 @@ const { buildMatchConditions } = require('./match-engine');
 
 const app = express();
 
-// הגדרת CORS מורחבת (חייב להיות ראשון!)
-// הגדרת CORS מורחבת (זמנית - מתיר הכל)
+// הגדרת CORS — רק הדומיין שלנו (ו-localhost לפיתוח)
+const ALLOWED_ORIGINS = [
+    'https://pinkas.cloud',
+    'https://www.pinkas.cloud',
+    ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:5173', 'http://localhost:3000'] : [])
+];
 app.use(cors({
-    origin: true, // מאפשר לכל Origin ששולח את הבקשה
+    origin: (origin, cb) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+        cb(new Error('CORS blocked'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -2283,8 +2290,9 @@ app.get('/matches', authenticateToken, async (req, res) => {
     }
 });
 
-// --- דיבאג: בדיקת סינון בין שני משתמשים ---
+// --- דיבאג: בדיקת סינון בין שני משתמשים (אדמין בלבד) ---
 app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין הרשאות" });
     const myId = req.user.id;
     const targetId = req.params.targetId;
     try {
