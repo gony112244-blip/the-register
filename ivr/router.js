@@ -431,12 +431,13 @@ function yemotPlayback(res, audioSeg) {
     console.log(`[IVR] ← playback: ${audioSeg.substring(0, 80)}...`);
     res.type('text').send(`id_list_message=${audioSeg}`);
 }
-function yemotRead(res, audioSeg, varName = 'digits', maxDigits = 1, minDigits = 1, timeout = 8) {
+function yemotRead(res, audioSeg, varName = 'digits', maxDigits = 1, minDigits = 1, timeout = 8, blockAsterisk = 'no') {
     console.log(`[IVR] ← read(${varName},${minDigits}-${maxDigits}): ${audioSeg.substring(0, 80)}...`);
     // פורמט ימות (מתוך yemot-router2 — makeTapModeRead):
     // read=<audio>=<valName>,<re_enter_if_exists>,<max>,<min>,<sec_wait>,<playback_mode>,<block_asterisk>,<block_zero>
     // playback_mode='No' = ללא השמעת הלחיצה חזרה (ולא מבקש אישור)
-    const opts = [varName, 'no', maxDigits, minDigits, timeout, 'No', 'no', 'no'].join(',');
+    // blockAsterisk='yes' → מונע מ-* לנווט החוצה (חשוב בהזנת מספרים)
+    const opts = [varName, 'no', maxDigits, minDigits, timeout, 'No', blockAsterisk, 'no'].join(',');
     res.type('text').send(`read=${audioSeg}=${opts}`);
 }
 function yemotHangup(res) {
@@ -1034,11 +1035,11 @@ router.get('/call', async (req, res) => {
                         returnState: 'messages'
                     });
                     const prompt = g(user.gender,
-                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, וְלַחַץ כוכבית בסיום.',
-                        'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות, וְלַחֲצִי כוכבית בסיום.'
+                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות.',
+                        'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות.'
                     );
                     const promptFile = await textToYemot(prompt);
-                    return yemotRead(res, promptFile, 'digits', 10, 15, 30);
+                    return yemotRead(res, promptFile, 'digits', 10, 15, 30, 'yes');
                 }
                 if (key === '2') {
                     const result = await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => 'error');
@@ -1806,11 +1807,11 @@ router.get('/call', async (req, res) => {
                         returnState: 'recent_messages'
                     });
                     const prompt = g(user.gender,
-                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, וְלַחַץ כוכבית בסיום.',
-                        'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות, וְלַחֲצִי כוכבית בסיום.'
+                        'הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות.',
+                        'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות.'
                     );
                     const promptFile = await textToYemot(prompt);
-                    return yemotRead(res, promptFile, 'digits', 10, 15, 30);
+                    return yemotRead(res, promptFile, 'digits', 10, 15, 30, 'yes');
                 }
                 if (key === '2') {
                     await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => {});
@@ -1872,41 +1873,89 @@ router.get('/call', async (req, res) => {
 
     // --- מצב: collecting_ref_phone — קבלת מספר טלפון של ממליץ ---
     if (session.state === 'collecting_ref_phone') {
-        const data      = session.data || {};
-        const requestId = data.requestId || null;
+        const data        = session.data || {};
+        const requestId   = data.requestId   || null;
+        const returnState = data.returnState  || 'messages';
 
         if (!requestId) return await goToMenu(enterId, user.id, user.gender, res, 'אירעה תקלה.');
 
-        // timeout / # בלי קלט — שאל שוב
-        if (!key || key === '#') {
-            const prompt = g(user.gender,
-                'לא התקבל מספר. הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות, וְלַחַץ כוכבית בסיום.',
-                'לא התקבל מספר. הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות, וְלַחֲצִי כוכבית בסיום.'
+        // ── שלב ב: אישור המספר ──
+        // pendingPhone מוגדר → המשתמש כבר הזין מספר ואנחנו מחכים לאישור
+        if (data.pendingPhone) {
+            const phoneForTts = formatPhoneForTts(data.pendingPhone);
+
+            const confirmText = (base) =>
+                `${base} ${phoneForTts}. לאישור הָקֵשׁ אחת. להזנה מחדש הָקֵשׁ שתיים. לביטול הָקֵשׁ אפס.`;
+            const confirmTextF = (base) =>
+                `${base} ${phoneForTts}. לאישור הָקִישִׁי אחת. להזנה מחדש הָקִישִׁי שתיים. לביטול הָקִישִׁי אפס.`;
+
+            // אישור
+            if (key === '1') {
+                const result = await respondToReferenceRequestFromIvr(requestId, user.id, 'provide', data.pendingPhone).catch(() => 'error');
+                if (result === 'error' || result === 'not_found') {
+                    return await goToMenu(enterId, user.id, user.gender, res, 'אירעה תקלה בשמירת התגובה.');
+                }
+                return await goToMenu(enterId, user.id, user.gender, res,
+                    `תגובתך נשלחה. מספר הממליץ שנשמר: ${phoneForTts}.`
+                );
+            }
+
+            // הזנה מחדש
+            if (key === '2') {
+                await updateSession(enterId, 'collecting_ref_phone', { requestId, returnState, pendingPhone: null });
+                const rePrompt = g(user.gender,
+                    'הָקֵשׁ את מספר הטלפון, עשר ספרות.',
+                    'הָקִישִׁי את מספר הטלפון, עשר ספרות.'
+                );
+                const f = await textToYemot(rePrompt);
+                return yemotRead(res, f, 'digits', 10, 15, 30, 'yes');
+            }
+
+            // ביטול
+            if (key === '0') {
+                return await goToMenu(enterId, user.id, user.gender, res, 'הפעולה בוטלה.');
+            }
+
+            // timeout / מקש לא מוכר → חזור על שאלת האישור
+            const unknownPrefix = key ? 'מקש לא מוכר.' : '';
+            const repeatConfirm = g(user.gender,
+                confirmText(`${unknownPrefix} המספר שהזנת:`),
+                confirmTextF(`${unknownPrefix} המספר שהזנת:`)
             );
-            const f = await textToYemot(prompt);
-            return yemotRead(res, f, 'digits', 10, 15, 30);
+            const fc = await textToYemot(repeatConfirm);
+            return yemotRead(res, fc, 'digits', 1, 1, 10);
         }
 
-        // key = הספרות שהוקשו
+        // ── שלב א: קבלת הקלט ──
+        if (!key) {
+            // timeout — לא התקבל שום קלט
+            const prompt = g(user.gender,
+                'לא התקבל מספר. הָקֵשׁ את מספר הטלפון של הממליץ, עשר ספרות.',
+                'לא התקבל מספר. הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות.'
+            );
+            const f = await textToYemot(prompt);
+            return yemotRead(res, f, 'digits', 10, 15, 30, 'yes');
+        }
+
         const digits = key.replace(/\D/g, '');
         if (digits.length < 9 || digits.length > 11 || !digits.startsWith('0')) {
             const errPrompt = g(user.gender,
-                'מספר לא תקין. הָקֵשׁ שוב מספר טלפון ישראלי בן עשר ספרות וְלַחַץ כוכבית.',
-                'מספר לא תקין. הָקִישִׁי שוב מספר טלפון ישראלי בן עשר ספרות וְלַחֲצִי כוכבית.'
+                'מספר לא תקין. הָקֵשׁ שוב מספר טלפון ישראלי בן עשר ספרות.',
+                'מספר לא תקין. הָקִישִׁי שוב מספר טלפון ישראלי בן עשר ספרות.'
             );
             const f = await textToYemot(errPrompt);
-            return yemotRead(res, f, 'digits', 10, 15, 30);
+            return yemotRead(res, f, 'digits', 10, 15, 30, 'yes');
         }
 
-        const result = await respondToReferenceRequestFromIvr(requestId, user.id, 'provide', digits).catch(() => 'error');
-        if (result === 'error' || result === 'not_found') {
-            return await goToMenu(enterId, user.id, user.gender, res, 'אירעה תקלה בשמירת התגובה.');
-        }
-
+        // מספר תקין → שמור כ-pending ועבור לאישור
+        await updateSession(enterId, 'collecting_ref_phone', { requestId, returnState, pendingPhone: digits });
         const phoneForTts = formatPhoneForTts(digits);
-        return await goToMenu(enterId, user.id, user.gender, res,
-            `תגובתך נשלחה. מספר הממליץ שנשמר: ${phoneForTts}.`
+        const confirmPrompt = g(user.gender,
+            `המספר שהזנת: ${phoneForTts}. לאישור הָקֵשׁ אחת. להזנה מחדש הָקֵשׁ שתיים. לביטול הָקֵשׁ אפס.`,
+            `המספר שהזנת: ${phoneForTts}. לאישור הָקִישִׁי אחת. להזנה מחדש הָקִישִׁי שתיים. לביטול הָקִישִׁי אפס.`
         );
+        const fc = await textToYemot(confirmPrompt);
+        return yemotRead(res, fc, 'digits', 1, 1, 10);
     }
 
     // מצב לא מוכר — חזרה לתפריט (בטוח יותר מניתוק)
