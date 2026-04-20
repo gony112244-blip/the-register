@@ -766,9 +766,10 @@ async function requestAdditionalReferenceFromIvr(connectionId, requesterId, coun
     );
     const requestId = inserted.rows[0].id;
 
-    const countText = countNum === 2 ? 'שניים' : 'אחד';
     const mevakesh = isFemale ? 'מבקשת' : 'מבקש';
-    const msg = `📋 בקשה לממליץ נוסף\n\n${conn.requester_name} ${mevakesh} ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nסיבה: ${reasonText}.\n\nתוכל/י להגיב להודעה זו ישירות.`;
+    const canReply  = isFemale ? 'תוכלי'  : 'תוכל';
+    const refText   = countNum === 2 ? 'שני ממליצים נוספים' : 'ממליץ נוסף';
+    const msg = `📋 בקשה לממליץ נוסף\n\n${conn.requester_name} ${mevakesh} ממך ${refText} לצורך בירורים.\n\nסיבה: ${reasonText}.\n\n${canReply} להגיב להודעה זו ישירות.`;
 
     await pool.query(
         `INSERT INTO messages (from_user_id, to_user_id, content, type, meta)

@@ -4264,6 +4264,7 @@ app.post('/request-additional-reference', authenticateToken, async (req, res) =>
         const connCheck = await pool.query(
             `SELECT c.id, c.sender_id, c.receiver_id,
                     u_req.full_name AS requester_name,
+                    u_req.gender    AS requester_gender,
                     u_other.full_name AS other_name
              FROM connections c
              JOIN users u_req ON u_req.id = $2
@@ -4274,7 +4275,7 @@ app.post('/request-additional-reference', authenticateToken, async (req, res) =>
         );
         if (connCheck.rows.length === 0) return res.status(403).json({ message: 'לא ניתן לשלוח בקשה' });
 
-        const { sender_id, receiver_id, requester_name, other_name } = connCheck.rows[0];
+        const { sender_id, receiver_id, requester_name, requester_gender, other_name } = connCheck.rows[0];
         const otherUserId = sender_id === requesterId ? receiver_id : sender_id;
         const countNum = count === 2 ? 2 : 1;
         const reasonText = REFERENCE_REASONS[reason];
@@ -4287,9 +4288,12 @@ app.post('/request-additional-reference', authenticateToken, async (req, res) =>
         );
         const requestId = inserted.rows[0].id;
 
-        // ניסוח הודעה לצד השני
-        const countText = countNum === 2 ? 'שניים' : 'אחד';
-        const msg = `📋 בקשה לממליץ נוסף\n\n${requester_name} מבקש/ת ממך ${countText} איש קשר נוסף לצורך בירורים.\n\nסיבה: ${reasonText}.\n\nתוכל/י להגיב להודעה זו ישירות.`;
+        // ניסוח הודעה לצד השני — עם גיוון מגדרי מלא
+        const isFemaleReq  = requester_gender === 'female';
+        const reqVerb      = isFemaleReq ? 'מבקשת' : 'מבקש';
+        const canReply     = isFemaleReq ? 'תוכלי'  : 'תוכל';
+        const refText      = countNum === 2 ? 'שני ממליצים נוספים' : 'ממליץ נוסף';
+        const msg = `📋 בקשה לממליץ נוסף\n\n${requester_name} ${reqVerb} ממך ${refText} לצורך בירורים.\n\nסיבה: ${reasonText}.\n\n${canReply} להגיב להודעה זו ישירות.`;
 
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type, meta)
