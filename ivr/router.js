@@ -213,8 +213,8 @@ const pm = require('./phonetic-map.json');
 // ==========================================
 function buildSectionIntro(count, singular, plural, first) {
     if (count <= 0) return '';
-    if (count === 1) return `${singular} אחת. `;
-    return `יש לך ${numberToHebrew(count, true)} ${plural}. ${first}: `;
+    // הכמות כבר נשמעה בתפריט הראשי — מספיק לציין "ראשון/ה" לפני הפרטים
+    return `${first}: `;
 }
 
 // מעקב אחר הודעות סיום (playback ללא read) כדי לנתק בקריאה החוזרת.
