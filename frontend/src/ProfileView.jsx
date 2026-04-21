@@ -65,6 +65,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
         home_style: { quiet: 'שקטה ורגועה', active: 'פעילה וחברותית', flexible: 'גמיש' },
         country_of_birth: { israel: 'ישראל', abroad: 'חו"ל' },
         favorite_study: { iyun: 'עיון', bekiut: 'בקיאות', none: 'ללא העדפה' },
+        head_covering: { paah: 'פאה', kisui: 'כיסוי', flexible: 'לא עקרוני' },
     };
     const tr = (field, val) => T[field]?.[val] || val || '—';
     const show = (val) => val && val !== '' && val !== '0' && val !== 0 && val !== 'null' && val !== 'undefined';
@@ -283,6 +284,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 <Row label="מבנה גוף" val={tr('body_type', user.body_type)} />
                                 <Row label="גוון עור" val={tr('skin_tone', user.skin_tone)} />
                                 <Row label="מראה כללי" val={tr('appearance', user.appearance)} />
+                                {user.gender === 'female' && <Row label="כיסוי ראש" val={tr('head_covering', user.head_covering)} />}
                             </Section>
 
                             {/* About me */}
@@ -426,6 +428,32 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                             ))}
                                         </div>
                                     </div>
+                                )}
+
+                                {show(user.search_appearances) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>מראה:</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_appearances.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('appearance', s)}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {show(user.search_skin_tones) && (
+                                    <div style={S.fullRow}>
+                                        <span style={S.rowLabel}>גוון עור:</span>
+                                        <div style={S.tagCloud}>
+                                            {user.search_skin_tones.split(',').map(s => s.trim()).filter(Boolean).map(s => (
+                                                <span key={s} style={S.searchTag}>{tr('skin_tone', s)}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {user.gender === 'male' && show(user.search_head_covering) && (
+                                    <Row label="כיסוי ראש מבוקש" val={tr('head_covering', user.search_head_covering)} />
                                 )}
 
                                 {show(user.search_backgrounds) && (

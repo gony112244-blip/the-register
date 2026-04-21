@@ -1859,7 +1859,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
     if (!Number.isNaN(minHeightNum) && !Number.isNaN(maxHeightNum) && minHeightNum > maxHeightNum) {
         return res.status(400).json({ message: "טווח הגובה אינו תקין", missingFields: ['search_height_min', 'search_height_max'] });
-    }git pull && pm2 restart hapinkas --update-env
+    }
     if (missingFields.length > 0) {
         return res.status(400).json({ message: "לא ניתן לשמור פרופיל לא מלא", missingFields: [...new Set(missingFields)] });
     }
