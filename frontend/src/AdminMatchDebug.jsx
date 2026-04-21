@@ -2,39 +2,141 @@ import API_BASE from './config';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const FIELD_LABELS = {
-    'מאושר u1': 'מאושר (משתמש 1)',
-    'מאושר u2': 'מאושר (משתמש 2)',
-    'לא חסום u2': 'לא חסום',
-    'מגדר נגדי': 'מגדר נגדי',
-    'אין חיבור קיים': 'חיבור קיים',
-    'לא מוסתר': 'הסתרה',
-    'לא חסום': 'חסימה',
+// ── תרגום ערכים ──────────────────────────────────────────────
+const HE = {
+    // מגדר
+    male: 'גבר', female: 'אישה',
+    // מגזר
+    ashkenazi: 'אשכנזי', sephardi: 'ספרדי', mixed: 'מעורב', teimani: 'תימני',
+    // רקע דתי
+    haredi: 'חרדי', baal_teshuva: 'בעל תשובה', dati_leumi: 'דתי לאומי', masorti: 'מסורתי',
+    // סטטוס
+    single: 'רווק/ה', divorced: 'גרוש/ה', widower: 'אלמן/ה',
+    // מבנה גוף
+    very_thin: 'רזה מאוד', thin: 'רזה', average_thin: 'ממוצע-רזה',
+    average: 'ממוצע', average_full: 'ממוצע-מלא', full: 'מלא',
+    // מראה
+    fair: 'סביר', ok: 'בסדר', good: 'טוב', handsome: 'יפה', very_handsome: 'יפה מאוד', stunning: 'מרהיב',
+    // גוון עור
+    light: 'בהיר', medium: 'בינוני', olive: 'זית', dark: 'כהה',
+    // כיסוי ראש
+    none: 'ללא', kipa_knitted: 'כיפה סרוגה', kipa_black: 'כיפה שחורה',
+    hat: 'כובע', mitpachat: 'מטפחת', wig: 'פאה', other: 'אחר',
+    // עיסוק
+    studying: 'לומד/ת', working: 'עובד/ת', fixed_times: 'זמנים קבועים', both: 'לומד ועובד',
+    // שאיפה
+    study_only: 'לימוד בלבד', study_and_work: 'לימוד ועבודה', work_only: 'עבודה בלבד', fixed_times_aspiration: 'זמנים קבועים',
 };
 
+const t = (val) => {
+    if (val === null || val === undefined || val === '') return '—';
+    return HE[val] ?? val;
+};
+
+// תרגום שם שדה (label) מה-checks
+const FIELD_HE = {
+    'גיל מינ': 'גיל מינימום',
+    'גיל מקס': 'גיל מקסימום',
+    'גובה מינ': 'גובה מינימום',
+    'גובה מקס': 'גובה מקסימום',
+    'מבנה גוף': 'מבנה גוף',
+    'מבנה': 'מבנה גוף',
+    'מראה': 'מראה',
+    'רקע': 'רקע דתי',
+    'סטטוס': 'סטטוס',
+    'מגזר': 'מגזר',
+    'עיסוק': 'עיסוק',
+    'שאיפה': 'שאיפה',
+    'גוון עור': 'גוון עור',
+    'כיסוי ראש': 'כיסוי ראש',
+    'סיוע כלכלי': 'סיוע כלכלי',
+};
+
+// תרגום ה-v (ערך הסבר) לטקסט עברי קריא
+function translateCheckValue(field, v, ok) {
+    if (v === undefined || v === null) return '';
+
+    const raw = String(v);
+
+    // בדיקות בסיס
+    if (field === 'מאושר u1' || field === 'מאושר u2') return ok ? 'מאושר ✓' : 'לא מאושר ✗';
+    if (field === 'לא חסום u2') return ok ? 'לא חסום ✓' : 'חסום! ✗';
+    if (field === 'מגדר נגדי') {
+        const parts = raw.split(' vs ');
+        return parts.length === 2 ? `${t(parts[0])} מול ${t(parts[1])}` : raw;
+    }
+    if (field === 'אין חיבור קיים') return ok ? 'אין חיבור קיים ✓' : 'יש כבר חיבור ✗';
+    if (field === 'לא מוסתר') return ok ? 'לא מוסתר ✓' : 'מוסתר ✗';
+    if (field === 'לא חסום') return ok ? 'לא חסום ✓' : 'חסום ✗';
+
+    // גיל / גובה — "u2.age=37 >= 19" → "37 ≥ 19"
+    const ageHeightMatch = raw.match(/u\d\.\w+=([0-9.]+)\s*(>=|<=)\s*([0-9.]+)/);
+    if (ageHeightMatch) {
+        const val = parseFloat(ageHeightMatch[1]);
+        const op = ageHeightMatch[2] === '>=' ? '≥' : '≤';
+        const limit = parseFloat(ageHeightMatch[3]);
+        const displayVal = field.includes('גובה') ? `${Math.round(val)} ס"מ` : val;
+        const displayLimit = field.includes('גובה') ? `${Math.round(limit)} ס"מ` : limit;
+        return `${displayVal} ${op} ${displayLimit}`;
+    }
+
+    // רשימת ערכים — "u2=very_thin in [very_thin,thin,...]"
+    const listMatch = raw.match(/u\d=([^\s]+)\s+in\s+\[([^\]]+)\]/);
+    if (listMatch) {
+        const actual = t(listMatch[1]);
+        const allowed = listMatch[2].split(',').map(s => t(s.trim())).join(', ');
+        return `${actual} ← מתוך: ${allowed}`;
+    }
+
+    // mixed_ok
+    if (raw.includes('mixed_ok=')) {
+        const base = raw.replace(/\s*mixed_ok=\w+/, '').trim();
+        const translated = base.replace(/u\d=([^\s]+)\s+in\s+\[([^\]]+)\]/, (_, actual, list) =>
+            `${t(actual)} ← מתוך: ${list.split(',').map(s => t(s.trim())).join(', ')}`
+        );
+        const mixedOk = raw.includes('mixed_ok=true');
+        return `${translated} ${mixedOk ? '(מקבל מעורב ✓)' : '(לא מקבל מעורב)'}`;
+    }
+
+    // תקין / אין
+    if (raw === 'תקין') return ok ? 'תקין ✓' : 'לא תקין ✗';
+    if (raw === 'אין') return ok ? 'אין ✓' : 'יש ✗';
+    if (raw === 'true') return ok ? 'כן ✓' : 'לא ✗';
+    if (raw === 'false') return ok ? 'לא ✓' : 'כן ✗';
+
+    return raw;
+}
+
+// שם שדה נקי בעברית
+function translateFieldName(field) {
+    const clean = field.replace(/^[AB]: /, '').replace(/^u\d רוצה /, '');
+    return FIELD_HE[clean] || clean;
+}
+
+// ── כרטיס משתמש ───────────────────────────────────────────────
 function UserCard({ user, label }) {
     if (!user) return null;
     const rows = [
-        ['מגדר', user.gender === 'male' ? 'גבר' : 'אישה'],
-        ['גיל', user.age],
-        ['גובה', user.height ? `${Math.round(user.height)} ס"מ` : '—'],
-        ['מגזר', user.heritage_sector],
-        ['רקע דתי', user.family_background],
-        ['סטטוס', user.status],
-        ['מבנה גוף', user.body_type],
-        ['מראה', user.appearance],
-        ['גוון עור', user.skin_tone],
-        ['כיסוי ראש', user.head_covering],
-        ['עיסוק', user.current_occupation],
-        ['שאיפה', user.life_aspiration],
+        ['מגדר', t(user.gender)],
+        ['גיל', user.age ? `${user.age} שנים` : null],
+        ['גובה', user.height ? `${Math.round(user.height)} ס"מ` : null],
+        ['מגזר', t(user.heritage_sector)],
+        ['רקע דתי', t(user.family_background)],
+        ['סטטוס', t(user.status)],
+        ['מבנה גוף', t(user.body_type)],
+        ['מראה', t(user.appearance)],
+        ['גוון עור', t(user.skin_tone)],
+        ['כיסוי ראש', t(user.head_covering)],
+        ['עיסוק', t(user.current_occupation)],
+        ['שאיפה', t(user.life_aspiration)],
     ];
     return (
         <div style={S.userCard}>
             <div style={S.userCardHeader}>{label}</div>
             <div style={S.userName}>{user.name}</div>
-            <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '10px' }}>{user.phone} · ID: {user.id}</div>
+            <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '10px' }}>{user.phone} · מזהה: {user.id}</div>
             <div style={S.userRows}>
-                {rows.filter(([, v]) => v != null && v !== '' && v !== 'null').map(([k, v]) => (
+                {rows.filter(([, v]) => v && v !== '—').map(([k, v]) => (
                     <div key={k} style={S.userRow}>
                         <span style={S.userRowLabel}>{k}:</span>
                         <span style={S.userRowVal}>{v}</span>
@@ -45,28 +147,32 @@ function UserCard({ user, label }) {
     );
 }
 
+// ── שורת בדיקה ────────────────────────────────────────────────
+const BASIC_FIELDS = ['מאושר u1', 'מאושר u2', 'לא חסום u2', 'מגדר נגדי', 'אין חיבור קיים', 'לא מוסתר', 'לא חסום'];
+
 function CheckRow({ check }) {
-    const isBasic = ['מאושר u1', 'מאושר u2', 'לא חסום u2', 'מגדר נגדי', 'אין חיבור קיים', 'לא מוסתר', 'לא חסום'].includes(check.field);
+    const isBasic = BASIC_FIELDS.includes(check.field);
     const isA = check.field.startsWith('A:');
     const isB = check.field.startsWith('B:');
+    const label = isBasic ? check.field : translateFieldName(check.field);
+    const valueText = translateCheckValue(check.field, check.v, check.ok);
+
     return (
         <div style={{ ...S.checkRow, background: check.ok ? '#f0fdf4' : '#fef2f2', borderRight: `4px solid ${check.ok ? '#22c55e' : '#ef4444'}` }}>
-            <span style={{ fontSize: '1.1rem' }}>{check.ok ? '✅' : '❌'}</span>
+            <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{check.ok ? '✅' : '❌'}</span>
             <div style={{ flex: 1 }}>
-                <span style={{ fontWeight: 700, color: check.ok ? '#166534' : '#991b1b' }}>
-                    {isA ? '← ' : isB ? '→ ' : ''}{check.field.replace(/^[AB]: /, '')}
-                </span>
-                {!isBasic && (
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>
-                        {check.v}
-                    </div>
-                )}
+                <div style={{ fontWeight: 700, color: check.ok ? '#166534' : '#991b1b', fontSize: '0.88rem' }}>
+                    {label}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
+                    {valueText}
+                </div>
             </div>
-            {isBasic && <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{check.v}</span>}
         </div>
     );
 }
 
+// ── דף ראשי ───────────────────────────────────────────────────
 export default function AdminMatchDebug() {
     const navigate = useNavigate();
     const [phone1, setPhone1] = useState('');
@@ -75,12 +181,13 @@ export default function AdminMatchDebug() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token || !user?.is_admin) { navigate('/login'); return null; }
+
     const runDebug = async () => {
         if (!phone1 || !phone2) { setError('נא להזין שני מספרי טלפון'); return; }
-        setLoading(true);
-        setError('');
-        setResult(null);
-        const token = localStorage.getItem('token');
+        setLoading(true); setError(''); setResult(null);
         try {
             const res = await fetch(
                 `${API_BASE}/matches-debug/${encodeURIComponent(phone2)}?source=${encodeURIComponent(phone1)}`,
@@ -95,48 +202,32 @@ export default function AdminMatchDebug() {
         setLoading(false);
     };
 
-    const basicChecks = result?.checks?.filter(c =>
-        ['מאושר u1', 'מאושר u2', 'לא חסום u2', 'מגדר נגדי', 'אין חיבור קיים', 'לא מוסתר', 'לא חסום'].includes(c.field)
-    ) || [];
+    const basicChecks = result?.checks?.filter(c => BASIC_FIELDS.includes(c.field)) || [];
     const aChecks = result?.checks?.filter(c => c.field.startsWith('A:')) || [];
     const bChecks = result?.checks?.filter(c => c.field.startsWith('B:')) || [];
-
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (!token || !user?.is_admin) { navigate('/login'); return null; }
+    const isMatch = result?.summary?.startsWith('MATCH');
 
     return (
         <div style={S.page}>
             <div style={S.container}>
-                {/* Header */}
                 <div style={S.header}>
                     <button onClick={() => navigate('/admin')} style={S.backBtn}>← חזרה לדשבורד</button>
                     <h2 style={S.title}>🔍 בדיקת התאמה בין משתמשים</h2>
                     <p style={S.subtitle}>הזן שני מספרי טלפון לבדיקה למה שניים לא רואים אחד את השני</p>
                 </div>
 
-                {/* Input form */}
+                {/* טופס */}
                 <div style={S.form}>
                     <div style={S.inputGroup}>
-                        <label style={S.label}>משתמש 1 (מחפש)</label>
-                        <input
-                            style={S.input}
-                            placeholder="מספר טלפון, לדוגמה 0501234567"
-                            value={phone1}
-                            onChange={e => setPhone1(e.target.value)}
-                            dir="ltr"
-                        />
+                        <label style={S.label}>משתמש א׳ (המחפש)</label>
+                        <input style={S.input} placeholder="מספר טלפון" value={phone1}
+                            onChange={e => setPhone1(e.target.value)} dir="ltr" />
                     </div>
                     <div style={{ fontSize: '1.5rem', color: '#94a3b8', alignSelf: 'flex-end', paddingBottom: '8px' }}>⇄</div>
                     <div style={S.inputGroup}>
-                        <label style={S.label}>משתמש 2 (מועמד)</label>
-                        <input
-                            style={S.input}
-                            placeholder="מספר טלפון, לדוגמה 0507654321"
-                            value={phone2}
-                            onChange={e => setPhone2(e.target.value)}
-                            dir="ltr"
-                        />
+                        <label style={S.label}>משתמש ב׳ (המועמד)</label>
+                        <input style={S.input} placeholder="מספר טלפון" value={phone2}
+                            onChange={e => setPhone2(e.target.value)} dir="ltr" />
                     </div>
                     <button onClick={runDebug} disabled={loading} style={S.btn}>
                         {loading ? '⏳ בודק...' : '🔍 בדוק'}
@@ -144,59 +235,58 @@ export default function AdminMatchDebug() {
                 </div>
                 {error && <p style={{ color: '#ef4444', textAlign: 'center', marginBottom: '16px' }}>{error}</p>}
 
-                {/* Results */}
+                {/* תוצאות */}
                 {result && (
                     <div>
-                        {/* Summary banner */}
+                        {/* באנר סיכום */}
                         <div style={{
                             ...S.summary,
-                            background: result.summary.startsWith('MATCH') ? '#dcfce7' : '#fee2e2',
-                            border: `2px solid ${result.summary.startsWith('MATCH') ? '#22c55e' : '#ef4444'}`,
-                            color: result.summary.startsWith('MATCH') ? '#166534' : '#991b1b',
+                            background: isMatch ? '#dcfce7' : '#fee2e2',
+                            border: `2px solid ${isMatch ? '#22c55e' : '#ef4444'}`,
+                            color: isMatch ? '#166534' : '#991b1b',
                         }}>
-                            <span style={{ fontSize: '2rem' }}>{result.summary.startsWith('MATCH') ? '✅' : '❌'}</span>
+                            <span style={{ fontSize: '2.2rem' }}>{isMatch ? '✅' : '❌'}</span>
                             <div>
-                                <div style={{ fontWeight: 800, fontSize: '1.2rem' }}>
-                                    {result.summary.startsWith('MATCH') ? 'המשתמשים אמורים לראות אחד את השני' : 'יש חסימה — המשתמשים לא יראו אחד את השני'}
+                                <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>
+                                    {isMatch
+                                        ? 'ההתאמה תקינה — שני המשתמשים אמורים לראות אחד את השני'
+                                        : 'אין התאמה — המשתמשים לא יראו אחד את השני'}
                                 </div>
                                 {result.failed?.length > 0 && (
-                                    <div style={{ fontSize: '0.9rem', marginTop: '4px' }}>
-                                        {result.failed.length} תנאים נכשלו: {result.failed.map(f => f.field).join(' | ')}
+                                    <div style={{ fontSize: '0.9rem', marginTop: '6px' }}>
+                                        <strong>הסיבות לחסימה ({result.failed.length}):</strong>{' '}
+                                        {result.failed.map(f => translateFieldName(f.field)).join(' · ')}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* User cards */}
+                        {/* כרטיסי משתמשים */}
                         <div style={S.userCards}>
-                            <UserCard user={result.u1} label="משתמש 1 (מחפש)" />
-                            <UserCard user={result.u2} label="משתמש 2 (מועמד)" />
+                            <UserCard user={result.u1} label={`משתמש א׳ — ${result.u1?.name}`} />
+                            <UserCard user={result.u2} label={`משתמש ב׳ — ${result.u2?.name}`} />
                         </div>
 
-                        {/* Checks */}
+                        {/* עמודות בדיקות */}
                         <div style={S.checksGrid}>
-                            {/* Basic checks */}
                             <div style={S.checkGroup}>
                                 <div style={S.checkGroupTitle}>🔒 בדיקות בסיס</div>
+                                <div style={S.checkGroupSub}>אישור, חסימה, מגדר</div>
                                 {basicChecks.map((c, i) => <CheckRow key={i} check={c} />)}
                             </div>
-
-                            {/* Direction A */}
                             <div style={S.checkGroup}>
-                                <div style={S.checkGroupTitle}>← העדפות משתמש 1 על מועמד 2</div>
+                                <div style={S.checkGroupTitle}>← {result.u1?.name} מחפשת/מחפש</div>
+                                <div style={S.checkGroupSub}>מה {result.u1?.name} דורש/ת ממועמד ב׳</div>
                                 {aChecks.length === 0
-                                    ? <div style={S.noChecks}>אין פילטרים פעילים</div>
-                                    : aChecks.map((c, i) => <CheckRow key={i} check={c} />)
-                                }
+                                    ? <div style={S.noChecks}>אין פילטרים מוגדרים</div>
+                                    : aChecks.map((c, i) => <CheckRow key={i} check={c} />)}
                             </div>
-
-                            {/* Direction B */}
                             <div style={S.checkGroup}>
-                                <div style={S.checkGroupTitle}>→ העדפות משתמש 2 על מועמד 1</div>
+                                <div style={S.checkGroupTitle}>→ {result.u2?.name} מחפשת/מחפש</div>
+                                <div style={S.checkGroupSub}>מה {result.u2?.name} דורש/ת ממועמד א׳</div>
                                 {bChecks.length === 0
-                                    ? <div style={S.noChecks}>אין פילטרים פעילים</div>
-                                    : bChecks.map((c, i) => <CheckRow key={i} check={c} />)
-                                }
+                                    ? <div style={S.noChecks}>אין פילטרים מוגדרים</div>
+                                    : bChecks.map((c, i) => <CheckRow key={i} check={c} />)}
                             </div>
                         </div>
                     </div>
@@ -208,7 +298,7 @@ export default function AdminMatchDebug() {
 
 const S = {
     page: { minHeight: '100vh', background: '#f8fafc', padding: '20px', direction: 'rtl', fontFamily: "'Heebo', sans-serif" },
-    container: { maxWidth: '900px', margin: '0 auto' },
+    container: { maxWidth: '960px', margin: '0 auto' },
     header: { marginBottom: '24px' },
     backBtn: { background: 'none', border: 'none', color: '#c9a227', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem', padding: '0 0 10px', display: 'block' },
     title: { margin: '0 0 6px', color: '#1e3a5f', fontSize: '1.6rem', fontWeight: 800 },
@@ -218,18 +308,19 @@ const S = {
     label: { display: 'block', marginBottom: '6px', fontWeight: 700, color: '#374151', fontSize: '0.9rem' },
     input: { width: '100%', padding: '10px 14px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '1rem', boxSizing: 'border-box', outline: 'none' },
     btn: { padding: '10px 24px', background: 'linear-gradient(135deg, #c9a227, #b08d1f)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', whiteSpace: 'nowrap' },
-    summary: { display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 20px', borderRadius: '12px', marginBottom: '20px' },
+    summary: { display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 22px', borderRadius: '14px', marginBottom: '20px' },
     userCards: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' },
-    userCard: { background: '#fff', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-    userCardHeader: { fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' },
+    userCard: { background: '#fff', borderRadius: '12px', padding: '18px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
+    userCardHeader: { fontSize: '0.78rem', fontWeight: 700, color: '#64748b', marginBottom: '4px' },
     userName: { fontSize: '1.2rem', fontWeight: 800, color: '#1e3a5f', marginBottom: '4px' },
-    userRows: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
-    userRow: { background: '#f1f5f9', borderRadius: '6px', padding: '3px 8px', fontSize: '0.82rem' },
+    userRows: { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' },
+    userRow: { background: '#f1f5f9', borderRadius: '6px', padding: '4px 10px', fontSize: '0.83rem' },
     userRowLabel: { color: '#64748b', marginLeft: '4px' },
     userRowVal: { color: '#1e3a5f', fontWeight: 600 },
-    checksGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' },
+    checksGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' },
     checkGroup: { background: '#fff', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' },
-    checkGroupTitle: { fontWeight: 800, color: '#1e3a5f', marginBottom: '12px', fontSize: '0.9rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' },
-    checkRow: { display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px', borderRadius: '8px', marginBottom: '6px', fontSize: '0.85rem' },
-    noChecks: { color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', padding: '10px' },
+    checkGroupTitle: { fontWeight: 800, color: '#1e3a5f', fontSize: '0.92rem', marginBottom: '2px' },
+    checkGroupSub: { color: '#94a3b8', fontSize: '0.78rem', marginBottom: '12px', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' },
+    checkRow: { display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '8px 10px', borderRadius: '8px', marginBottom: '6px' },
+    noChecks: { color: '#94a3b8', fontSize: '0.85rem', textAlign: 'center', padding: '12px' },
 };
