@@ -395,14 +395,11 @@ const authenticateToken = (req, res, next) => {
 // 🔒 הגשת קבצים מאובטחת (תמונות פרופיל + ת.ז.)
 // ==========================================
 const _wmCache = new Map();
-const _nameCache = new Map();
 const WM_TTL = 10 * 60 * 1000;
 const WM_MAX = 500;
-const NAME_TTL = 30 * 60 * 1000;
 setInterval(() => {
     const now = Date.now();
     for (const [k, v] of _wmCache) { if (now - v.ts > WM_TTL) _wmCache.delete(k); }
-    for (const [k, v] of _nameCache) { if (now - v.ts > NAME_TTL) _nameCache.delete(k); }
 }, 5 * 60 * 1000);
 
 app.get('/secure-file/:filename', imageLimiter, async (req, res) => {
@@ -441,31 +438,36 @@ app.get('/secure-file/:filename', imageLimiter, async (req, res) => {
                 return res.send(cached.buf);
             }
 
-            let viewerName;
-            const cn = _nameCache.get(decoded.id);
-            if (cn && (Date.now() - cn.ts < NAME_TTL)) {
-                viewerName = cn.name;
-            } else {
-                const userRow = await pool.query('SELECT full_name, last_name FROM users WHERE id = $1', [decoded.id]);
-                const row = userRow.rows[0];
-                viewerName = row ? [row.full_name, row.last_name].filter(Boolean).join(' ') : `user-${decoded.id}`;
-                _nameCache.set(decoded.id, { name: viewerName, ts: Date.now() });
-            }
+            const userRow = await pool.query('SELECT full_name, last_name FROM users WHERE id = $1', [decoded.id]);
+            const row = userRow.rows[0];
+            const viewerName = row ? [row.full_name, row.last_name].filter(Boolean).join(' ') : `user-${decoded.id}`;
 
             const meta = await sharp(filePath).metadata();
             const w = meta.width || 400;
             const h = meta.height || 400;
-            const fontSize = Math.max(14, Math.round(w * 0.04));
+            const fontSize = Math.max(12, Math.round(w * 0.032));
+
+            const positions = [
+                { x: Math.round(w * 0.25), y: Math.round(h * 0.20), angle: -25 },
+                { x: Math.round(w * 0.75), y: Math.round(h * 0.40), angle: -25 },
+                { x: Math.round(w * 0.30), y: Math.round(h * 0.60), angle: -25 },
+                { x: Math.round(w * 0.70), y: Math.round(h * 0.80), angle: -25 },
+                { x: Math.round(w * 0.50), y: Math.round(h * 0.95), angle: 0 },
+            ];
+            const textEls = positions.map(p =>
+                p.angle
+                    ? `<text x="${p.x}" y="${p.y}" text-anchor="middle" class="wm" transform="rotate(${p.angle}, ${p.x}, ${p.y})">${viewerName}</text>`
+                    : `<text x="${p.x}" y="${p.y}" text-anchor="middle" class="wm">${viewerName}</text>`
+            ).join('\n');
 
             const svgOverlay = Buffer.from(`
                 <svg width="${w}" height="${h}">
                     <defs>
                         <style>
-                            .wm { fill: rgba(255,255,255,0.35); font-size: ${fontSize}px; font-family: Arial, sans-serif; font-weight: bold; }
+                            .wm { fill: rgba(255,255,255,0.22); font-size: ${fontSize}px; font-family: Arial, sans-serif; font-weight: bold; }
                         </style>
                     </defs>
-                    <text x="${Math.round(w * 0.5)}" y="${Math.round(h * 0.92)}" text-anchor="middle" class="wm">${viewerName}</text>
-                    <text x="${Math.round(w * 0.5)}" y="${Math.round(h * 0.35)}" text-anchor="middle" class="wm" transform="rotate(-30, ${Math.round(w * 0.5)}, ${Math.round(h * 0.35)})">${viewerName}</text>
+                    ${textEls}
                 </svg>
             `);
 
