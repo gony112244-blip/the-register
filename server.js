@@ -1996,6 +1996,16 @@ const SAFE_FIELDS = new Set([
 const NUMERIC_FIELDS = new Set(['age', 'height', 'children_count', 'siblings_count', 'sibling_position',
     'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max', 'aliyah_age']);
 
+app.post('/mark-welcome-seen', authenticateToken, async (req, res) => {
+    try {
+        await pool.query('UPDATE users SET welcome_seen = TRUE WHERE id = $1', [req.user.id]);
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('[mark-welcome-seen]', e.message);
+        res.status(500).json({ ok: false });
+    }
+});
+
 app.post('/update-safe-fields', authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const changes = req.body; // כל השדות הבטוחים
@@ -4871,6 +4881,7 @@ async function updateDbSchema() {
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255)`,
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_code VARCHAR(10)`,
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_seen BOOLEAN DEFAULT FALSE`,
     ];
     for (const sql of essentialColumns) {
         try { await pool.query(sql); }

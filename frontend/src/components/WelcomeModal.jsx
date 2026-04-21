@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
+import API_BASE from '../config';
 
 /** תוקף ההודעה — 3 חודשים מיום ההשקה */
 const EXPIRY_DATE = new Date('2026-07-19');
-
-const storageKey = (userId) => `welcome_v1_${userId}`;
 
 export default function WelcomeModal({ user }) {
     const [show, setShow] = useState(false);
@@ -11,17 +10,22 @@ export default function WelcomeModal({ user }) {
     useEffect(() => {
         if (!user || user.is_admin) return;
         if (new Date() > EXPIRY_DATE) return;
-
-        const key = storageKey(user.id);
-        if (localStorage.getItem(key)) return;
+        if (user.welcome_seen) return;  // כבר ראה — DB אומר לא להציג
 
         const t = setTimeout(() => setShow(true), 1200);
         return () => clearTimeout(t);
     }, [user]);
 
     const handleClose = () => {
-        if (user?.id) localStorage.setItem(storageKey(user.id), '1');
         setShow(false);
+        // שמירה בDB — לא תלוי במכשיר/דפדפן
+        const token = localStorage.getItem('token');
+        if (token) {
+            fetch(`${API_BASE}/mark-welcome-seen`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => {});
+        }
     };
 
     if (!show) return null;
