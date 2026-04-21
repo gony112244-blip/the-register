@@ -1055,7 +1055,7 @@ router.get('/call', async (req, res) => {
                         'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות.'
                     );
                     const promptFile = await textToYemot(prompt);
-                    return yemotRead(res, promptFile, 'digits', 10, 15, 30, 'yes');
+                    return yemotRead(res, promptFile, 'digits', 11, 9, 30, 'yes');
                 }
                 if (key === '2') {
                     const result = await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => 'error');
@@ -1709,7 +1709,7 @@ router.get('/call', async (req, res) => {
                         'הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות.'
                     );
                     const promptFile = await textToYemot(prompt);
-                    return yemotRead(res, promptFile, 'digits', 10, 15, 30, 'yes');
+                    return yemotRead(res, promptFile, 'digits', 11, 9, 30, 'yes');
                 }
                 if (key === '2') {
                     await respondToReferenceRequestFromIvr(data.currentRequestId, user.id, 'cannot').catch(() => {});
@@ -1812,7 +1812,7 @@ router.get('/call', async (req, res) => {
                     'הָקִישִׁי את מספר הטלפון, עשר ספרות.'
                 );
                 const f = await textToYemot(rePrompt);
-                return yemotRead(res, f, 'digits', 10, 15, 30, 'yes');
+                return yemotRead(res, f, 'digits', 11, 9, 30, 'yes');
             }
 
             // ביטול
@@ -1838,7 +1838,7 @@ router.get('/call', async (req, res) => {
                 'לא התקבל מספר. הָקִישִׁי את מספר הטלפון של הממליץ, עשר ספרות.'
             );
             const f = await textToYemot(prompt);
-            return yemotRead(res, f, 'digits', 10, 15, 30, 'yes');
+            return yemotRead(res, f, 'digits', 11, 9, 30, 'yes');
         }
 
         const digits = key.replace(/\D/g, '');
@@ -1848,7 +1848,7 @@ router.get('/call', async (req, res) => {
                 'מספר לא תקין. הָקִישִׁי שוב מספר טלפון ישראלי בן עשר ספרות.'
             );
             const f = await textToYemot(errPrompt);
-            return yemotRead(res, f, 'digits', 10, 15, 30, 'yes');
+            return yemotRead(res, f, 'digits', 11, 9, 30, 'yes');
         }
 
         // מספר תקין → שמור כ-pending ועבור לאישור
