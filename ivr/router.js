@@ -1243,7 +1243,9 @@ router.get('/call', async (req, res) => {
 
             if (key === '1') {
                 const result = await approvePhotoRequestFromIvr(requesterId, user.id).catch(() => 'error');
-                const prefix = result === 'ok' ? 'הסכמת לחשיפת תמונתך.' : 'אירעה תקלה.';
+                const prefix = result === 'ok'
+                    ? g(user.gender, 'הִסְכַּמְתָּ לְשִׁיתוּף תְּמוּנָתְךָ.', 'הִסְכַּמְתְּ לְשִׁיתוּף תְּמוּנָתֵךְ.')
+                    : 'אֵירְעָה תַּקָּלָה.';
                 console.log(`[IVR] 📷 תמונה אושרה: requesterId=${requesterId} | userId=${user.id}`);
                 offset++;
                 await updateSession(enterId, 'photos', { page: offset, currentRequesterId: null });
@@ -1251,7 +1253,7 @@ router.get('/call', async (req, res) => {
             }
             if (key === '2') {
                 const result = await rejectPhotoRequestFromIvr(requesterId, user.id).catch(() => 'error');
-                const prefix = result === 'ok' ? 'הבקשה נדחתה.' : 'אירעה תקלה.';
+                const prefix = result === 'ok' ? 'הַבַּקָּשָׁה נִדְחְתָה.' : 'אֵירְעָה תַּקָּלָה.';
                 console.log(`[IVR] 📷 תמונה נדחתה: requesterId=${requesterId} | userId=${user.id}`);
                 offset++;
                 await updateSession(enterId, 'photos', { page: offset, currentRequesterId: null });
