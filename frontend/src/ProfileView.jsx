@@ -458,7 +458,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                     </div>
                                 )}
 
-                                <Row label="מעורב עדתי" val={user.mixed_heritage_ok ? 'מתאים לי' : null} />
+
                                 {show(user.search_financial_min) && (
                                     <Row label="עזרת דירה מינימלית" val={`₪${Number(user.search_financial_min).toLocaleString()}`} />
                                 )}
