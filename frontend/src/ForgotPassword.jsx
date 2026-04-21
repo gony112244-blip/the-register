@@ -134,9 +134,9 @@ function ForgotPassword() {
                     <div style={{ ...styles.progress, width: `${Math.min((step / 3) * 100, 100)}%` }}></div>
                 </div>
 
-                {/* Step 1: Phone + Email */}
-                {step === 1 && (
-                    <div>
+                {/* Steps — key={step} forces full remount on step change, preventing DOM reconciliation errors */}
+                <div key={step}>
+                    {step === 1 && (
                         <form onSubmit={handleSendCode}>
                             <div style={styles.field}>
                                 <label style={styles.label}>📱 מספר טלפון</label>
@@ -168,17 +168,13 @@ function ForgotPassword() {
                                 {loading ? '⏳ שולח...' : '📤 שלח קוד אימות'}
                             </button>
                         </form>
-                    </div>
-                )}
+                    )}
 
-                {/* Step 2: Enter Code */}
-                {step === 2 && (
-                    <div>
+                    {step === 2 && (
                         <form onSubmit={handleVerifyCode}>
                             <div style={styles.infoBox}>
                                 <p>📧 שלחנו קוד אימות ל-{email}</p>
                             </div>
-
                             <div style={styles.field}>
                                 <label style={styles.label}>🔢 קוד אימות (6 ספרות)</label>
                                 <input
@@ -197,12 +193,9 @@ function ForgotPassword() {
                                 ← לא קיבלתי, נסה שוב
                             </button>
                         </form>
-                    </div>
-                )}
+                    )}
 
-                {/* Step 3: New Password */}
-                {step === 3 && (
-                    <div>
+                    {step === 3 && (
                         <form onSubmit={handleResetPassword}>
                             <div style={styles.field}>
                                 <label style={styles.label}>🔑 סיסמה חדשה</label>
@@ -228,20 +221,19 @@ function ForgotPassword() {
                                 {loading ? '⏳ משנה...' : '🔐 שנה סיסמה'}
                             </button>
                         </form>
-                    </div>
-                )}
+                    )}
 
-                {/* Step 4: Success */}
-                {step === 4 && (
-                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                        <div style={{ fontSize: '4rem', marginBottom: '16px' }}>✅</div>
-                        <h3 style={{ color: '#22c55e', marginBottom: '8px' }}>הסיסמה שונתה בהצלחה!</h3>
-                        <p style={{ color: '#64748b', marginBottom: '24px' }}>כעת תוכל להיכנס עם הסיסמה החדשה שלך.</p>
-                        <button onClick={() => navigate('/login')} style={styles.button}>
-                            🔑 כניסה לחשבון
-                        </button>
-                    </div>
-                )}
+                    {step === 4 && (
+                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                            <div style={{ fontSize: '4rem', marginBottom: '16px' }}>✅</div>
+                            <h3 style={{ color: '#22c55e', marginBottom: '8px' }}>הסיסמה שונתה בהצלחה!</h3>
+                            <p style={{ color: '#64748b', marginBottom: '24px' }}>כעת תוכל להיכנס עם הסיסמה החדשה שלך.</p>
+                            <button onClick={() => navigate('/login')} style={styles.button}>
+                                🔑 כניסה לחשבון
+                            </button>
+                        </div>
+                    )}
+                </div>
 
                 {message && (
                     <p style={message.includes('✅') ? styles.successMsg : styles.errorMsg}>

@@ -1101,153 +1101,149 @@ app.get('/health', async (req, res) => {
 // (Removed duplicate Legacy Auth Routes)
 
 // ==========================================
-// 🔐 שכחתי סיסמה
+// 🔐 שכחתי סיסמה (מאוחסן ב-DB — עמיד בפני restart)
 // ==========================================
 
-// אחסון קודי איפוס (בזיכרון - בפרודקשן צריך Redis)
-const resetCodes = new Map();
-
-// שלב 1: שליחת קוד אימות
+// שלב 1: שליחת קוד איפוס
 app.post('/forgot-password', async (req, res) => {
     const { phone, method, email: emailFromClient } = req.body;
 
-    // ולידציה בסיסית
     if (!phone) {
-        return res.status(400).json({ message: "נא להזין מספר טלפון" });
-    }
-    if (!method) {
-        return res.status(400).json({ message: "נא לבחור שיטת קבלת קוד" });
+        return res.status(400).json({ message: 'נא להזין מספר טלפון' });
     }
 
-    // ניקוי מספר הטלפון
     const cleanPhone = phone.replace(/\D/g, '').trim();
 
     try {
-        // 1. בדיקה אם המשתמש קיים ושליפת המייל שלו מהדאטאבייס (אבטחה)
-        const result = await pool.query(
-            'SELECT id, email, full_name FROM users WHERE phone = $1',
+        const userRes = await pool.query(
+            'SELECT id, full_name, email FROM users WHERE phone = $1',
             [cleanPhone]
         );
 
-        if (result.rows.length === 0) {
-            // נחזיר 404 אבל הודעה כללית (לא לחשוף אם הטלפון קיים)
-            return res.status(404).json({ message: "מספר הטלפון לא נמצא במערכת" });
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'מספר הטלפון לא נמצא במערכת' });
         }
 
-        const user = result.rows[0];
-        
-        // קביעת כתובת המייל - עדיפות למה שיש ב-DB, אם אין משתמשים במה שנשלח מהלקוח
+        const user = userRes.rows[0];
         const targetEmail = user.email || emailFromClient;
 
-        if (method === 'email' && !targetEmail) {
-            return res.status(400).json({ message: "לא מוגדרת כתובת מייל למשתמש זה. נא לפנות לתמיכה." });
+        if (!targetEmail) {
+            return res.status(400).json({ message: 'לא מוגדרת כתובת מייל. נא לפנות לתמיכה.' });
         }
 
-        // 2. יצירת קוד 6 ספרות
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-        // 3. שמירת הקוד בזיכרון (resetCodes)
-        resetCodes.set(cleanPhone, {
-            code,
-            expires: Date.now() + 10 * 60 * 1000,
-            attempts: 0,
-            method
+        // וודא שהעמודות קיימות
+        try {
+            await pool.query(`
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reset_password_code') THEN
+                        ALTER TABLE users ADD COLUMN reset_password_code VARCHAR(10);
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reset_password_expires') THEN
+                        ALTER TABLE users ADD COLUMN reset_password_expires TIMESTAMP;
+                    END IF;
+                END $$;
+            `);
+        } catch (altErr) {
+            console.warn('[forgot-password] Column creation warning:', altErr.message);
+        }
+
+        await pool.query(
+            'UPDATE users SET reset_password_code = $1, reset_password_expires = $2 WHERE id = $3',
+            [resetCode, expiresAt, user.id]
+        );
+
+        console.log(`[forgot-password] Sending reset code to ${targetEmail} for phone ${cleanPhone}`);
+        const sent = await sendTemplateEmail(targetEmail, 'reset_password', {
+            fullName: user.full_name || 'משתמש',
+            code: resetCode
         });
 
-        // 4. שליחה לפי השיטה שנבחרה
-        if (method === 'email') {
-            console.log(`[forgot-password] Sending reset code to email: ${targetEmail} for phone: ${cleanPhone}`);
-            const sent = await sendTemplateEmail(targetEmail, 'reset_password', {
-                code,
-                fullName: user.full_name || ''
-            });
-
-            if (sent) {
-                return res.json({ message: "📧 קוד אימות נשלח למייל שלך!" });
-            } else {
-                console.error(`[forgot-password] Failed to send email to ${targetEmail}`);
-                return res.status(500).json({ message: "תקלה בשליחת המייל — אנא נסה שוב מאוחר יותר, או בחר שיטת שיחה קולית." });
-            }
-        } else if (method === 'call') {
-            console.log(`📞 שיחה קולית לטלפון ${cleanPhone} עם הקוד: ${code}`);
-            return res.json({
-                message: "📞 שיחה קולית יוצאת אליך עכשיו עם הקוד",
-                code: process.env.NODE_ENV === 'production' ? undefined : code 
-            });
+        if (sent) {
+            return res.json({ message: '📧 קוד אימות נשלח למייל שלך!' });
         } else {
-            return res.status(400).json({ message: "נא לבחור שיטת קבלת קוד" });
+            console.error(`[forgot-password] Failed to send email to ${targetEmail}`);
+            return res.status(500).json({ message: 'תקלה בשליחת המייל — אנא נסה שוב מאוחר יותר.' });
         }
 
     } catch (err) {
-        console.error("[forgot-password] Server error:", err.message || err);
-        res.status(500).json({ message: "שגיאת שרת פנימית" });
+        console.error('[forgot-password] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת פנימית' });
     }
 });
 
 // שלב 2: אימות הקוד
 app.post('/verify-reset-code', async (req, res) => {
     const { phone, code } = req.body;
-    const cleanPhone = (phone || '').replace(/\D/g, '').trim();
+    if (!phone || !code) return res.status(400).json({ message: 'נתונים חסרים' });
 
-    const stored = resetCodes.get(cleanPhone);
+    const cleanPhone = phone.replace(/\D/g, '').trim();
 
-    if (!stored) {
-        return res.status(400).json({ message: "לא נמצא קוד איפוס. נא לבקש קוד חדש." });
+    try {
+        const userRes = await pool.query(
+            'SELECT id, reset_password_code, reset_password_expires FROM users WHERE phone = $1',
+            [cleanPhone]
+        );
+
+        if (userRes.rows.length === 0) return res.status(404).json({ message: 'משתמש לא נמצא' });
+
+        const user = userRes.rows[0];
+
+        if (!user.reset_password_code) {
+            return res.status(400).json({ message: 'לא נשלח קוד לחשבון זה. נא לבקש קוד חדש.' });
+        }
+        if (new Date() > new Date(user.reset_password_expires)) {
+            return res.status(400).json({ message: 'הקוד פג תוקף. נא לבקש קוד חדש.' });
+        }
+        if (user.reset_password_code !== code.trim()) {
+            return res.status(400).json({ message: 'קוד שגוי, נסה שוב.' });
+        }
+
+        res.json({ message: 'הקוד אומת בהצלחה' });
+    } catch (err) {
+        console.error('[verify-reset-code] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
     }
-
-    if (Date.now() > stored.expires) {
-        resetCodes.delete(cleanPhone);
-        return res.status(400).json({ message: "הקוד פג תוקף. נא לבקש קוד חדש." });
-    }
-
-    stored.attempts++;
-    if (stored.attempts > 5) {
-        resetCodes.delete(cleanPhone);
-        return res.status(429).json({ message: "יותר מדי ניסיונות. נא לבקש קוד חדש." });
-    }
-
-    if (stored.code !== code) {
-        return res.status(400).json({ message: "קוד שגוי. נסה שוב." });
-    }
-
-    // הקוד נכון - מסמנים שאומת
-    stored.verified = true;
-    res.json({ message: "הקוד אומת בהצלחה" });
 });
 
 // שלב 3: איפוס הסיסמה
 app.post('/reset-password', async (req, res) => {
     const { phone, code, newPassword } = req.body;
-    const cleanPhone = (phone || '').replace(/\D/g, '').trim();
+    if (!phone || !code || !newPassword) return res.status(400).json({ message: 'נתונים חסרים' });
 
-    const stored = resetCodes.get(cleanPhone);
-
-    if (!stored || !stored.verified || stored.code !== code) {
-        return res.status(400).json({ message: "תהליך האימות לא הושלם. התחל מחדש." });
-    }
-
-    if (Date.now() > stored.expires) {
-        resetCodes.delete(cleanPhone);
-        return res.status(400).json({ message: "פג תוקף. התחל מחדש." });
-    }
+    const cleanPhone = phone.replace(/\D/g, '').trim();
 
     try {
+        const userRes = await pool.query(
+            'SELECT id, reset_password_code, reset_password_expires FROM users WHERE phone = $1',
+            [cleanPhone]
+        );
+
+        if (userRes.rows.length === 0) return res.status(404).json({ message: 'משתמש לא נמצא' });
+
+        const user = userRes.rows[0];
+
+        if (!user.reset_password_code || user.reset_password_code !== code.trim()) {
+            return res.status(400).json({ message: 'קוד שגוי. התחל את התהליך מחדש.' });
+        }
+        if (new Date() > new Date(user.reset_password_expires)) {
+            return res.status(400).json({ message: 'פג תוקף. התחל מחדש.' });
+        }
+
         const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
         await pool.query(
-            'UPDATE users SET password = $1 WHERE phone = $2',
-            [hashedPassword, cleanPhone]
+            'UPDATE users SET password = $1, reset_password_code = NULL, reset_password_expires = NULL WHERE id = $2',
+            [hashedPassword, user.id]
         );
 
-        resetCodes.delete(cleanPhone);
-
-        const pwUser = await pool.query('SELECT id FROM users WHERE phone = $1', [cleanPhone]);
-        if (pwUser.rows[0]) setImmediate(() => logActivity(pwUser.rows[0].id, 'password_reset_completed'));
-
-        res.json({ message: "הסיסמה שונתה בהצלחה!" });
+        setImmediate(() => logActivity(user.id, 'password_reset_completed'));
+        res.json({ message: 'הסיסמה שונתה בהצלחה!' });
     } catch (err) {
-        console.error("Reset password error:", err);
-        res.status(500).json({ message: "שגיאת שרת" });
+        console.error('[reset-password] Error:', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
     }
 });
 
@@ -4842,176 +4838,6 @@ async function updateDbSchema() {
     }
 }
 
-
-// ==========================================
-// 🔐 שחזור סיסמה (Forgot Password Flow)
-// ==========================================
-
-// שלב 1: שליחת קוד לפי טלפון (מייל או שיחה)
-app.post('/forgot-password', async (req, res) => {
-    const { phone, method, email } = req.body;
-
-    if (!phone) {
-        return res.status(400).json({ message: 'נא להזין מספר טלפון' });
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '').trim();
-
-    try {
-        const userRes = await pool.query(
-            'SELECT id, full_name, email FROM users WHERE phone = $1',
-            [cleanPhone]
-        );
-
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ message: 'מספר הטלפון לא רשום במערכת' });
-        }
-
-        const user = userRes.rows[0];
-
-        // יצירת קוד איפוס 6 ספרות
-        const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // תוקף 15 דקות
-
-        // שמירת הקוד במסד הנתונים (עם ALTER TABLE אם עמודות לא קיימות)
-        try {
-            await pool.query(`
-                DO $$ BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reset_password_code') THEN
-                        ALTER TABLE users ADD COLUMN reset_password_code VARCHAR(10);
-                    END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='reset_password_expires') THEN
-                        ALTER TABLE users ADD COLUMN reset_password_expires TIMESTAMP;
-                    END IF;
-                END $$;
-            `);
-        } catch (altErr) {
-            console.warn('[forgot-password] Column creation warning:', altErr.message);
-        }
-
-        await pool.query(
-            'UPDATE users SET reset_password_code = $1, reset_password_expires = $2 WHERE id = $3',
-            [resetCode, expiresAt, user.id]
-        );
-
-        if (method === 'email') {
-            // שליחה למייל
-            const targetEmail = email || user.email;
-            if (!targetEmail) {
-                return res.status(400).json({ message: 'למשתמש זה אין מייל רשום. בחר שיחה קולית.' });
-            }
-            await sendTemplateEmail(targetEmail, 'reset_password', {
-                fullName: user.full_name || 'משתמש',
-                code: resetCode
-            });
-            res.json({ message: `קוד נשלח למייל ${targetEmail}` });
-        } else {
-            // שיחה קולית — במידה ואין IVR, נשלח SMS / מייל כגיבוי
-            const fallbackEmail = user.email;
-            if (fallbackEmail) {
-                await sendTemplateEmail(fallbackEmail, 'reset_password', {
-                    fullName: user.full_name || 'משתמש',
-                    code: resetCode
-                });
-                console.log(`[forgot-password] Voice call fallback — sent code to email: ${fallbackEmail}`);
-            }
-            res.json({ message: 'הקוד יישלח בשיחה קולית. לחלופין נשלח למייל.' });
-        }
-    } catch (err) {
-        console.error('[forgot-password] Error:', err);
-        res.status(500).json({ message: 'שגיאת שרת, נסה שוב' });
-    }
-});
-
-// שלב 2: אימות הקוד שנשלח
-app.post('/verify-reset-code', async (req, res) => {
-    const { phone, code } = req.body;
-
-    if (!phone || !code) {
-        return res.status(400).json({ message: 'נתונים חסרים' });
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '').trim();
-
-    try {
-        const userRes = await pool.query(
-            'SELECT id, reset_password_code, reset_password_expires FROM users WHERE phone = $1',
-            [cleanPhone]
-        );
-
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ message: 'משתמש לא נמצא' });
-        }
-
-        const user = userRes.rows[0];
-
-        if (!user.reset_password_code) {
-            return res.status(400).json({ message: 'לא נשלח קוד לחשבון זה. נא לבקש קוד חדש.' });
-        }
-
-        if (new Date() > new Date(user.reset_password_expires)) {
-            return res.status(400).json({ message: 'פג תוקפו של הקוד. נא לבקש קוד חדש.' });
-        }
-
-        if (user.reset_password_code !== code.trim()) {
-            return res.status(400).json({ message: 'קוד שגוי, נסה שוב' });
-        }
-
-        res.json({ message: 'הקוד אומת בהצלחה' });
-    } catch (err) {
-        console.error('[verify-reset-code] Error:', err);
-        res.status(500).json({ message: 'שגיאת שרת' });
-    }
-});
-
-// שלב 3: עדכון הסיסמה החדשה
-app.post('/reset-password', async (req, res) => {
-    const { phone, code, newPassword } = req.body;
-
-    if (!phone || !code || !newPassword) {
-        return res.status(400).json({ message: 'נתונים חסרים' });
-    }
-
-    if (newPassword.length < 6) {
-        return res.status(400).json({ message: 'הסיסמה חייבת להכיל לפחות 6 תווים' });
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '').trim();
-
-    try {
-        const userRes = await pool.query(
-            'SELECT id, reset_password_code, reset_password_expires FROM users WHERE phone = $1',
-            [cleanPhone]
-        );
-
-        if (userRes.rows.length === 0) {
-            return res.status(404).json({ message: 'משתמש לא נמצא' });
-        }
-
-        const user = userRes.rows[0];
-
-        if (!user.reset_password_code || user.reset_password_code !== code.trim()) {
-            return res.status(400).json({ message: 'קוד שגוי — נא להתחיל מחדש' });
-        }
-
-        if (new Date() > new Date(user.reset_password_expires)) {
-            return res.status(400).json({ message: 'פג תוקפו של הקוד — נא לבקש קוד חדש' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-        await pool.query(
-            'UPDATE users SET password = $1, reset_password_code = NULL, reset_password_expires = NULL WHERE id = $2',
-            [hashedPassword, user.id]
-        );
-
-        console.log(`[reset-password] Password reset successfully for phone: ${cleanPhone}`);
-        res.json({ message: 'הסיסמה שונתה בהצלחה! 🎉' });
-    } catch (err) {
-        console.error('[reset-password] Error:', err);
-        res.status(500).json({ message: 'שגיאת שרת, נסה שוב' });
-    }
-});
 
 // ==========================================
 // 📧 שליחת כרטיסיות שידוך לשדכנית
