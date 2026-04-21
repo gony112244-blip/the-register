@@ -2257,37 +2257,119 @@ app.get('/matches', authenticateToken, async (req, res) => {
 // --- דיבאג: בדיקת סינון בין שני משתמשים (אדמין בלבד) ---
 app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "אין הרשאות" });
-    const myId = req.user.id;
-    const targetId = req.params.targetId;
+    const target = req.params.targetId;
+    const sourcePhone = req.query.source;
     try {
-        const [me, target] = await Promise.all([
-            pool.query('SELECT * FROM users WHERE id = $1', [myId]),
-            pool.query('SELECT * FROM users WHERE id = $1', [targetId])
-        ]);
-        if (me.rows.length === 0 || target.rows.length === 0) {
+        const sourceQuery = sourcePhone
+            ? pool.query('SELECT * FROM users WHERE phone = $1', [sourcePhone.replace(/[-\s]/g, '')])
+            : pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+        const targetQuery = /^\d{9,10}$/.test(target.replace(/[-\s]/g, ''))
+            ? pool.query('SELECT * FROM users WHERE phone = $1', [target.replace(/[-\s]/g, '')])
+            : pool.query('SELECT * FROM users WHERE id = $1', [target]);
+
+        const [srcRes, tgtRes] = await Promise.all([sourceQuery, targetQuery]);
+        if (srcRes.rows.length === 0 || tgtRes.rows.length === 0)
             return res.status(404).json({ message: "משתמש לא נמצא" });
-        }
-        const u1 = me.rows[0], u2 = target.rows[0];
+
+        const u1 = srcRes.rows[0], u2 = tgtRes.rows[0];
+        const split = v => v ? v.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const inList = (val, csv) => !csv || csv.trim() === '' || split(csv).includes(val);
+
         const checks = [];
-        // גיל
-        if (u1.search_min_age != null && u2.age != null) checks.push({ field: 'גיל מינימלי', ok: u2.age >= u1.search_min_age, v: `${u2.age} >= ${u1.search_min_age}` });
-        if (u1.search_max_age != null && u2.age != null) checks.push({ field: 'גיל מקסימלי', ok: u2.age <= u1.search_max_age, v: `${u2.age} <= ${u1.search_max_age}` });
-        if (u2.search_min_age != null && u1.age != null) checks.push({ field: 'הצד השני רוצה גיל מינ', ok: u1.age >= u2.search_min_age, v: `${u1.age} >= ${u2.search_min_age}` });
-        if (u2.search_max_age != null && u1.age != null) checks.push({ field: 'הצד השני רוצה גיל מקס', ok: u1.age <= u2.search_max_age, v: `${u1.age} <= ${u2.search_max_age}` });
-        // גובה
-        if (u1.search_height_min != null && u2.height != null) checks.push({ field: 'גובה מינ', ok: u2.height >= u1.search_height_min, v: `${u2.height} >= ${u1.search_height_min}` });
-        if (u1.search_height_max != null && u2.height != null) checks.push({ field: 'גובה מקס', ok: u2.height <= u1.search_height_max, v: `${u2.height} <= ${u1.search_height_max}` });
-        if (u2.search_height_min != null && u1.height != null) checks.push({ field: 'הצד השני רוצה גובה מינ', ok: u1.height >= u2.search_height_min, v: `${u1.height} >= ${u2.search_height_min}` });
-        if (u2.search_height_max != null && u1.height != null) checks.push({ field: 'הצד השני רוצה גובה מקס', ok: u1.height <= u2.search_height_max, v: `${u1.height} <= ${u2.search_height_max}` });
-        // מגזר
-        const u2InMySectors = !u1.search_heritage_sectors || u1.search_heritage_sectors.split(',').map(t => t.trim()).includes(u2.heritage_sector) || (u2.heritage_sector === 'mixed' && u1.mixed_heritage_ok);
-        checks.push({ field: 'מגזר שלי מתאים', ok: u2InMySectors, v: `u2.heritage=${u2.heritage_sector} my_search=${u1.search_heritage_sectors}` });
-        const u1InU2Sectors = !u2.search_heritage_sectors || u2.search_heritage_sectors.split(',').map(t => t.trim()).includes(u1.heritage_sector) || (u1.heritage_sector === 'mixed' && u2.mixed_heritage_ok);
-        checks.push({ field: 'מגזר שלי מתאים לצד השני', ok: u1InU2Sectors, v: `u1.heritage=${u1.heritage_sector} u2_search=${u2.search_heritage_sectors}` });
-        // גבר/אישה
-        checks.push({ field: 'מגדר נגדי', ok: u1.gender !== u2.gender, v: `${u1.gender} vs ${u2.gender}` });
-        checks.push({ field: 'מאושר', ok: u2.is_approved === true, v: `u2.is_approved=${u2.is_approved}` });
-        res.json({ u1: { id: u1.id, name: u1.full_name, gender: u1.gender, age: u1.age, height: u1.height, heritage_sector: u1.heritage_sector, is_approved: u1.is_approved }, u2: { id: u2.id, name: u2.full_name, gender: u2.gender, age: u2.age, height: u2.height, heritage_sector: u2.heritage_sector, is_approved: u2.is_approved }, checks });
+        const add = (field, ok, v) => checks.push({ field, ok, v });
+
+        add('מאושר u1', u1.is_approved === true, `${u1.is_approved}`);
+        add('מאושר u2', u2.is_approved === true, `${u2.is_approved}`);
+        add('לא חסום u2', u2.is_blocked !== true, `${u2.is_blocked}`);
+        add('מגדר נגדי', u1.gender !== u2.gender, `${u1.gender} vs ${u2.gender}`);
+
+        // חיבורים קיימים
+        const connCheck = await pool.query(
+            `SELECT id, status, sender_id FROM connections WHERE
+             (sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1)`,
+            [u1.id, u2.id]);
+        add('אין חיבור קיים', connCheck.rows.length === 0,
+            connCheck.rows.length > 0 ? `connection: ${connCheck.rows[0].status} (sender=${connCheck.rows[0].sender_id})` : 'אין');
+
+        // הסתרות
+        const hidCheck = await pool.query(
+            `SELECT * FROM hidden_profiles WHERE
+             (user_id=$1 AND hidden_user_id=$2) OR (user_id=$2 AND hidden_user_id=$1)`,
+            [u1.id, u2.id]);
+        add('לא מוסתר', hidCheck.rows.length === 0, hidCheck.rows.length > 0 ? 'מוסתר!' : 'תקין');
+
+        // חסימות
+        const blkCheck = await pool.query(
+            `SELECT * FROM user_blocks WHERE
+             (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)`,
+            [u1.id, u2.id]);
+        add('לא חסום', blkCheck.rows.length === 0, blkCheck.rows.length > 0 ? 'חסימה קיימת!' : 'תקין');
+
+        // --- כיוון A: u1 מחפש → u2 ---
+        if (u1.search_min_age != null) add('A: גיל מינ', u2.age == null || u2.age >= u1.search_min_age, `u2.age=${u2.age} >= ${u1.search_min_age}`);
+        if (u1.search_max_age != null) add('A: גיל מקס', u2.age == null || u2.age <= u1.search_max_age, `u2.age=${u2.age} <= ${u1.search_max_age}`);
+        if (u1.search_height_min != null) add('A: גובה מינ', u2.height == null || u2.height >= u1.search_height_min, `u2.height=${u2.height} >= ${u1.search_height_min}`);
+        if (u1.search_height_max != null) add('A: גובה מקס', u2.height == null || u2.height <= u1.search_height_max, `u2.height=${u2.height} <= ${u1.search_height_max}`);
+
+        const myBT = split(u1.search_body_types);
+        if (myBT.length) add('A: מבנה גוף', !u2.body_type || myBT.includes(u2.body_type), `u2=${u2.body_type} in [${myBT}]`);
+        const myApp = split(u1.search_appearances);
+        if (myApp.length) add('A: מראה', !u2.appearance || myApp.includes(u2.appearance), `u2=${u2.appearance} in [${myApp}]`);
+        const myBG = split(u1.search_backgrounds);
+        if (myBG.length) add('A: רקע', !u2.family_background || myBG.includes(u2.family_background), `u2=${u2.family_background} in [${myBG}]`);
+        const myST = split(u1.search_statuses);
+        if (myST.length) add('A: סטטוס', !u2.status || myST.includes(u2.status), `u2=${u2.status} in [${myST}]`);
+        const myHS = split(u1.search_heritage_sectors);
+        if (myHS.length) {
+            const mixOk = u1.mixed_heritage_ok && u2.heritage_sector === 'mixed';
+            add('A: מגזר', !u2.heritage_sector || myHS.includes(u2.heritage_sector) || mixOk, `u2=${u2.heritage_sector} in [${myHS}] mixed_ok=${u1.mixed_heritage_ok}`);
+        }
+        const myOcc = split(u1.search_occupations);
+        if (myOcc.length) add('A: עיסוק', !u2.current_occupation || myOcc.includes(u2.current_occupation), `u2=${u2.current_occupation} in [${myOcc}]`);
+        const myLA = split(u1.search_life_aspirations);
+        if (myLA.length) add('A: שאיפה', !u2.life_aspiration || myLA.includes(u2.life_aspiration), `u2=${u2.life_aspiration} in [${myLA}]`);
+        if (u1.search_head_covering && u1.search_head_covering !== 'not_relevant')
+            add('A: כיסוי ראש', !u2.head_covering || u2.head_covering === 'flexible' || u2.head_covering === u1.search_head_covering, `u2=${u2.head_covering} want=${u1.search_head_covering}`);
+        const mySkin = split(u1.search_skin_tones);
+        if (mySkin.length) add('A: גוון עור', !u2.skin_tone || mySkin.includes(u2.skin_tone), `u2=${u2.skin_tone} in [${mySkin}]`);
+
+        // --- כיוון B: u2 מחפש ← u1 ---
+        if (u2.search_min_age != null) add('B: u2 רוצה גיל מינ', u1.age == null || u1.age >= u2.search_min_age, `u1.age=${u1.age} >= ${u2.search_min_age}`);
+        if (u2.search_max_age != null) add('B: u2 רוצה גיל מקס', u1.age == null || u1.age <= u2.search_max_age, `u1.age=${u1.age} <= ${u2.search_max_age}`);
+        if (u1.age == null && (u2.search_min_age != null || u2.search_max_age != null)) add('B: u1 חסר גיל!', false, 'u1 has no age but u2 filters by age');
+        if (u2.search_height_min != null) add('B: u2 רוצה גובה מינ', u1.height == null || u1.height >= u2.search_height_min, `u1.height=${u1.height} >= ${u2.search_height_min}`);
+        if (u2.search_height_max != null) add('B: u2 רוצה גובה מקס', u1.height == null || u1.height <= u2.search_height_max, `u1.height=${u1.height} <= ${u2.search_height_max}`);
+
+        const u2BT = split(u2.search_body_types);
+        if (u2BT.length) add('B: u2 רוצה מבנה', !u1.body_type || u2BT.includes(u1.body_type), `u1=${u1.body_type} in [${u2BT}]`);
+        const u2App = split(u2.search_appearances);
+        if (u2App.length) add('B: u2 רוצה מראה', !u1.appearance || u2App.includes(u1.appearance), `u1=${u1.appearance} in [${u2App}]`);
+        const u2BG = split(u2.search_backgrounds);
+        if (u2BG.length) add('B: u2 רוצה רקע', !u1.family_background || u2BG.includes(u1.family_background), `u1=${u1.family_background} in [${u2BG}]`);
+        const u2ST = split(u2.search_statuses);
+        if (u2ST.length) add('B: u2 רוצה סטטוס', !u1.status || u2ST.includes(u1.status), `u1=${u1.status} in [${u2ST}]`);
+        const u2HS = split(u2.search_heritage_sectors);
+        if (u2HS.length) {
+            const mixOk2 = u2.mixed_heritage_ok && u1.heritage_sector === 'mixed';
+            add('B: u2 רוצה מגזר', !u1.heritage_sector || u2HS.includes(u1.heritage_sector) || mixOk2, `u1=${u1.heritage_sector} in [${u2HS}] mixed_ok=${u2.mixed_heritage_ok}`);
+        }
+        const u2Occ = split(u2.search_occupations);
+        if (u2Occ.length) add('B: u2 רוצה עיסוק', !u1.current_occupation || u2Occ.includes(u1.current_occupation), `u1=${u1.current_occupation} in [${u2Occ}]`);
+        const u2LA = split(u2.search_life_aspirations);
+        if (u2LA.length) add('B: u2 רוצה שאיפה', !u1.life_aspiration || u2LA.includes(u1.life_aspiration), `u1=${u1.life_aspiration} in [${u2LA}]`);
+        if (u2.search_head_covering && u2.search_head_covering !== 'not_relevant')
+            add('B: u2 רוצה כיסוי ראש', !u1.head_covering || u1.head_covering === 'flexible' || u1.head_covering === u2.search_head_covering, `u1=${u1.head_covering} want=${u2.search_head_covering}`);
+        const u2Skin = split(u2.search_skin_tones);
+        if (u2Skin.length) add('B: u2 רוצה גוון עור', !u1.skin_tone || u2Skin.includes(u1.skin_tone), `u1=${u1.skin_tone} in [${u2Skin}]`);
+
+        const failed = checks.filter(c => !c.ok);
+        res.json({
+            u1: { id: u1.id, name: u1.full_name, phone: u1.phone, gender: u1.gender, age: u1.age, height: u1.height, heritage_sector: u1.heritage_sector, body_type: u1.body_type, appearance: u1.appearance, status: u1.status, skin_tone: u1.skin_tone, current_occupation: u1.current_occupation, life_aspiration: u1.life_aspiration, family_background: u1.family_background, head_covering: u1.head_covering },
+            u2: { id: u2.id, name: u2.full_name, phone: u2.phone, gender: u2.gender, age: u2.age, height: u2.height, heritage_sector: u2.heritage_sector, body_type: u2.body_type, appearance: u2.appearance, status: u2.status, skin_tone: u2.skin_tone, current_occupation: u2.current_occupation, life_aspiration: u2.life_aspiration, family_background: u2.family_background, head_covering: u2.head_covering },
+            summary: failed.length === 0 ? 'MATCH ✅' : `BLOCKED ❌ (${failed.length} failures)`,
+            failed,
+            checks
+        });
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
