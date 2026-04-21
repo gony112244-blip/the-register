@@ -4856,6 +4856,26 @@ async function updateDbSchema() {
     } catch (err) {
         console.error("⚠️ Failed to update DB Schema:", err);
     }
+
+    // ============================================================
+    // עמודות חיוניות — מחוץ לכל try/catch של block ענק
+    // אלו ALTER TABLE ADD COLUMN IF NOT EXISTS עצמאיים שלא יכולים להיכשל בגלל שכן
+    // ============================================================
+    const essentialColumns = [
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN DEFAULT FALSE`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_reason TEXT`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMP`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS origin_country VARCHAR(255)`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS aliyah_age INTEGER`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS languages VARCHAR(255)`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255)`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_code VARCHAR(10)`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP`,
+    ];
+    for (const sql of essentialColumns) {
+        try { await pool.query(sql); }
+        catch (e) { console.error('[essential-col]', sql, '|', e.message); }
+    }
 }
 
 
