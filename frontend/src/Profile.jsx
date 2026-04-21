@@ -1215,6 +1215,24 @@ function Profile() {
                             <p style={styles.sectionDesc}>הגדר את טווח הגילאים והדרישות שלך.</p>
                         </div>
 
+                        {/* טיפ לפני הסינונים */}
+                        <div style={{
+                            background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                            border: '1.5px solid #f59e0b',
+                            borderRadius: '14px',
+                            padding: '16px 20px',
+                            marginBottom: '24px',
+                            direction: 'rtl',
+                            position: 'relative',
+                        }}>
+                            <div style={{ fontSize: '1.3rem', marginBottom: '6px' }}>💡 טיפ קטן לדרך</div>
+                            <p style={{ margin: 0, color: '#78350f', fontSize: '0.95rem', lineHeight: '1.7' }}>
+                                חיפוש שידוך הוא לא קניות בסופר. לפעמים אנחנו פוסלים על פרטים שוליים ומפספסים אנשים מדהימים.
+                                הנתונים היבשים הם רק המסגרת.{' '}
+                                <strong>ההמלצה שלנו: סננו רק את מה שבאמת קריטי ומהותי עבורכם, ותנו הזדמנות לשאר.</strong>
+                            </p>
+                        </div>
+
                         {/* הודעת אזהרה ומידע */}
                         <div style={{
                             background: '#e0f2fe', // כחול בהיר ונעים
