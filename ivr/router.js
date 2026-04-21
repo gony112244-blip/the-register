@@ -16,7 +16,7 @@ const {
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,
     getPendingSentForIvr, getActiveSentForIvr, finalizeConnectionFromIvr, cancelActiveConnectionFromIvr, getAwaitingMyApproval,
-    requestAdditionalReferenceFromIvr, respondToReferenceRequestFromIvr,
+    requestAdditionalReferenceFromIvr, respondToReferenceRequestFromIvr, getReferenceRequestStatus,
     markConnectionViewedFromIvr,
     getFullProfileForIvr,
     getPhotoRequestsForIvr, approvePhotoRequestFromIvr, rejectPhotoRequestFromIvr,
@@ -819,14 +819,22 @@ router.get('/call', async (req, res) => {
                     rmRequestId = metaObj.requestId || null;
                 } catch {}
             }
+            const rmIsRefPending = rm.type === 'reference_request' && rmRequestId
+                && (await getReferenceRequestStatus(rmRequestId)) === 'pending';
             await updateSession(enterId, 'recent_messages', {
                 page: 0, currentMessageId: rm.id, currentMessageText: cleanRm,
-                currentMessageType: rm.type || null, currentRequestId: rmRequestId
+                currentMessageType: rm.type || null,
+                currentRequestId: rmIsRefPending ? rmRequestId : null
             });
-            const rmAct = g(user.gender,
-                'הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
-                'הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
-            );
+            const rmAct = rmIsRefPending
+                ? g(user.gender,
+                    'הָקֵשׁ אחת להסכמה ומעבר לאתר. הָקֵשׁ שתיים לציון שאינך יכול לספק. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
+                    'הָקִישִׁי אחת להסכמה ומעבר לאתר. הָקִישִׁי שתיים לציון שאינך יכולה לספק. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
+                )
+                : g(user.gender,
+                    'הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
+                    'הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
+                );
             const rmFile = await textToYemot(`הודעה: ${cleanRm} ${rmAct}`);
             return yemotRead(res, rmFile, 'digits', 1, 1, 8);
         }
@@ -1718,11 +1726,12 @@ router.get('/call', async (req, res) => {
             }
 
             if (key === '9' && msgTxt) {
-                const isRefReq = data.currentMessageType === 'reference_request';
-                const act9 = isRefReq
+                const isRefPending = data.currentMessageType === 'reference_request' && data.currentRequestId
+                    && (await getReferenceRequestStatus(data.currentRequestId)) === 'pending';
+                const act9 = isRefPending
                     ? g(user.gender,
-                        'הָקֵשׁ אחת להסכמה. הָקֵשׁ שתיים לדחייה. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
-                        'הָקִישִׁי אחת להסכמה. הָקִישִׁי שתיים לדחייה. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
+                        'הָקֵשׁ אחת להסכמה ומעבר לאתר. הָקֵשׁ שתיים לציון שאינך יכול לספק. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
+                        'הָקִישִׁי אחת להסכמה ומעבר לאתר. הָקִישִׁי שתיים לציון שאינך יכולה לספק. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
                     )
                     : g(user.gender,
                         'הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
@@ -1746,15 +1755,17 @@ router.get('/call', async (req, res) => {
                         nmRequestId = metaObj.requestId || null;
                     } catch {}
                 }
+                const nmIsRefPending = nm.type === 'reference_request' && nmRequestId
+                    && (await getReferenceRequestStatus(nmRequestId)) === 'pending';
                 await updateSession(enterId, 'recent_messages', {
                     page: offset, currentMessageId: nm.id, currentMessageText: nc,
-                    currentMessageType: nm.type || null, currentRequestId: nmRequestId
+                    currentMessageType: nm.type || null,
+                    currentRequestId: nmIsRefPending ? nmRequestId : null
                 });
-                const nmIsRef = nm.type === 'reference_request';
-                const na = nmIsRef
+                const na = nmIsRefPending
                     ? g(user.gender,
-                        'הָקֵשׁ אחת להסכמה. הָקֵשׁ שתיים לדחייה. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
-                        'הָקִישִׁי אחת להסכמה. הָקִישִׁי שתיים לדחייה. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
+                        'הָקֵשׁ אחת להסכמה ומעבר לאתר. הָקֵשׁ שתיים לציון שאינך יכול לספק. הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',
+                        'הָקִישִׁי אחת להסכמה ומעבר לאתר. הָקִישִׁי שתיים לציון שאינך יכולה לספק. הָקִישִׁי תשע לשמיעה חוזרת. הָקִישִׁי שמונה להודעה הבאה. הָקִישִׁי אפס לתפריט.'
                     )
                     : g(user.gender,
                         'הָקֵשׁ תשע לשמיעה חוזרת. הָקֵשׁ שמונה להודעה הבאה. הָקֵשׁ אפס לתפריט.',

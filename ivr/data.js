@@ -645,6 +645,24 @@ async function respondToReferenceRequestFromIvr(requestId, responderId, response
 }
 
 /**
+ * בודק אם בקשת ממליץ עדיין ממתינה לתגובה (לא provide / לא cannot).
+ * מחזיר 'pending' | 'provide' | 'cannot' | null (אם לא נמצאה).
+ */
+async function getReferenceRequestStatus(requestId) {
+    if (!requestId) return null;
+    try {
+        const r = await pool.query(
+            `SELECT status FROM reference_requests WHERE id = $1`,
+            [requestId]
+        );
+        if (r.rowCount === 0) return null;
+        return r.rows[0].status || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * הודעות אחרונות (7 ימים) — קרואות וגם לא-קרואות, עד 10 הודעות
  */
 async function getRecentMessagesForIvr(userId, offset = 0, limit = 1) {
@@ -746,5 +764,6 @@ module.exports = {
     getMessagesForIvr, getRecentMessagesForIvr, markMessageReadFromIvr,
     updateTtsLastPlayed,
     requestAdditionalReferenceFromIvr,
-    respondToReferenceRequestFromIvr
+    respondToReferenceRequestFromIvr,
+    getReferenceRequestStatus
 };
