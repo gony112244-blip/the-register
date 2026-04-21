@@ -2865,6 +2865,11 @@ app.post('/reject-request', authenticateToken, async (req, res) => {
         const senderId = connRow.rows[0].sender_id;
         const receiverName = connRow.rows[0].receiver_name;
         await pool.query(`UPDATE connections SET status = 'rejected' WHERE id = $1`, [connectionId]);
+        // הודעה פנימית לשולח
+        await pool.query(
+            `INSERT INTO messages (from_user_id, to_user_id, content, type) VALUES (1, $1, $2, 'system')`,
+            [senderId, `❌ הפנייה שלך ל${receiverName} נדחתה בשלב זה. תוכל/י לשלוח פנייה חדשה בהמשך.`]
+        );
         setImmediate(() => sendNewMessageEmail(senderId, receiverName, `הפנייה שלך נדחתה בשלב זה.`));
         setImmediate(() => logActivity(userId, 'connection_rejected', { targetUserId: senderId }));
         res.json({ message: "הבקשה נדחתה." });
@@ -3732,7 +3737,7 @@ app.get('/admin/pending-profiles', authenticateToken, async (req, res) => {
             `SELECT *,
                     COALESCE(profile_edit_count, 0) AS profile_edit_count
              FROM users
-             WHERE (is_profile_pending = TRUE OR is_approved = FALSE) AND is_admin = FALSE
+             WHERE is_profile_pending = TRUE AND is_admin = FALSE
              ORDER BY COALESCE(pending_changes_at, created_at) ASC`
         );
         res.json(result.rows);
