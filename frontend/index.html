@@ -45,7 +45,7 @@
     // ניקוי Service Workers ישנים שגורמים לשגיאות payload
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(regs) {
-        var swVer = 'v5';
+        var swVer = 'v6';
         if (!localStorage.getItem('sw_cleared_' + swVer)) {
           regs.forEach(function(r) { r.unregister(); });
           caches.keys().then(function(names) {

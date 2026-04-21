@@ -134,105 +134,113 @@ function ForgotPassword() {
                     <div style={{ ...styles.progress, width: `${Math.min((step / 3) * 100, 100)}%` }}></div>
                 </div>
 
-                {/* Steps — key={step} forces full remount on step change, preventing DOM reconciliation errors */}
-                <div key={step}>
-                    {step === 1 && (
-                        <form onSubmit={handleSendCode}>
-                            <div style={styles.field}>
-                                <label style={styles.label}>📱 מספר טלפון</label>
-                                <input
-                                    type="tel"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="05X-XXXXXXX"
-                                    style={styles.input}
-                                    dir="ltr"
-                                />
-                            </div>
-                            <div style={styles.field}>
-                                <label style={styles.label}>📧 כתובת מייל לשחזור</label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="example@email.com"
-                                    style={styles.input}
-                                    dir="ltr"
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={loading || !phone || !email}
-                                style={(!phone || !email) ? styles.buttonDisabled : styles.button}
-                            >
-                                {loading ? '⏳ שולח...' : '📤 שלח קוד אימות'}
-                            </button>
-                        </form>
-                    )}
+                {/* All steps are always in the DOM — visibility toggled by CSS only.
+                    This avoids React removeChild errors caused by browser extensions
+                    that modify the DOM between conditional renders. */}
 
-                    {step === 2 && (
-                        <form onSubmit={handleVerifyCode}>
-                            <div style={styles.infoBox}>
-                                <p>📧 שלחנו קוד אימות ל-{email}</p>
-                            </div>
-                            <div style={styles.field}>
-                                <label style={styles.label}>🔢 קוד אימות (6 ספרות)</label>
-                                <input
-                                    type="text"
-                                    value={code}
-                                    onChange={(e) => setCode(e.target.value)}
-                                    placeholder="הזן את הקוד"
-                                    style={styles.codeInput}
-                                    maxLength={6}
-                                />
-                            </div>
-                            <button type="submit" disabled={loading} style={styles.button}>
-                                {loading ? '⏳ בודק...' : '✅ אמת קוד'}
-                            </button>
-                            <button type="button" onClick={() => setStep(1)} style={styles.secondaryBtn}>
-                                ← לא קיבלתי, נסה שוב
-                            </button>
-                        </form>
-                    )}
-
-                    {step === 3 && (
-                        <form onSubmit={handleResetPassword}>
-                            <div style={styles.field}>
-                                <label style={styles.label}>🔑 סיסמה חדשה</label>
-                                <input
-                                    type="password"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="לפחות 6 תווים"
-                                    style={styles.input}
-                                />
-                            </div>
-                            <div style={styles.field}>
-                                <label style={styles.label}>🔑 אימות סיסמה</label>
-                                <input
-                                    type="password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="הזן שוב את הסיסמה"
-                                    style={styles.input}
-                                />
-                            </div>
-                            <button type="submit" disabled={loading} style={styles.button}>
-                                {loading ? '⏳ משנה...' : '🔐 שנה סיסמה'}
-                            </button>
-                        </form>
-                    )}
-
-                    {step === 4 && (
-                        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                            <div style={{ fontSize: '4rem', marginBottom: '16px' }}>✅</div>
-                            <h3 style={{ color: '#22c55e', marginBottom: '8px' }}>הסיסמה שונתה בהצלחה!</h3>
-                            <p style={{ color: '#64748b', marginBottom: '24px' }}>כעת תוכל להיכנס עם הסיסמה החדשה שלך.</p>
-                            <button onClick={() => navigate('/login')} style={styles.button}>
-                                🔑 כניסה לחשבון
-                            </button>
+                {/* Step 1 */}
+                <div style={{ display: step === 1 ? 'block' : 'none' }}>
+                    <form onSubmit={handleSendCode} translate="no">
+                        <div style={styles.field}>
+                            <label style={styles.label}>📱 מספר טלפון</label>
+                            <input
+                                type="tel"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                placeholder="05X-XXXXXXX"
+                                style={styles.input}
+                                dir="ltr"
+                                autoComplete="tel"
+                            />
                         </div>
-                    )}
+                        <div style={styles.field}>
+                            <label style={styles.label}>📧 כתובת מייל לשחזור</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="example@email.com"
+                                style={styles.input}
+                                dir="ltr"
+                                autoComplete="email"
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={loading || !phone || !email}
+                            style={(!phone || !email) ? styles.buttonDisabled : styles.button}
+                        >
+                            {loading ? '⏳ שולח...' : '📤 שלח קוד אימות'}
+                        </button>
+                    </form>
+                </div>
+
+                {/* Step 2 */}
+                <div style={{ display: step === 2 ? 'block' : 'none' }}>
+                    <form onSubmit={handleVerifyCode} translate="no">
+                        <div style={styles.infoBox}>
+                            <p>📧 שלחנו קוד אימות ל-{email}</p>
+                        </div>
+                        <div style={styles.field}>
+                            <label style={styles.label}>🔢 קוד אימות (6 ספרות)</label>
+                            <input
+                                type="text"
+                                value={code}
+                                onChange={(e) => setCode(e.target.value)}
+                                placeholder="הזן את הקוד"
+                                style={styles.codeInput}
+                                maxLength={6}
+                                autoComplete="one-time-code"
+                            />
+                        </div>
+                        <button type="submit" disabled={loading} style={styles.button}>
+                            {loading ? '⏳ בודק...' : '✅ אמת קוד'}
+                        </button>
+                        <button type="button" onClick={() => setStep(1)} style={styles.secondaryBtn}>
+                            ← לא קיבלתי, נסה שוב
+                        </button>
+                    </form>
+                </div>
+
+                {/* Step 3 */}
+                <div style={{ display: step === 3 ? 'block' : 'none' }}>
+                    <form onSubmit={handleResetPassword} translate="no">
+                        <div style={styles.field}>
+                            <label style={styles.label}>🔑 סיסמה חדשה</label>
+                            <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="לפחות 6 תווים"
+                                style={styles.input}
+                                autoComplete="new-password"
+                            />
+                        </div>
+                        <div style={styles.field}>
+                            <label style={styles.label}>🔑 אימות סיסמה</label>
+                            <input
+                                type="password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                placeholder="הזן שוב את הסיסמה"
+                                style={styles.input}
+                                autoComplete="new-password"
+                            />
+                        </div>
+                        <button type="submit" disabled={loading} style={styles.button}>
+                            {loading ? '⏳ משנה...' : '🔐 שנה סיסמה'}
+                        </button>
+                    </form>
+                </div>
+
+                {/* Step 4 — success */}
+                <div style={{ display: step === 4 ? 'block' : 'none', textAlign: 'center', padding: '20px 0' }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '16px' }}>✅</div>
+                    <h3 style={{ color: '#22c55e', marginBottom: '8px' }}>הסיסמה שונתה בהצלחה!</h3>
+                    <p style={{ color: '#64748b', marginBottom: '24px' }}>כעת תוכל להיכנס עם הסיסמה החדשה שלך.</p>
+                    <button onClick={() => navigate('/login')} style={styles.button}>
+                        🔑 כניסה לחשבון
+                    </button>
                 </div>
 
                 {message && (
