@@ -13,14 +13,16 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}'],
         skipWaiting: true,
         clientsClaim: true,
-        // אל תכנס ל-cache בקשות POST/API
+        cleanupOutdatedCaches: true,
+        // אל תשתמש ב-navigation preload (מקור שגיאת payload)
+        navigationPreload: false,
         runtimeCaching: [
           {
             // נכסים סטטיים (JS/CSS/images) — מהמטמון תחילה
             urlPattern: /\.(?:js|css|woff2?|png|jpg|jpeg|svg|ico)$/i,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'static-assets-v2',
+              cacheName: 'static-assets-v3',
               expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 }
             }
           },
@@ -29,14 +31,12 @@ export default defineConfig({
             urlPattern: ({ request }) => request.mode === 'navigate',
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'pages-cache-v2',
+              cacheName: 'pages-cache-v3',
               networkTimeoutSeconds: 15,
               expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 }
             }
           }
         ],
-        // אל תשתמש ב-navigation preload (מקור שגיאת payload)
-        navigationPreload: false
       },
       manifest: {
         name: 'הפנקס - מערכת שידוכים',
