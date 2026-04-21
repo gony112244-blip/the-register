@@ -271,7 +271,9 @@ function buildFullProfileText(match) {
     }
     if (match.country_of_birth) {
         const ylidPrefix = isFemale ? 'יְלִידַת' : 'יְלִיד';
-        parts.push(`${ylidPrefix} ${match.country_of_birth}`);
+        const cobMap = { israel: 'יִשְׂרָאֵל', abroad: 'חוּ"ל' };
+        const cobText = cobMap[match.country_of_birth] || match.country_of_birth;
+        parts.push(`${ylidPrefix} ${cobText}`);
     }
     if ((match.status === 'divorced' || match.status === 'widower') && match.has_children && match.children_count) {
         const childNum = parseInt(match.children_count, 10);
@@ -325,12 +327,13 @@ function buildFullProfileText(match) {
     }
 
     // --- לימודים ועיסוק ---
-    if (match.study_place) {
-        const inst = pm.yeshivot_phonetic?.[match.study_place] || match.study_place;
+    // ישיבה גדולה: study_place הוא השדה הראשי, yeshiva_name כגיבוי
+    const yeshivaGdola = match.study_place || match.yeshiva_name;
+    if (yeshivaGdola) {
+        const inst = pm.yeshivot_phonetic?.[yeshivaGdola] || yeshivaGdola;
         const label = match.gender === 'female' ? 'סמינר' : 'ישיבת';
         parts.push(`${label} ${inst}`);
     }
-    if (!isFemale && match.yeshiva_name) parts.push(`ישיבת ${match.yeshiva_name}`);
     if (!isFemale && match.yeshiva_ketana_name) parts.push(`ישיבה קטנה: ${match.yeshiva_ketana_name}`);
     if (match.current_occupation) {
         const femaleOccMap = {
