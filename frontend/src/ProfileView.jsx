@@ -56,7 +56,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
         appearance: { fair: 'נחמד', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד', stunning: 'מרשים במיוחד' },
         current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב', fixed_times: 'קובע עיתים' },
         contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
-        apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי' },
+        apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי', discuss: 'מעדיף/ת לדון עם השדכן/ית' },
         life_aspiration: {
             learning: 'תלמוד תורה', career: 'קריירה', family: 'בניית בית', both: 'שילוב תורה ועבודה',
             study_only: 'ללמוד יום שלם', study_and_work: 'ללמוד ולעבוד',
@@ -303,7 +303,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 {(() => {
                                     const ah = user.apartment_help || '';
                                     // Handle format like 'yes (330000)' or just 'yes'
-                                    const match = ah.match(/^(yes|no|partial)\s*(?:\((\d+)\))?/);
+                                    const match = ah.match(/^(yes|no|partial|discuss)\s*(?:\((\d+)\))?/);
                                     const helpVal = match ? match[1] : ah;
                                     const amount = match && match[2] ? match[2] : user.apartment_amount;
                                     return (
@@ -325,8 +325,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 <Row label={user.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה'} val={tr('life_aspiration', user.life_aspiration)} />
                                 <Row label="מקצוע" val={user.work_field} />
                                 <Row label="פרטי עיסוק" val={user.occupation_details} fullWidth />
-                                {user.gender === 'male' && <Row label="ישיבה גדולה" val={user.study_place} />}
-                                {user.gender === 'male' && <Row label="ישיבה" val={user.yeshiva_name} />}
+                                {user.gender === 'male' && <Row label="ישיבה גדולה" val={user.study_place || user.yeshiva_name} />}
                                 {user.gender === 'male' && <Row label="ישיבה קטנה" val={user.yeshiva_ketana_name} />}
                                 {user.gender === 'female' && <Row label="סמינר/מוסד" val={user.study_place} />}
                                 {user.gender === 'male' && <Row label="תחום לימוד" val={user.study_field} />}

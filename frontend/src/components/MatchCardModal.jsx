@@ -23,7 +23,7 @@ const T = {
     appearance: { fair: 'נחמד', ok: 'בסדר גמור', good: 'טוב', handsome: 'נאה', very_handsome: 'נאה מאוד', stunning: 'מרשים במיוחד' },
     current_occupation: { studying: 'לומד/ת', working: 'עובד/ת', both: 'משלב/ת', fixed_times: 'קובע עיתים' },
     contact_person_type: { self: 'המועמד עצמו', father: 'האב', mother: 'האם', both_parents: 'שני ההורים', sibling: 'אח/אחות', parent: 'הורה', other: 'אחר' },
-    apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי', discuss: 'לדון עם השדכן/ית' },
+    apartment_help: { yes: 'יש', no: 'אין', partial: 'חלקי', discuss: 'מעדיף/ת לדון עם השדכן/ית' },
     life_aspiration: {
         learning: 'תלמוד תורה', career: 'קריירה', family: 'בניית בית',
         both: 'שילוב תורה ועבודה',
@@ -317,8 +317,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             <Row label={p.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה'} val={tr('life_aspiration', p.life_aspiration)} />
                             <Row label="מקצוע" val={p.work_field} />
                             <Row label="פרטי עיסוק" val={p.occupation_details} fullWidth />
-                            {p.gender === 'male' && <Row label="ישיבה גדולה" val={p.study_place} />}
-                            {p.gender === 'male' && <Row label="ישיבה" val={p.yeshiva_name} />}
+                            {p.gender === 'male' && <Row label="ישיבה גדולה" val={p.study_place || p.yeshiva_name} />}
                             {p.gender === 'male' && <Row label="ישיבה קטנה" val={p.yeshiva_ketana_name} />}
                             {p.gender === 'female' && <Row label="סמינר/מוסד" val={p.study_place} />}
                             {p.gender === 'male' && <Row label="תחום לימוד" val={p.study_field} />}
