@@ -340,7 +340,7 @@ function AdminUsers() {
                             >
                                 <div style={st.userHeader}>
                                     <img
-                                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=${user.is_blocked ? 'ef4444' : '1e3a5f'}&color=fff&size=50&bold=true`}
+                                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((user.full_name || '') + ' ' + (user.last_name || '')).trim())}&background=${user.is_blocked ? 'ef4444' : '1e3a5f'}&color=fff&size=50&bold=true`}
                                         alt={user.full_name}
                                         style={st.avatar}
                                     />

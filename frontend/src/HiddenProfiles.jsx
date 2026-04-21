@@ -84,7 +84,7 @@ function HiddenProfiles() {
                         {hiddenProfiles.map(profile => (
                             <div key={profile.id} style={styles.card}>
                                 <img
-                                    src={`https://ui-avatars.com/api/?name=${profile.full_name}&background=random&size=100`}
+                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((profile.full_name || '') + ' ' + (profile.last_name || '')).trim())}&background=1e3a5f&size=100`}
                                     alt={profile.full_name}
                                     style={styles.avatar}
                                 />

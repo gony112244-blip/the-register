@@ -319,7 +319,7 @@ function Inbox() {
                                     <div key={req.connection_id} style={styles.connectionCard}>
                                         <div style={styles.connInfo}>
                                             <img
-                                                src={`https://ui-avatars.com/api/?name=${req.full_name}&background=random&color=fff`}
+                                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((req.full_name || '') + ' ' + (req.last_name || '')).trim())}&background=1e3a5f&color=fff`}
                                                 alt={req.full_name}
                                                 style={styles.avatar}
                                             />

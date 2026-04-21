@@ -21,7 +21,7 @@ function RequestRow({ item, type, onViewCard, onAction }) {
         <div style={S.row}>
             <div style={S.rowLeft}>
                 <img
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(item.full_name)}&background=1e3a5f&color=c9a227&size=80&bold=true`}
+                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((item.full_name || '') + ' ' + (item.last_name || '')).trim())}&background=1e3a5f&color=c9a227&size=80&bold=true`}
                     alt={item.full_name}
                     style={S.avatar}
                 />

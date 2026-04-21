@@ -1750,7 +1750,7 @@ app.get('/pending-photo-requests', authenticateToken, async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT pa.*, u.full_name, u.profile_images_count
+            `SELECT pa.*, u.full_name, u.last_name, u.profile_images_count
              FROM photo_approvals pa
              JOIN users u ON u.id = pa.requester_id
              WHERE pa.target_id = $1 AND pa.status = 'pending'
@@ -2640,7 +2640,7 @@ app.get('/my-requests', authenticateToken, async (req, res) => {
         );
         const result = await pool.query(
             `SELECT c.id AS connection_id, c.created_at,
-                    u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
+                    u.id AS user_id, u.full_name, u.last_name, u.age, u.height, u.heritage_sector,
                     u.family_background, u.body_type, u.appearance, u.current_occupation,
                     u.about_me, u.city, u.profile_images_count, u.life_aspiration,
                     u.study_place, u.work_field, u.gender, u.skin_tone,
@@ -2664,7 +2664,7 @@ app.get('/my-sent-requests', authenticateToken, async (req, res) => {
         const result = await pool.query(
             `SELECT c.id AS connection_id, c.created_at, c.status,
                     c.receiver_first_viewed_at,
-                    u.id AS user_id, u.full_name, u.age, u.height, u.heritage_sector,
+                    u.id AS user_id, u.full_name, u.last_name, u.age, u.height, u.heritage_sector,
                     u.family_background, u.body_type, u.appearance, u.current_occupation,
                     u.about_me, u.city, u.profile_images_count, u.life_aspiration,
                     u.study_place, u.work_field, u.gender, u.skin_tone,
@@ -2957,7 +2957,7 @@ app.get('/my-connections', authenticateToken, async (req, res) => {
         const result = await pool.query(
             `SELECT c.id, c.status, c.sender_id, c.receiver_id, c.sender_final_approve, c.receiver_final_approve,
                 c.sender_first_viewed_at, c.receiver_first_viewed_at,
-                u.full_name, u.phone, u.reference_1_name, u.reference_1_phone,
+                u.full_name, u.last_name, u.phone, u.reference_1_name, u.reference_1_phone,
                 u.reference_2_name, u.reference_2_phone, u.rabbi_name, u.rabbi_phone,
                 u.full_address, u.father_full_name, u.mother_full_name
              FROM connections c

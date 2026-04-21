@@ -109,7 +109,7 @@ function PhotoRequests() {
                                 {/* Header */}
                                 <div style={styles.cardHeader}>
                                     <img
-                                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(req.full_name)}&background=1e3a5f&color=c9a227&size=80&bold=true&font-size=0.4`}
+                                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((req.full_name || '') + ' ' + (req.last_name || '')).trim())}&background=1e3a5f&color=c9a227&size=80&bold=true&font-size=0.4`}
                                         alt={req.full_name}
                                         style={styles.avatar}
                                     />

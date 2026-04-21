@@ -392,7 +392,7 @@ function Connections() {
                                     <div style={styles.header}>
                                         <div style={styles.headerLeft}>
                                             <img
-                                                src={`https://ui-avatars.com/api/?name=${conn.full_name}&background=1e3a5f&color=fff&size=50`}
+                                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((conn.full_name || '') + ' ' + (conn.last_name || '')).trim())}&background=1e3a5f&color=fff&size=50`}
                                                 alt={conn.full_name}
                                                 style={styles.avatar}
                                             />
