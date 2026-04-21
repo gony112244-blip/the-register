@@ -152,8 +152,6 @@ function buildMenuText(gender, counts = {}) {
     // 8 — הודעות אחרונות (תמיד — גם קרואות)
     parts.push(`לשמיעת הודעות אחרונות מהשבוע האחרון, ${hk} שמונה.`);
 
-    // 9 — הגדרות (שינוי PIN)
-    parts.push(`להגדרות, ${hk} תשע.`);
 
     // חזרה על התפריט — תמיד בסוף
     parts.push(`לשמיעה חוזרת של התפריט, ${hk} אפס.`);
@@ -833,21 +831,10 @@ router.get('/call', async (req, res) => {
             return yemotRead(res, rmFile, 'digits', 1, 1, 8);
         }
 
-        // key=9 → הגדרות (שינוי PIN)
-        if (key === '9') {
-            await updateSession(enterId, 'settings', { step: 'ask_current' });
-            const prompt = g(user.gender,
-                'להחלפת קוד הכניסה, הָקֵשׁ את הקוד הנוכחי, ארבע ספרות.',
-                'להחלפת קוד הכניסה, הָקִישִׁי את הקוד הנוכחי, ארבע ספרות.'
-            );
-            const file = await textToYemot(prompt);
-            return yemotRead(res, file, 'digits', 4, 4, 15);
-        }
-
         // key=5 שינה את session.state ל-active_sent — נפנה לטיפול בלוק הבא
         if (session.state === 'active_sent') {
             // fall-through לבלוק active_sent שמתחת
-        } else if (key && !['1','2','3','4','5','6','7','8','9','0','#'].includes(key)) {
+        } else if (key && !['1','2','3','4','5','6','7','8','0','#'].includes(key)) {
             return await goToMenu(enterId, user.id, user.gender, res, 'מקש לא מוכר.');
         } else {
             return await goToMenu(enterId, user.id, user.gender, res);
@@ -1191,125 +1178,7 @@ router.get('/call', async (req, res) => {
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
-    // --- מצב: settings — שינוי PIN ---
-    if (session.state === 'settings') {
-        const data    = session.data || {};
-        const step    = data.step   || null;
 
-        // # — חזרה לתפריט בכל שלב
-        if (key === '#') {
-            return await goToMenu(enterId, user.id, user.gender, res);
-        }
-
-        // --- שלב א': כניסה ראשונה — בקש PIN נוכחי ---
-        if (!step) {
-            await updateSession(enterId, 'settings', { step: 'wait_current', attempts: 0 });
-            const text = g(user.gender,
-                'להחלפת קוד הכניסה, הָקֵשׁ את הקוד הנוכחי, ארבע ספרות.',
-                'להחלפת קוד הכניסה, הָקִישִׁי את הקוד הנוכחי, ארבע ספרות.'
-            );
-            const file = await textToYemot(text);
-            return yemotRead(res, file, 'digits', 4, 4, 15);
-        }
-
-        // --- שלב ב': אימות PIN נוכחי ---
-        if (step === 'wait_current') {
-            if (!key) {
-                const text = g(user.gender,
-                    'אנא הָקֵשׁ את קוד הכניסה הנוכחי.',
-                    'אנא הָקִישִׁי את קוד הכניסה הנוכחי.'
-                );
-                const file = await textToYemot(text);
-                return yemotRead(res, file, 'digits', 4, 4, 15);
-            }
-
-            const pinResult = await checkPin(user.id, key).catch(() => 'error');
-
-            if (pinResult === 'ok') {
-                await updateSession(enterId, 'settings', { step: 'wait_new' });
-                const text = g(user.gender,
-                    'קוד נכון. הָקֵשׁ קוד חדש בן ארבע ספרות.',
-                    'קוד נכון. הָקִישִׁי קוד חדש בן ארבע ספרות.'
-                );
-                const file = await textToYemot(text);
-                return yemotRead(res, file, 'digits', 4, 4, 15);
-            }
-
-            if (pinResult === 'blocked') {
-                return await goToMenu(enterId, user.id, user.gender, res, 'הכניסה נחסמה זמנית עקב ניסיונות שגויים. נסה שוב מאוחר יותר.');
-            }
-
-            // PIN שגוי — עד 3 ניסיונות
-            const attempts = (data.attempts || 0) + 1;
-            if (attempts >= 3) {
-                return await goToMenu(enterId, user.id, user.gender, res, 'קוד שגוי יותר מדי פעמים.');
-            }
-            await updateSession(enterId, 'settings', { step: 'wait_current', attempts });
-            const text = g(user.gender,
-                `קוד שגוי. נסה שוב. הָקֵשׁ את קוד הכניסה הנוכחי.`,
-                `קוד שגוי. נסי שוב. הָקִישִׁי את קוד הכניסה הנוכחי.`
-            );
-            const file = await textToYemot(text);
-            return yemotRead(res, file, 'digits', 4, 4, 15);
-        }
-
-        // --- שלב ג': קבלת PIN חדש ---
-        if (step === 'wait_new') {
-            if (!key) {
-                const text = g(user.gender,
-                    'הָקֵשׁ קוד חדש בן ארבע ספרות.',
-                    'הָקִישִׁי קוד חדש בן ארבע ספרות.'
-                );
-                const file = await textToYemot(text);
-                return yemotRead(res, file, 'digits', 4, 4, 15);
-            }
-            if (!/^\d{4}$/.test(key)) {
-                const text = g(user.gender,
-                    'קוד לא תקין. הָקֵשׁ ארבע ספרות בדיוק.',
-                    'קוד לא תקין. הָקִישִׁי ארבע ספרות בדיוק.'
-                );
-                const file = await textToYemot(text);
-                return yemotRead(res, file, 'digits', 4, 4, 15);
-            }
-            await updateSession(enterId, 'settings', { step: 'wait_confirm', newPin: key });
-            const text = g(user.gender,
-                'הָקֵשׁ שוב את הקוד החדש לאישור.',
-                'הָקִישִׁי שוב את הקוד החדש לאישור.'
-            );
-            const file = await textToYemot(text);
-            return yemotRead(res, file, 'digits', 4, 4, 15);
-        }
-
-        // --- שלב ד': אישור PIN חדש ---
-        if (step === 'wait_confirm') {
-            if (!key) {
-                const text = g(user.gender,
-                    'הָקֵשׁ שוב את הקוד החדש לאישור.',
-                    'הָקִישִׁי שוב את הקוד החדש לאישור.'
-                );
-                const file = await textToYemot(text);
-                return yemotRead(res, file, 'digits', 4, 4, 15);
-            }
-            if (key !== data.newPin) {
-                await updateSession(enterId, 'settings', { step: 'wait_new' });
-                const text = g(user.gender,
-                    'הקודים אינם תואמים. הָקֵשׁ קוד חדש בן ארבע ספרות.',
-                    'הקודים אינם תואמים. הָקִישִׁי קוד חדש בן ארבע ספרות.'
-                );
-                const file = await textToYemot(text);
-                return yemotRead(res, file, 'digits', 4, 4, 15);
-            }
-            try {
-                await updateUserPin(user.id, data.newPin);
-                return await goToMenu(enterId, user.id, user.gender, res, 'הקוד עודכן בהצלחה.');
-            } catch (err) {
-                console.error('[IVR] ❌ שגיאה בעדכון PIN:', err.message);
-                return await goToMenu(enterId, user.id, user.gender, res, 'אירעה תקלה בעדכון הקוד. נסה שוב מאוחר יותר.');
-            }
-        }
-
-        // שלב לא מוכר
-        return await goToMenu(enterId, user.id, user.gender, res, 'אירעה תקלה.');
     }
 
     // --- מצב: photos — ניהול בקשות תמונה ---
