@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import MatchCardModal from './components/MatchCardModal';
 import { useToast } from './components/ToastProvider';
 import { forceLogout } from './App';
+import InitialsAvatar from './components/InitialsAvatar';
 
 const CANCEL_REASONS = [
     { id: 1, text: 'לצערנו, לאחר בירורים נראה שאנחנו פחות מתאימים זה לזה' },
@@ -391,11 +392,7 @@ function Connections() {
                                 <div key={conn.id} style={styles.card}>
                                     <div style={styles.header}>
                                         <div style={styles.headerLeft}>
-                                            <img
-                                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((conn.full_name || '') + ' ' + (conn.last_name || '')).trim())}&background=1e3a5f&color=fff&size=50`}
-                                                alt={conn.full_name}
-                                                style={styles.avatar}
-                                            />
+                                            <InitialsAvatar fullName={conn.full_name} lastName={conn.last_name} size={50} style={styles.avatar} />
                                             <h2 style={styles.name}>{conn.full_name}</h2>
                                         </div>
                                         <span style={conn.status === 'waiting_for_shadchan' ? styles.badgeGold : styles.badge}>

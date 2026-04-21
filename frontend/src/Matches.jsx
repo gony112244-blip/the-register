@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
 import MatchCardModal from './components/MatchCardModal';
+import InitialsAvatar from './components/InitialsAvatar';
 
 // ── תרגומים בסיסיים לכרטיסי הרשימה ──
 const T = {
@@ -368,11 +369,7 @@ function Matches() {
                                         {/* תמונה */}
                                         <div style={styles.cardHeader}>
                                             <div style={styles.imageWrap}>
-                                                <img
-                                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(avatarInitials(match.full_name, match.last_name))}&background=1e3a5f&color=c9a227&size=300&bold=true&font-size=0.4`}
-                                                    alt={match.full_name}
-                                                    style={styles.image}
-                                                />
+                                                <InitialsAvatar fullName={match.full_name} lastName={match.last_name} size={300} style={{ ...styles.image, borderRadius: '50%' }} />
                                                 {hasPhotos && photoStatus !== 'approved' && (
                                                     <div style={styles.photoHintOverlay}>
                                                         <div style={styles.photoBlurBadge}>

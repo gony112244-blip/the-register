@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import ProfileView from './ProfileView';
 import AdminUserHistory from './AdminUserHistory';
 import { useToast } from './components/ToastProvider';
+import InitialsAvatar from './components/InitialsAvatar';
 
 const STATUS_MAP = {
     active: 'פעיל',
@@ -339,11 +340,12 @@ function AdminUsers() {
                                 }}
                             >
                                 <div style={st.userHeader}>
-                                    <img
-                                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((user.full_name || '') + ' ' + (user.last_name || '')).trim())}&background=${user.is_blocked ? 'ef4444' : '1e3a5f'}&color=fff&size=50&bold=true`}
-                                        alt={user.full_name}
-                                        style={st.avatar}
-                                    />
+                                        <InitialsAvatar
+                                            fullName={user.full_name}
+                                            lastName={user.last_name}
+                                            size={50}
+                                            style={{ ...st.avatar, ...(user.is_blocked ? { background: '#ef4444', borderColor: '#ff8888' } : {}) }}
+                                        />
                                     <div style={st.userInfo}>
                                         <h3 style={st.userName}>{user.full_name} {user.last_name || ''}</h3>
                                         <div style={st.userMeta}>

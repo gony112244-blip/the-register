@@ -1,6 +1,7 @@
 import { API_BASE, getSecureUrl } from '../config';
 import { useState, useEffect } from 'react';
 import ImageLightbox from './ImageLightbox';
+import InitialsAvatar from './InitialsAvatar';
 
 // ── תרגומים ──
 const T = {
@@ -189,11 +190,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                 <div style={S.hero}>
                     <button onClick={onClose} style={S.closeBtn}>✕</button>
                     <div style={S.heroInner}>
-                        <img
-                            src={`https://ui-avatars.com/api/?name=${encodeURIComponent(avatarInitials(p.full_name, p.last_name))}&background=c9a227&color=fff&size=120&bold=true&font-size=0.4`}
-                            alt={p.full_name}
-                            style={S.avatar}
-                        />
+                        <InitialsAvatar fullName={p.full_name} lastName={p.last_name} size={120} style={S.avatar} />
                         <div style={S.heroInfo}>
                             <h2 style={S.heroName}>
                                 {p.full_name}{p.last_name ? ` ${p.last_name}` : ''}

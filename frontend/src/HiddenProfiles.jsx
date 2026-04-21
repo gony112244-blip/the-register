@@ -2,6 +2,7 @@ import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
+import InitialsAvatar from './components/InitialsAvatar';
 
 function HiddenProfiles() {
     const navigate = useNavigate();
@@ -83,11 +84,7 @@ function HiddenProfiles() {
                     <div style={styles.grid}>
                         {hiddenProfiles.map(profile => (
                             <div key={profile.id} style={styles.card}>
-                                <img
-                                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((profile.full_name || '') + ' ' + (profile.last_name || '')).trim())}&background=1e3a5f&size=100`}
-                                    alt={profile.full_name}
-                                    style={styles.avatar}
-                                />
+                                <InitialsAvatar fullName={profile.full_name} lastName={profile.last_name} size={100} style={styles.avatar} />
                                 <div style={styles.info}>
                                     <h3 style={styles.name}>{profile.full_name}, {profile.age}</h3>
                                     <p style={styles.details}>{profile.heritage_sector} • {profile.status}</p>

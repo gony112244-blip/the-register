@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
 import MatchCardModal from './components/MatchCardModal';
+import InitialsAvatar from './components/InitialsAvatar';
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -20,11 +21,7 @@ function RequestRow({ item, type, onViewCard, onAction }) {
     return (
         <div style={S.row}>
             <div style={S.rowLeft}>
-                <img
-                    src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((item.full_name || '') + ' ' + (item.last_name || '')).trim())}&background=1e3a5f&color=c9a227&size=80&bold=true`}
-                    alt={item.full_name}
-                    style={S.avatar}
-                />
+                <InitialsAvatar fullName={item.full_name} lastName={item.last_name} size={80} style={S.avatar} />
                 <div>
                     <div style={S.rowName}>{item.full_name}{item.age ? `, ${item.age}` : ''}</div>
                     <div style={S.rowSub}>

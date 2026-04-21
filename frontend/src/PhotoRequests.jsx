@@ -1,6 +1,7 @@
 import API_BASE from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import InitialsAvatar from './components/InitialsAvatar';
 
 const REJECT_OPTIONS = [
     { id: 1, label: '⏳ מעדיפים לא לשלוח בשלב זה', msg: '📷 מעדיפים לא לשלוח תמונות בשלב זה. תודה על ההבנה!' },
@@ -108,11 +109,7 @@ function PhotoRequests() {
                             <div key={req.requester_id} style={styles.card}>
                                 {/* Header */}
                                 <div style={styles.cardHeader}>
-                                    <img
-                                        src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((req.full_name || '') + ' ' + (req.last_name || '')).trim())}&background=1e3a5f&color=c9a227&size=80&bold=true&font-size=0.4`}
-                                        alt={req.full_name}
-                                        style={styles.avatar}
-                                    />
+                                    <InitialsAvatar fullName={req.full_name} lastName={req.last_name} size={80} style={styles.avatar} />
                                     <div style={{ flex: 1 }}>
                                         <h3 style={styles.name}>{req.full_name}</h3>
                                         <p style={styles.photoCount}>

@@ -2,6 +2,7 @@ import { API_BASE, getSecureUrl } from './config';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ImageLightbox from './components/ImageLightbox';
+import InitialsAvatar from './components/InitialsAvatar';
 
 function ProfileView({ externalUser, readOnly, isAdminView }) {
     const navigate = useNavigate();
@@ -142,11 +143,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 )}
                             </div>
                         ) : (
-                            <img
-                                src={`https://ui-avatars.com/api/?name=${encodeURIComponent(((user.full_name || '') + ' ' + (user.last_name || '')).trim() || 'מ פ')}&background=c9a227&color=fff&size=160&bold=true&font-size=0.35`}
-                                alt={user.full_name}
-                                style={S.avatarImg}
-                            />
+                            <InitialsAvatar fullName={user.full_name} lastName={user.last_name} size={160} style={S.avatarImg} />
                         )}
                         <div style={
                             user.is_approved && !user.is_profile_pending ? S.badgeGreen :
