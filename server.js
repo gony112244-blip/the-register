@@ -4745,6 +4745,15 @@ async function updateDbSchema() {
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='languages') THEN
                 ALTER TABLE users ADD COLUMN languages VARCHAR(255);
             END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='is_blocked') THEN
+                ALTER TABLE users ADD COLUMN is_blocked BOOLEAN DEFAULT FALSE;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='blocked_reason') THEN
+                ALTER TABLE users ADD COLUMN blocked_reason TEXT;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='blocked_at') THEN
+                ALTER TABLE users ADD COLUMN blocked_at TIMESTAMP;
+            END IF;
         END $$;
     `);
 
