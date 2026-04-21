@@ -508,7 +508,7 @@ router.get('/call', async (req, res) => {
         if (shouldHangupAfterTerminal(phone, enterId)) return yemotHangup(res);
         const text = g(user.gender,
             'הַחֶשְׁבּוֹן שֶׁלְּךָ חָסוּם. לִפְרָטִים, פְּנֵה לְצוֹות הַתְּמִיכָה דֶּרֶךְ הָאַתָּר.',
-            'הַחֶשְׁבּוֹן שֶׁלָּךְ חָסוּם. לִפְרָטִים, פְּנִי לְצוֹות הַתְּמִיכָה דֶּרֶךְ הָאַתָּר.'
+            'הַחֶשְׁבּוֹן שֶׁלָךְ חָסוּם. לִפְרָטִים, פְּנִי לְצוֹות הַתְּמִיכָה דֶּרֶךְ הָאַתָּר.'
         );
         const file = await textToYemot(text);
         return yemotPlayback(res, file);
@@ -520,7 +520,7 @@ router.get('/call', async (req, res) => {
         if (shouldHangupAfterTerminal(phone, enterId)) return yemotHangup(res);
         const text = g(user.gender,
             'הַפְּרוֹפִיל שֶׁלְּךָ עֲדַיִן מַמְתִּין לְאִישּׁוּר. נְעַדְכֵּן אוֹתְךָ בְּמֵייל כַּאֲשֶׁר יְאֻשָּׁר.',
-            'הַפְּרוֹפִיל שֶׁלָּךְ עֲדַיִן מַמְתִּין לְאִישּׁוּר. נְעַדְכֵּן אוֹתָךְ בְּמֵייל כַּאֲשֶׁר יְאֻשָּׁר.'
+            'הַפְּרוֹפִיל שֶׁלָךְ עֲדַיִן מַמְתִּין לְאִישּׁוּר. נְעַדְכֵּן אוֹתָךְ בְּמֵייל כַּאֲשֶׁר יְאֻשָּׁר.'
         );
         const file = await textToYemot(text);
         return yemotPlayback(res, file);
@@ -564,7 +564,7 @@ router.get('/call', async (req, res) => {
         await updateSession(enterId, 'waiting_pin');
         const pinPromptText = g(user.gender,
             `שלום ${firstName}. אנא הַזֵּן את קוד הכניסה שֶׁלְּךָ, ארבע ספרות.`,
-            `שלום ${firstName}. אנא הַזִּינִי את קוד הכניסה שֶׁלָּך, ארבע ספרות.`
+            `שלום ${firstName}. אנא הַזִּינִי את קוד הכניסה שֶׁלָך, ארבע ספרות.`
         );
         const file = await textToYemot(pinPromptText);
         return yemotRead(res, file, 'digits', 4, 4, 15);
@@ -575,7 +575,7 @@ router.get('/call', async (req, res) => {
         if (!key) {
             const repeatText = g(user.gender,
                 'הַזֵּן את קוד הכניסה שֶׁלְּךָ, ארבע ספרות.',
-                'הַזִּינִי את קוד הכניסה שֶׁלָּך, ארבע ספרות.'
+                'הַזִּינִי את קוד הכניסה שֶׁלָך, ארבע ספרות.'
             );
             const file = await textToYemot(repeatText);
             return yemotRead(res, file, 'digits', 4, 4, 15);
