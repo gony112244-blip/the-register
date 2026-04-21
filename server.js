@@ -446,8 +446,9 @@ app.get('/secure-file/:filename', imageLimiter, async (req, res) => {
             if (cn && (Date.now() - cn.ts < NAME_TTL)) {
                 viewerName = cn.name;
             } else {
-                const userRow = await pool.query('SELECT full_name FROM users WHERE id = $1', [decoded.id]);
-                viewerName = userRow.rows[0]?.full_name || `user-${decoded.id}`;
+                const userRow = await pool.query('SELECT full_name, last_name FROM users WHERE id = $1', [decoded.id]);
+                const row = userRow.rows[0];
+                viewerName = row ? [row.full_name, row.last_name].filter(Boolean).join(' ') : `user-${decoded.id}`;
                 _nameCache.set(decoded.id, { name: viewerName, ts: Date.now() });
             }
 
