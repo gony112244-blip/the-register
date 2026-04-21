@@ -1178,9 +1178,6 @@ router.get('/call', async (req, res) => {
         return yemotRead(res, file, 'digits', 1, 1, 8);
     }
 
-
-    }
-
     // --- מצב: photos — ניהול בקשות תמונה ---
     if (session.state === 'photos') {
         const data        = session.data || {};
