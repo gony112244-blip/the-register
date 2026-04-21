@@ -534,42 +534,6 @@ app.get('/status', async (req, res) => {
 // 🔑 הרשמה והתחברות (Public)
 // ==========================================
 
-// בדיקת קיום משתמש (לשלב הראשון בהרשמה)
-app.post('/check-user-exists', async (req, res) => {
-    const { email, phone } = req.body;
-
-    // הגנה מפני ערכים ריקים שנשלחים מהפרונט
-    const emailToCheck = email && email.trim() !== '' ? email : null;
-    const phoneToCheck = phone ? phone.replace(/[-\s]/g, '').trim() : null;
-
-    if (!emailToCheck && !phoneToCheck) {
-        return res.status(200).json({ message: "OK (No data to check)" });
-    }
-
-    try {
-        const userCheck = await pool.query(
-            `SELECT * FROM users WHERE 
-             ($1::text IS NOT NULL AND email = $1) OR 
-             ($2::text IS NOT NULL AND phone = $2)`,
-            [emailToCheck, phoneToCheck]
-        );
-
-        if (userCheck.rows.length > 0) {
-            const existing = userCheck.rows[0];
-            let msg = "משתמש קיים במערכת";
-
-            // אימייל כבר לא חוסם כי הוא יכול להיות משותף לכמה אנשים
-            if (existing.phone === phoneToCheck) {
-                msg = "מספר הטלפון כבר קיים במערכת";
-                return res.status(409).json({ message: msg });
-            }
-        }
-        res.status(200).json({ message: "המשתמש לא קיים, אפשר להמשיך" });
-    } catch (err) {
-        console.error("Check user error:", err);
-        res.status(500).json({ message: "שגיאת שרת בבדיקת משתמש" });
-    }
-});
 
 // ── פונקציית עזר: תיעוד פעילות ──
 async function logActivity(userId, action, { targetUserId = null, actorId = null, note = null } = {}) {
@@ -611,7 +575,7 @@ app.post('/register', async (req, res) => {
 
         if (userCheck.rows.length > 0) {
             console.warn(`[Register Attempt] Phone already exists: ${phoneToSave}`);
-            return res.status(409).json({ message: "מספר הטלפון כבר רשום במערכת" });
+            return res.status(400).json({ message: "לא ניתן להשלים את ההרשמה. אם כבר יש לך חשבון, נסה להתחבר." });
         }
 
         // 2. הצפנת סיסמה

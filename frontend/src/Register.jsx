@@ -50,7 +50,7 @@ function Register() {
     const handlePhoneChange = (e) => {
         const value = e.target.value;
         setPhone(value);
-        setPhoneAlreadyExists(false);
+        setRegisterError("");
         if (value && !validatePhone(value)) {
             setErrors(prev => ({ ...prev, phone: "מספר טלפון לא תקין" }));
         } else {
@@ -103,7 +103,7 @@ function Register() {
     const [isVerifying, setIsVerifying] = useState(false);
     const [isSkipping, setIsSkipping] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [phoneAlreadyExists, setPhoneAlreadyExists] = useState(false);
+    const [registerError, setRegisterError] = useState("");
 
     const handleRegister = async () => {
         if (!isFormValid || isSubmitting) {
@@ -138,10 +138,8 @@ function Register() {
                     showToast("החשבון נוצר בהצלחה! ברוכים הבאים 🎊", "success");
                     navigate('/profile');
                 }
-            } else if (response.status === 409) {
-                setPhoneAlreadyExists(true);
             } else {
-                showToast(`שגיאה: ${data.message}`, "error");
+                setRegisterError(data.message || "אירעה שגיאה בהרשמה. נסה שוב מאוחר יותר.");
             }
         } catch (err) {
             showToast("לא ניתן ליצור קשר עם השרת", "error");
@@ -264,20 +262,6 @@ function Register() {
                                 dir="ltr"
                             />
                             {errors.phone && <span style={errorStyle}>{errors.phone}</span>}
-                            {phoneAlreadyExists && (
-                                <div style={{ marginTop: '8px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '10px', padding: '10px 14px', direction: 'rtl' }}>
-                                    <p style={{ margin: '0 0 8px', color: '#92400e', fontSize: '0.9rem', fontWeight: 600 }}>
-                                        מספר זה כבר רשום במערכת.
-                                    </p>
-                                    <button
-                                        type="button"
-                                        onClick={() => navigate('/login')}
-                                        style={{ background: '#c9a227', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem' }}
-                                    >
-                                        היכנס לחשבון הקיים
-                                    </button>
-                                </div>
-                            )}
                         </div>
 
                         {/* אימייל */}
@@ -389,6 +373,12 @@ function Register() {
                         >
                             {isSubmitting ? "יוצר חשבון..." : "הירשם עכשיו"}
                         </button>
+
+                        {registerError && (
+                            <p style={{ color: '#dc2626', fontSize: '0.9rem', textAlign: 'center', marginTop: '10px', fontWeight: 600 }}>
+                                {registerError}
+                            </p>
+                        )}
 
                         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '18px', fontSize: '14px', color: '#64748b', direction: 'rtl' }}>
                             <span>כבר רשום? </span>
