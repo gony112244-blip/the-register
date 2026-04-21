@@ -507,8 +507,8 @@ router.get('/call', async (req, res) => {
         console.log(`[IVR] 🚫 משתמש חסום: ${user.id}`);
         if (shouldHangupAfterTerminal(phone, enterId)) return yemotHangup(res);
         const text = g(user.gender,
-            'הַחֶשְׁבּוֹן שֶׁלְּךָ חָסוּם. לִפְרָטִים, פְּנֵה לְצוֹות הַתְּמִיכָה דֶּרֶךְ הָאַתָּר.',
-            'הַחֶשְׁבּוֹן שֶׁלָךְ חָסוּם. לִפְרָטִים, פְּנִי לְצוֹות הַתְּמִיכָה דֶּרֶךְ הָאַתָּר.'
+            'הַחֶשְׁבּוֹן שֶׁלְּךָ חָסוּם. לִפְרָטִים, פְּנֵה לְצוֹות הַתְּמִיכָה דֶּרֶך הָאַתָּר.',
+            'הַחֶשְׁבּוֹן שֶׁלָך חָסוּם. לִפְרָטִים, פְּנִי לְצוֹות הַתְּמִיכָה דֶּרֶך הָאַתָּר.'
         );
         const file = await textToYemot(text);
         return yemotPlayback(res, file);
@@ -520,7 +520,7 @@ router.get('/call', async (req, res) => {
         if (shouldHangupAfterTerminal(phone, enterId)) return yemotHangup(res);
         const text = g(user.gender,
             'הַפְּרוֹפִיל שֶׁלְּךָ עֲדַיִן מַמְתִּין לְאִישּׁוּר. נְעַדְכֵּן אוֹתְךָ בְּמֵייל כַּאֲשֶׁר יְאֻשָּׁר.',
-            'הַפְּרוֹפִיל שֶׁלָךְ עֲדַיִן מַמְתִּין לְאִישּׁוּר. נְעַדְכֵּן אוֹתָךְ בְּמֵייל כַּאֲשֶׁר יְאֻשָּׁר.'
+            'הַפְּרוֹפִיל שֶׁלָך עֲדַיִן מַמְתִּין לְאִישּׁוּר. נְעַדְכֵּן אוֹתָך בְּמֵייל כַּאֲשֶׁר יְאֻשָּׁר.'
         );
         const file = await textToYemot(text);
         return yemotPlayback(res, file);
