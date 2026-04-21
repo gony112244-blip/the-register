@@ -41,7 +41,7 @@ function Connections() {
     const [cancelModal, setCancelModal] = useState(null);
     const [refModal, setRefModal] = useState(null); // { connectionId, otherName }
     const [refReason, setRefReason] = useState('');
-    const [refCount, setRefCount] = useState(1);
+    const refCount = 1;
     const [refSending, setRefSending] = useState(false);
     const [paymentModal, setPaymentModal] = useState(null);
     const navigate = useNavigate();
@@ -298,25 +298,6 @@ function Connections() {
                             ))}
                         </div>
 
-                        <p style={{ color: '#1e3a5f', fontWeight: 700, margin: '0 0 8px', fontSize: '0.9rem' }}>כמה מספרים לבקש?</p>
-                        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-                            {[1, 2].map(n => (
-                                <button
-                                    key={n}
-                                    onClick={() => setRefCount(n)}
-                                    style={{
-                                        flex: 1, padding: '10px',
-                                        background: refCount === n ? '#1e3a5f' : '#f1f5f9',
-                                        color: refCount === n ? '#fff' : '#475569',
-                                        border: 'none', borderRadius: 10,
-                                        fontWeight: 700, cursor: 'pointer',
-                                        fontSize: '0.95rem', fontFamily: 'inherit'
-                                    }}
-                                >
-                                    {n === 1 ? 'מספר אחד' : 'שני מספרים'}
-                                </button>
-                            ))}
-                        </div>
 
                         <button
                             onClick={handleSendRefRequest}
@@ -330,7 +311,7 @@ function Connections() {
                             {refSending ? '⏳ שולח...' : '📤 שלח בקשה'}
                         </button>
                         <button
-                            onClick={() => { setRefModal(null); setRefReason(''); setRefCount(1); }}
+                            onClick={() => { setRefModal(null); setRefReason(''); }}
                             style={styles.cancelModalCloseBtn}
                         >
                             ← ביטול

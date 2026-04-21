@@ -1500,45 +1500,11 @@ router.get('/call', async (req, res) => {
                     return await loadNextActive();
                 }
 
-                // שלב א — בחירת כמות
-                if (data.refRequestStep === 'count' || !data.refRequestStep) {
-                    const count = parseInt(key, 10);
+                // שלב א — בחירת סיבה (count תמיד 1)
+                if (data.refRequestStep === 'count' || data.refRequestStep === 'reason' || !data.refRequestStep) {
 
-                    // מקש 9 — שמיעה חוזרת של שאלת הכמות
-                    if (key === '9') {
-                        const repeatCount = g(user.gender,
-                            'כַּמָּה ממליצים לבקש? לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לשמיעה חוזרת הָקֵשׁ תשע. לחזרה הָקֵשׁ אפס.',
-                            'כַּמָּה ממליצים לבקש? לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לשמיעה חוזרת הָקִישִׁי תשע. לחזרה הָקִישִׁי אפס.'
-                        );
-                        const rf = await textToYemot(repeatCount);
-                        return yemotRead(res, rf, 'digits', 1, 1, 8);
-                    }
-
-                    if (count === 1 || count === 2) {
-                        // מעבר לשלב בחירת סיבה
-                        await updateSession(enterId, 'active_sent', {
-                            page: offset, currentConnectionId: connId,
-                            currentConnectionStatus: connStatus,
-                            currentMyApproved: !!data.currentMyApproved,
-                            inRefRequestMenu: true, refRequestStep: 'reason', refRequestCount: count
-                        });
-                        const reasonPrompt = g(user.gender,
-                            'בחר את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקש ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
-                            'בחרי את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקשת ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
-                        );
-                        const f = await textToYemot(reasonPrompt);
-                        return yemotRead(res, f, 'digits', 1, 1, 8);
-                    }
-                    const refUnknown = g(user.gender,
-                        'מקש לא מוכר. לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לשמיעה חוזרת הָקֵשׁ תשע. לחזרה הָקֵשׁ אפס.',
-                        'מקש לא מוכר. לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לשמיעה חוזרת הָקִישִׁי תשע. לחזרה הָקִישִׁי אפס.'
-                    );
-                    const file = await textToYemot(refUnknown);
-                    return yemotRead(res, file, 'digits', 1, 1, 8);
-                }
-
-                // שלב ב — בחירת סיבה
-                if (data.refRequestStep === 'reason') {
+                // בחירת סיבה
+                if (true) {
                     // מקש 9 — שמיעה חוזרת של תפריט הסיבות
                     if (key === '9') {
                         const repeatReason = g(user.gender,
@@ -1552,9 +1518,9 @@ router.get('/call', async (req, res) => {
                     const REASON_MAP = { '1': 'no_answer', '2': 'not_enough', '3': 'family_ref' };
                     const reason = REASON_MAP[key];
                     if (reason) {
-                        const result = await requestAdditionalReferenceFromIvr(connId, user.id, data.refRequestCount || 1, reason).catch(() => 'error');
+                        const result = await requestAdditionalReferenceFromIvr(connId, user.id, 1, reason).catch(() => 'error');
                         const pfx = result === 'ok'
-                            ? `הבקשה ל${data.refRequestCount === 2 ? 'שני ממליצים' : 'ממליץ אחד'} נשלחה לצד השני.`
+                            ? 'הבקשה לממליץ נוסף נשלחה לצד השני.'
                             : 'אירעה תקלה. אנא נסה שוב מהאתר.';
                         await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
                         return await loadNextActive(pfx);
@@ -1662,15 +1628,15 @@ router.get('/call', async (req, res) => {
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
-            // מקש 7 — בקשת ממליץ נוסף
+            // מקש 7 — בקשת ממליץ נוסף (קפיצה ישירה לבחירת סיבה)
             if (key === '7') {
                 if (connStatus !== 'active') return await loadNextActive();
                 const refPrompt = g(user.gender,
-                    'כַּמָּה ממליצים לבקש? לממליץ אחד הָקֵשׁ אחת. לשני ממליצים הָקֵשׁ שתיים. לשמיעה חוזרת הָקֵשׁ תשע. לחזרה הָקֵשׁ אפס.',
-                    'כַּמָּה ממליצים לבקש? לממליץ אחד הָקִישִׁי אחת. לשני ממליצים הָקִישִׁי שתיים. לשמיעה חוזרת הָקִישִׁי תשע. לחזרה הָקִישִׁי אפס.'
+                    'בחר את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקש ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
+                    'בחרי את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקשת ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
                 );
                 const file = await textToYemot(refPrompt);
-                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: true, refRequestStep: 'count' });
+                await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: true, refRequestStep: 'reason' });
                 return yemotRead(res, file, 'digits', 1, 1, 8);
             }
 
