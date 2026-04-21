@@ -1500,38 +1500,32 @@ router.get('/call', async (req, res) => {
                     return await loadNextActive();
                 }
 
-                // שלב א — בחירת סיבה (count תמיד 1)
-                if (data.refRequestStep === 'count' || data.refRequestStep === 'reason' || !data.refRequestStep) {
-
-                // בחירת סיבה
-                if (true) {
-                    // מקש 9 — שמיעה חוזרת של תפריט הסיבות
-                    if (key === '9') {
-                        const repeatReason = g(user.gender,
-                            'בחר את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקש ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
-                            'בחרי את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקשת ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
-                        );
-                        const rf = await textToYemot(repeatReason);
-                        return yemotRead(res, rf, 'digits', 1, 1, 8);
-                    }
-
-                    const REASON_MAP = { '1': 'no_answer', '2': 'not_enough', '3': 'family_ref' };
-                    const reason = REASON_MAP[key];
-                    if (reason) {
-                        const result = await requestAdditionalReferenceFromIvr(connId, user.id, 1, reason).catch(() => 'error');
-                        const pfx = result === 'ok'
-                            ? 'הבקשה לממליץ נוסף נשלחה לצד השני.'
-                            : 'אירעה תקלה. אנא נסה שוב מהאתר.';
-                        await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
-                        return await loadNextActive(pfx);
-                    }
-                    const reasonUnknown = g(user.gender,
-                        'מקש לא מוכר. אחת — לא ענו. שתיים — הבירורים לא הסתיימו. שלוש — מכר מהמשפחה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
-                        'מקש לא מוכר. אחת — לא ענו. שתיים — הבירורים לא הסתיימו. שלוש — מכר מהמשפחה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
+                // בחירת סיבה (count קבוע = 1)
+                if (key === '9') {
+                    const repeatReason = g(user.gender,
+                        'בחר את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקש ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
+                        'בחרי את הסיבה לבקשה. אחת — הממליצים לא ענו. שתיים — הבירורים עם הממליצים טרם הסתיימו. שלוש — מבקשת ממליץ שֶׁמַּכִּיר אֶת הַמִּשְׁפָּחָה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
                     );
-                    const f = await textToYemot(reasonUnknown);
-                    return yemotRead(res, f, 'digits', 1, 1, 8);
+                    const rf = await textToYemot(repeatReason);
+                    return yemotRead(res, rf, 'digits', 1, 1, 8);
                 }
+
+                const REASON_MAP = { '1': 'no_answer', '2': 'not_enough', '3': 'family_ref' };
+                const reason = REASON_MAP[key];
+                if (reason) {
+                    const result = await requestAdditionalReferenceFromIvr(connId, user.id, 1, reason).catch(() => 'error');
+                    const pfx = result === 'ok'
+                        ? 'הבקשה לממליץ נוסף נשלחה לצד השני.'
+                        : 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                    await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
+                    return await loadNextActive(pfx);
+                }
+                const reasonUnknown = g(user.gender,
+                    'מקש לא מוכר. אחת — לא ענו. שתיים — הבירורים לא הסתיימו. שלוש — מכר מהמשפחה. לשמיעה חוזרת הָקֵשׁ תשע. לביטול הָקֵשׁ אפס.',
+                    'מקש לא מוכר. אחת — לא ענו. שתיים — הבירורים לא הסתיימו. שלוש — מכר מהמשפחה. לשמיעה חוזרת הָקִישִׁי תשע. לביטול הָקִישִׁי אפס.'
+                );
+                const f = await textToYemot(reasonUnknown);
+                return yemotRead(res, f, 'digits', 1, 1, 8);
             }
 
             if (data.inCancelReasonMenu) {
