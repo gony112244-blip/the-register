@@ -1,5 +1,5 @@
 import API_BASE from './config';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 async function parseResponseJson(res) {
@@ -23,6 +23,8 @@ function ForgotPassword() {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    useEffect(() => { setMessage(''); }, [step]);
+
     const handleSendCode = async (e) => {
         e.preventDefault();
         if (!phone) { setMessage('נא להזין מספר טלפון'); return; }
@@ -38,15 +40,15 @@ function ForgotPassword() {
             const data = await parseResponseJson(res);
 
             if (res.ok) {
-                setMessage('📧 קוד אימות נשלח למייל שלך!');
-                setTimeout(() => setStep(2), 100);
+                setStep(2);
             } else {
                 setMessage(data.message || 'שגיאה בשליחת הקוד');
             }
         } catch (err) {
             setMessage('שגיאה בתקשורת עם השרת');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleVerifyCode = async (e) => {
@@ -66,15 +68,15 @@ function ForgotPassword() {
             const data = await parseResponseJson(res);
 
             if (res.ok) {
-                setMessage('✅ הקוד אומת בהצלחה');
-                setTimeout(() => setStep(3), 100);
+                setStep(3);
             } else {
                 setMessage(data.message || 'קוד שגוי');
             }
         } catch (err) {
             setMessage('שגיאה בתקשורת עם השרת');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleResetPassword = async (e) => {
@@ -108,8 +110,9 @@ function ForgotPassword() {
             }
         } catch (err) {
             setMessage('שגיאה בתקשורת עם השרת');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     return (
@@ -122,12 +125,13 @@ function ForgotPassword() {
                         {step === 1 && 'הזן את מספר הטלפון וכתובת המייל שלך'}
                         {step === 2 && 'הזן את קוד האימות שקיבלת במייל'}
                         {step === 3 && 'בחר סיסמה חדשה'}
+                        {step === 4 && 'הסיסמה שונתה בהצלחה'}
                     </p>
                 </div>
 
                 {/* Progress Bar */}
                 <div style={styles.progressBar}>
-                    <div style={{ ...styles.progress, width: `${(step / 3) * 100}%` }}></div>
+                    <div style={{ ...styles.progress, width: `${Math.min((step / 3) * 100, 100)}%` }}></div>
                 </div>
 
                 {/* Step 1: Phone + Email */}

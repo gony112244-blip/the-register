@@ -1,7 +1,38 @@
 import API_BASE from './config';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { ToastProvider, useToast } from './components/ToastProvider';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Component } from 'react';
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary]', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', direction: 'rtl', fontFamily: "'Heebo', sans-serif", padding: '20px' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⚠️</div>
+          <h2 style={{ color: '#1e3a5f', marginBottom: '8px' }}>אירעה שגיאה בלתי צפויה</h2>
+          <p style={{ color: '#64748b', marginBottom: '24px' }}>אנא רענן את הדף ונסה שוב.</p>
+          <button
+            onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+            style={{ background: '#c9a227', color: '#fff', border: 'none', borderRadius: '10px', padding: '12px 28px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' }}
+          >
+            רענן דף
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import Home from './Home';
 import Login from './Login';
 import Profile from './Profile';
@@ -215,12 +246,14 @@ function AppContent() {
 
 function App() {
   return (
-    <ToastProvider>
-      <Router>
-        <AppContent />
-        <PWAInstallPrompt />
-      </Router>
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <Router>
+          <AppContent />
+          <PWAInstallPrompt />
+        </Router>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }
 
