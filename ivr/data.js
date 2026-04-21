@@ -126,7 +126,8 @@ async function getFullProfileForIvr(targetUserId) {
                 yeshiva_name, yeshiva_ketana_name, father_occupation, mother_occupation,
                 father_heritage, mother_heritage, siblings_count, sibling_position,
                 has_children, children_count, country_of_birth, origin_country, aliyah_age, languages,
-                apartment_help, apartment_amount, favorite_study, study_field, home_style
+                apartment_help, apartment_amount, favorite_study, study_field, home_style,
+                siblings
          FROM users WHERE id = $1`,
         [targetUserId]
     );
@@ -145,7 +146,8 @@ async function getMatchesForIvr(userId, offset = 0, limit = 1) {
                 yeshiva_name, yeshiva_ketana_name, father_occupation, mother_occupation,
                 father_heritage, mother_heritage, siblings_count, sibling_position,
                 has_children, children_count, country_of_birth, origin_country, aliyah_age, languages,
-                apartment_help, apartment_amount, favorite_study, study_field, home_style
+                apartment_help, apartment_amount, favorite_study, study_field, home_style,
+                siblings
          FROM users
          WHERE ${mc.conditions.join(' AND ')}
          ORDER BY id
@@ -171,7 +173,8 @@ async function getAllMatchesForIvr(userId, offset = 0, limit = 1) {
                 yeshiva_name, yeshiva_ketana_name, father_occupation, mother_occupation,
                 father_heritage, mother_heritage, siblings_count, sibling_position,
                 has_children, children_count, country_of_birth, origin_country, aliyah_age, languages,
-                apartment_help, apartment_amount, favorite_study, study_field, home_style
+                apartment_help, apartment_amount, favorite_study, study_field, home_style,
+                siblings
          FROM users
          WHERE ${mc.conditions.join(' AND ')}
          ORDER BY id
@@ -240,7 +243,8 @@ async function getIncomingRequestsForIvr(userId, offset = 0, limit = 1) {
                 u.yeshiva_name, u.yeshiva_ketana_name, u.father_occupation, u.mother_occupation,
                 u.father_heritage, u.mother_heritage, u.siblings_count, u.sibling_position,
                 u.has_children, u.children_count, u.country_of_birth, u.origin_country, u.aliyah_age, u.languages,
-                u.apartment_help, u.apartment_amount, u.favorite_study, u.study_field, u.home_style
+                u.apartment_help, u.apartment_amount, u.favorite_study, u.study_field, u.home_style,
+                u.siblings
          FROM connections c
          JOIN users u ON c.sender_id = u.id
          WHERE c.receiver_id = $1 AND c.status = 'pending'
@@ -514,7 +518,8 @@ async function getPhotoRequestsForIvr(userId, offset = 0, limit = 1) {
                 u.yeshiva_name, u.yeshiva_ketana_name, u.father_occupation, u.mother_occupation,
                 u.father_heritage, u.mother_heritage, u.siblings_count, u.sibling_position,
                 u.has_children, u.children_count, u.country_of_birth, u.origin_country, u.aliyah_age, u.languages,
-                u.apartment_help, u.apartment_amount, u.favorite_study, u.study_field, u.home_style
+                u.apartment_help, u.apartment_amount, u.favorite_study, u.study_field, u.home_style,
+                u.siblings
          FROM photo_approvals pa
          JOIN users u ON u.id = pa.requester_id
          WHERE pa.target_id = $1 AND pa.status = 'pending'

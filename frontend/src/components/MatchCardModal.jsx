@@ -282,6 +282,25 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                                 {isAdmin && addressStr && <Row label="כתובת" val={addressStr} fullWidth />}
                             </Section>
 
+                            {Array.isArray(p.siblings) && p.siblings.length > 0 && (
+                                <Section title="👨‍👩‍👧‍👦 פרטי אחים ואחיות" color="#fef9ec" border="#fcd34d">
+                                    {p.siblings.map((sib, i) => {
+                                        const parts = [];
+                                        if (sib.name) parts.push(sib.name);
+                                        if (sib.married === 'married') parts.push('נשוי/אה');
+                                        else if (sib.married === 'single') parts.push('רווק/ה');
+                                        if (sib.city) parts.push(`גר/ה ב${sib.city}`);
+                                        if (sib.occupation) parts.push(sib.occupation);
+                                        if (sib.married === 'married' && sib.mechutanim_family) {
+                                            parts.push(`מחותנים: ${sib.mechutanim_family}${sib.mechutanim_city ? ` (${sib.mechutanim_city})` : ''}`);
+                                        }
+                                        return (
+                                            <Row key={i} label={`אח/אחות ${i + 1}`} val={parts.join(' · ')} fullWidth />
+                                        );
+                                    })}
+                                </Section>
+                            )}
+
                             <Section title="🪞 מראה חיצוני" color="#f0f9ff" border="#93c5fd">
                                 <Row label="גובה" val={show(p.height) ? `${p.height} ס"מ` : null} />
                                 <Row label="מבנה גוף" val={tr('body_type', p.body_type)} />

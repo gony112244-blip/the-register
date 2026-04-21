@@ -77,6 +77,10 @@ function Profile() {
         rabbi_name: '', rabbi_phone: '',
         mechutanim_name: '', mechutanim_phone: '',
 
+        // שדות JSONB דינמיים — אחים ומספרים נוספים לבירורים
+        siblings: [],
+        extra_references: [],
+
         // חלק ג - דרישות
         search_min_age: '', search_max_age: '',
         search_height_min: '', search_height_max: '',
@@ -388,6 +392,7 @@ function Profile() {
         'search_body_types', 'search_appearances', 'search_skin_tones', 'search_statuses', 'search_backgrounds',
         'search_heritage_sectors', 'mixed_heritage_ok', 'search_financial_min', 'search_financial_discuss',
         'search_occupations', 'search_life_aspirations', 'search_head_covering',
+        'siblings', 'extra_references',
     ]);
 
     // שמירה לשרת
@@ -639,6 +644,38 @@ function Profile() {
         window.scrollTo(0, 0);
     };
 
+    // ---------- אחים — helpers ----------
+    const siblingsList = Array.isArray(user.siblings) ? user.siblings : [];
+    const addSibling = () => setUser(p => ({
+        ...p,
+        siblings: [...(Array.isArray(p.siblings) ? p.siblings : []), {
+            name: '', married: '', mechutanim_family: '', mechutanim_city: '', occupation: '', city: ''
+        }]
+    }));
+    const removeSibling = (i) => setUser(p => ({
+        ...p,
+        siblings: (Array.isArray(p.siblings) ? p.siblings : []).filter((_, idx) => idx !== i)
+    }));
+    const updateSibling = (i, field, value) => setUser(p => ({
+        ...p,
+        siblings: (Array.isArray(p.siblings) ? p.siblings : []).map((s, idx) => idx === i ? { ...s, [field]: value } : s)
+    }));
+
+    // ---------- מספרים נוספים לבירורים — helpers ----------
+    const extraRefsList = Array.isArray(user.extra_references) ? user.extra_references : [];
+    const addExtraRef = () => setUser(p => ({
+        ...p,
+        extra_references: [...(Array.isArray(p.extra_references) ? p.extra_references : []), { type: '', name: '', phone: '' }]
+    }));
+    const removeExtraRef = (i) => setUser(p => ({
+        ...p,
+        extra_references: (Array.isArray(p.extra_references) ? p.extra_references : []).filter((_, idx) => idx !== i)
+    }));
+    const updateExtraRef = (i, field, value) => setUser(p => ({
+        ...p,
+        extra_references: (Array.isArray(p.extra_references) ? p.extra_references : []).map((r, idx) => idx === i ? { ...r, [field]: value } : r)
+    }));
+
     return (
         <div style={styles.page}>
             <div style={styles.container}>
@@ -872,6 +909,102 @@ function Profile() {
                                     <input name="mother_occupation" value={user.mother_occupation || ''} onChange={handleChange} style={styles.input} placeholder="לא חובה" />
                                 </div>
                             </div>
+                        </div>
+
+                        {/* פרטי אחים — דינמי, אופציונלי */}
+                        <div style={styles.card}>
+                            <h3 style={styles.cardTitle}>👨‍👩‍👧‍👦 פרטי אחים ואחיות (אופציונלי)</h3>
+                            <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: '0.92rem', lineHeight: 1.6 }}>
+                                למי שמעוניין/ת — ניתן להוסיף פרטי אחים ואחיות. השדה אינו חובה, אבל מסייע לבירורים ולהתאמה.
+                            </p>
+                            {siblingsList.length === 0 && (
+                                <div style={{
+                                    background: '#f8fafc',
+                                    border: '1.5px dashed #cbd5e1',
+                                    borderRadius: 10,
+                                    padding: '16px',
+                                    textAlign: 'center',
+                                    color: '#94a3b8',
+                                    marginBottom: 12,
+                                }}>
+                                    טרם הוספת אחים. לחיצה על "+ הוסף שורה" תפתח את השורה הראשונה.
+                                </div>
+                            )}
+                            {siblingsList.map((sib, i) => (
+                                <div key={i} style={{
+                                    background: '#f8fafc',
+                                    border: '1.5px solid #e2e8f0',
+                                    borderRadius: 12,
+                                    padding: '14px',
+                                    marginBottom: 12,
+                                    position: 'relative',
+                                }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeSibling(i)}
+                                        title="מחק שורה זו"
+                                        style={{
+                                            position: 'absolute',
+                                            top: 8,
+                                            left: 8,
+                                            background: '#fee2e2',
+                                            border: '1px solid #fca5a5',
+                                            color: '#b91c1c',
+                                            borderRadius: 8,
+                                            cursor: 'pointer',
+                                            padding: '4px 10px',
+                                            fontWeight: 700,
+                                        }}>✕</button>
+                                    <div style={{ fontWeight: 700, color: '#475569', marginBottom: 10 }}>אח/אחות {i + 1}</div>
+                                    <div style={styles.grid}>
+                                        <div style={styles.field}>
+                                            <label>שם פרטי + משפחה</label>
+                                            <input value={sib.name || ''} onChange={(e) => updateSibling(i, 'name', e.target.value)} style={styles.input} placeholder="לדוגמה: דניאל כהן" />
+                                        </div>
+                                        <div style={styles.field}>
+                                            <label>סטטוס</label>
+                                            <select value={sib.married || ''} onChange={(e) => updateSibling(i, 'married', e.target.value)} style={styles.input}>
+                                                <option value="">בחר...</option>
+                                                <option value="single">רווק/ה</option>
+                                                <option value="married">נשוי/אה</option>
+                                            </select>
+                                        </div>
+                                        <div style={styles.field}>
+                                            <label>עיר מגורים</label>
+                                            <input value={sib.city || ''} onChange={(e) => updateSibling(i, 'city', e.target.value)} style={styles.input} />
+                                        </div>
+                                        <div style={styles.field}>
+                                            <label>עיסוק / מקום לימודים</label>
+                                            <input value={sib.occupation || ''} onChange={(e) => updateSibling(i, 'occupation', e.target.value)} style={styles.input} />
+                                        </div>
+                                        {sib.married === 'married' && (
+                                            <>
+                                                <div style={styles.field}>
+                                                    <label>משפחת המחותנים</label>
+                                                    <input value={sib.mechutanim_family || ''} onChange={(e) => updateSibling(i, 'mechutanim_family', e.target.value)} style={styles.input} placeholder="לדוגמה: משפחת לוי" />
+                                                </div>
+                                                <div style={styles.field}>
+                                                    <label>עיר המחותנים</label>
+                                                    <input value={sib.mechutanim_city || ''} onChange={(e) => updateSibling(i, 'mechutanim_city', e.target.value)} style={styles.input} />
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={addSibling}
+                                style={{
+                                    background: '#1e3a5f',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 10,
+                                    padding: '10px 18px',
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                    fontSize: '0.95rem',
+                                }}>+ הוסף אח/אחות</button>
                         </div>
 
                         {/* מראה חיצוני */}
@@ -1198,6 +1331,87 @@ function Profile() {
                                 </div>
 
                             </div>
+                        </div>
+
+                        {/* מספרים נוספים לבירורים — דינמי, אופציונלי */}
+                        <div style={styles.card}>
+                            <h3 style={styles.cardTitle}>📞 מספרים נוספים לבירורים (אופציונלי)</h3>
+                            <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: '0.92rem', lineHeight: 1.6 }}>
+                                למי שמעוניין/ת להוסיף עוד מספרים לבירורים — אפשר לצרף רב, מחותן או חבר נוסף. ניתן להוסיף כמה שרוצים.
+                            </p>
+                            {extraRefsList.length === 0 && (
+                                <div style={{
+                                    background: '#f8fafc',
+                                    border: '1.5px dashed #cbd5e1',
+                                    borderRadius: 10,
+                                    padding: '16px',
+                                    textAlign: 'center',
+                                    color: '#94a3b8',
+                                    marginBottom: 12,
+                                }}>
+                                    טרם הוספת מספרים נוספים. לחיצה על "+ הוסף מספר" תפתח שורה חדשה.
+                                </div>
+                            )}
+                            {extraRefsList.map((ref, i) => (
+                                <div key={i} style={{
+                                    background: '#f8fafc',
+                                    border: '1.5px solid #e2e8f0',
+                                    borderRadius: 12,
+                                    padding: '14px',
+                                    marginBottom: 12,
+                                    position: 'relative',
+                                }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeExtraRef(i)}
+                                        title="מחק שורה זו"
+                                        style={{
+                                            position: 'absolute',
+                                            top: 8,
+                                            left: 8,
+                                            background: '#fee2e2',
+                                            border: '1px solid #fca5a5',
+                                            color: '#b91c1c',
+                                            borderRadius: 8,
+                                            cursor: 'pointer',
+                                            padding: '4px 10px',
+                                            fontWeight: 700,
+                                        }}>✕</button>
+                                    <div style={{ fontWeight: 700, color: '#475569', marginBottom: 10 }}>מספר {i + 1}</div>
+                                    <div style={styles.grid}>
+                                        <div style={styles.field}>
+                                            <label>סוג</label>
+                                            <select value={ref.type || ''} onChange={(e) => updateExtraRef(i, 'type', e.target.value)} style={styles.input}>
+                                                <option value="">בחר...</option>
+                                                <option value="rabbi">רב</option>
+                                                <option value="mechutan">מחותן</option>
+                                                <option value="friend">חבר נוסף</option>
+                                            </select>
+                                        </div>
+                                        <div style={styles.field}>
+                                            <label>שם</label>
+                                            <input value={ref.name || ''} onChange={(e) => updateExtraRef(i, 'name', e.target.value)} style={styles.input} />
+                                        </div>
+                                        <div style={styles.field}>
+                                            <label>טלפון</label>
+                                            <input type="tel" value={ref.phone || ''} onChange={(e) => updateExtraRef(i, 'phone', e.target.value)} style={styles.input} />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={addExtraRef}
+                                style={{
+                                    background: '#1e3a5f',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: 10,
+                                    padding: '10px 18px',
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                    fontSize: '0.95rem',
+                                }}>+ הוסף מספר</button>
                         </div>
 
                         <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between' }}>

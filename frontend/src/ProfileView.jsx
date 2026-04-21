@@ -275,6 +275,25 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 {show(user.siblings_details) && <Row label="פרטי אחים" val={user.siblings_details} fullWidth />}
                             </Section>
 
+                            {Array.isArray(user.siblings) && user.siblings.length > 0 && (
+                                <Section title="👨‍👩‍👧‍👦 פרטי אחים ואחיות" color="#fef9ec" border="#fcd34d" fullWidth>
+                                    {user.siblings.map((sib, i) => {
+                                        const parts = [];
+                                        if (sib.name) parts.push(sib.name);
+                                        if (sib.married === 'married') parts.push('נשוי/אה');
+                                        else if (sib.married === 'single') parts.push('רווק/ה');
+                                        if (sib.city) parts.push(`גר/ה ב${sib.city}`);
+                                        if (sib.occupation) parts.push(sib.occupation);
+                                        if (sib.married === 'married' && sib.mechutanim_family) {
+                                            parts.push(`מחותנים: ${sib.mechutanim_family}${sib.mechutanim_city ? ` (${sib.mechutanim_city})` : ''}`);
+                                        }
+                                        return (
+                                            <Row key={i} label={`אח/אחות ${i + 1}`} val={parts.join(' · ')} fullWidth />
+                                        );
+                                    })}
+                                </Section>
+                            )}
+
                             {/* Appearance */}
                             <Section title="🪞 מראה חיצוני" color="#f0f9ff" border="#93c5fd">
                                 <Row label="גובה" val={show(user.height) ? `${user.height} ס"מ` : null} />
@@ -383,6 +402,21 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                         </div>
                                     )}
                                 </Section>
+
+                                {Array.isArray(user.extra_references) && user.extra_references.length > 0 && (
+                                    <Section title="📞 מספרים נוספים לבירורים" color="#eff6ff" border="#93c5fd">
+                                        {user.extra_references.map((ref, i) => {
+                                            const typeLabel = ref.type === 'rabbi' ? 'רב' : ref.type === 'mechutan' ? 'מחותן' : ref.type === 'friend' ? 'חבר' : '';
+                                            return (
+                                                <div key={i} style={S.referenceItem}>
+                                                    {typeLabel && <span style={S.refBadge}>{typeLabel}</span>}
+                                                    <span style={S.refName}>{ref.name || ''}</span>
+                                                    <span style={S.refPhone}>{ref.phone || ''}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </Section>
+                                )}
                             </div>
                         </div>
                     )}

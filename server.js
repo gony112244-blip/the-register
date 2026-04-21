@@ -1815,7 +1815,10 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         search_body_types, search_appearances,
         search_statuses, search_backgrounds,
         search_heritage_sectors, mixed_heritage_ok, search_financial_min, search_financial_discuss,
-        search_occupations, search_life_aspirations, search_skin_tones, search_head_covering
+        search_occupations, search_life_aspirations, search_skin_tones, search_head_covering,
+
+        // שדות JSONB דינמיים
+        siblings, extra_references
     } = req.body;
 
     const isMissing = (value) => value === undefined || value === null || value === '';
@@ -1914,6 +1917,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 search_occupations = $73, search_life_aspirations = $74,
                 search_skin_tones = $75, search_head_covering = $76,
                 city = $77,
+                siblings = $82::jsonb, extra_references = $83::jsonb,
                 is_profile_pending = TRUE
              WHERE id = $81 RETURNING *`,
             [
@@ -1944,7 +1948,9 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 search_skin_tones || null, search_head_covering || null,
                 city, // עיר מגורים
                 origin_country || null, aliyah_age || null, languages || null,
-                id // ID בסוף
+                id, // ID בסוף ($81)
+                JSON.stringify(Array.isArray(siblings) ? siblings : []), // $82
+                JSON.stringify(Array.isArray(extra_references) ? extra_references : []), // $83
             ]
         );
 
@@ -1991,6 +1997,7 @@ const SAFE_FIELDS = new Set([
     'search_body_types', 'search_appearances', 'search_skin_tones', 'search_statuses', 'search_backgrounds',
     'search_heritage_sectors', 'mixed_heritage_ok', 'search_financial_min', 'search_financial_discuss',
     'search_occupations', 'search_life_aspirations', 'search_head_covering',
+    'siblings', 'extra_references',
 ]);
 
 const NUMERIC_FIELDS = new Set(['age', 'height', 'children_count', 'siblings_count', 'sibling_position',
@@ -2064,9 +2071,13 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
             return res.json({ message: "אין שדות לעדכן" });
         }
 
-        const setClause = safeEntries.map(([key], i) => `"${key}" = $${i + 1}`).join(', ');
+        const JSONB_FIELDS = new Set(['siblings', 'extra_references']);
+        const setClause = safeEntries.map(([key], i) => {
+            return JSONB_FIELDS.has(key) ? `"${key}" = $${i + 1}::jsonb` : `"${key}" = $${i + 1}`;
+        }).join(', ');
         const values = safeEntries.map(([key, val]) => {
             if (val === '' || val === undefined) return null;
+            if (JSONB_FIELDS.has(key)) return JSON.stringify(Array.isArray(val) ? val : []);
             if (NUMERIC_FIELDS.has(key)) return (val === null ? null : Number(val));
             return val;
         });
@@ -2735,12 +2746,14 @@ app.get('/match-card/:userId', authenticateToken, async (req, res) => {
                     family_background, heritage_sector,
                     father_heritage, mother_heritage, father_occupation, mother_occupation,
                     siblings_count, sibling_position, country_of_birth,
+                    origin_country, aliyah_age, languages,
                     body_type, appearance, skin_tone,
                     about_me, home_style, important_in_life, partner_description,
                     apartment_help, apartment_amount,
                     current_occupation, life_aspiration, work_field, occupation_details,
                     yeshiva_name, yeshiva_ketana_name, study_place, study_field, favorite_study,
-                    profile_images_count, created_at, head_covering
+                    profile_images_count, created_at, head_covering,
+                    siblings
              FROM users WHERE id = $1 AND is_approved = TRUE AND is_blocked = FALSE`,
             [targetId]
         );
@@ -4882,6 +4895,8 @@ async function updateDbSchema() {
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_code VARCHAR(10)`,
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires TIMESTAMP`,
         `ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_seen BOOLEAN DEFAULT FALSE`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS siblings JSONB DEFAULT '[]'::jsonb`,
+        `ALTER TABLE users ADD COLUMN IF NOT EXISTS extra_references JSONB DEFAULT '[]'::jsonb`,
     ];
     for (const sql of essentialColumns) {
         try { await pool.query(sql); }

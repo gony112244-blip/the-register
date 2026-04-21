@@ -334,6 +334,32 @@ function buildFullProfileText(match) {
         }
     }
 
+    // --- פרטי אחים ואחיות (אופציונלי, JSONB) ---
+    let siblingsArr = match.siblings;
+    if (typeof siblingsArr === 'string') {
+        try { siblingsArr = JSON.parse(siblingsArr); } catch { siblingsArr = null; }
+    }
+    if (Array.isArray(siblingsArr) && siblingsArr.length > 0) {
+        const validSibs = siblingsArr.filter(s => s && (s.name || s.occupation || s.city || s.mechutanim_family));
+        if (validSibs.length > 0) {
+            parts.push(`פרטי אחים ואחיות:`);
+            validSibs.forEach((sib, idx) => {
+                const sub = [];
+                if (sib.name) sub.push(sib.name);
+                if (sib.married === 'married') sub.push('נשוי או נשואה');
+                else if (sib.married === 'single') sub.push('רווק או רווקה');
+                if (sib.city) sub.push(`גר בעיר ${sib.city}`);
+                if (sib.occupation) sub.push(sib.occupation);
+                if (sib.married === 'married' && sib.mechutanim_family) {
+                    let m = `המחותנים ${sib.mechutanim_family}`;
+                    if (sib.mechutanim_city) m += ` מהעיר ${sib.mechutanim_city}`;
+                    sub.push(m);
+                }
+                if (sub.length > 0) parts.push(`${numberToHebrew(idx + 1)}. ${sub.join(', ')}.`);
+            });
+        }
+    }
+
     // --- לימודים ועיסוק ---
     // ישיבה גדולה: study_place הוא השדה הראשי, yeshiva_name כגיבוי
     const yeshivaGdola = match.study_place || match.yeshiva_name;
