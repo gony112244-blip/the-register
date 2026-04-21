@@ -147,8 +147,14 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 style={S.avatarImg}
                             />
                         )}
-                        <div style={user.is_approved ? S.badgeGreen : S.badgeOrange}>
-                            {user.is_approved ? '✅ מאושר' : '⏳ ממתין'}
+                        <div style={
+                            user.is_approved && !user.is_profile_pending ? S.badgeGreen :
+                            user.is_profile_pending ? S.badgeBlue :
+                            S.badgeOrange
+                        }>
+                            {user.is_approved && !user.is_profile_pending ? '✅ מאושר' :
+                             user.is_profile_pending ? '⏳ שינויים בבדיקה' :
+                             '⏳ ממתין לאישור'}
                         </div>
                     </div>
 
@@ -552,6 +558,7 @@ const S = {
     },
     badgeGreen: { padding: '5px 14px', background: '#22c55e', color: '#fff', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '700' },
     badgeOrange: { padding: '5px 14px', background: '#f59e0b', color: '#fff', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '700' },
+    badgeBlue: { padding: '5px 14px', background: '#3b82f6', color: '#fff', borderRadius: '20px', fontSize: '0.82rem', fontWeight: '700' },
     heroRight: { flex: 1, color: '#fff' },
     heroName: { margin: '0 0 12px', fontSize: '1.7rem', fontWeight: '800' },
     heroTags: { display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' },

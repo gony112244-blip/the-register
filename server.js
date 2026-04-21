@@ -3924,7 +3924,7 @@ app.get('/admin/stats', authenticateToken, async (req, res) => {
     try {
         // 1. ספירות כלליות
         const totalUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_admin = false');
-        const pendingUsers = await pool.query('SELECT COUNT(*) FROM users WHERE (is_approved = false OR is_profile_pending = true) AND is_admin = false');
+        const pendingUsers = await pool.query('SELECT COUNT(*) FROM users WHERE is_profile_pending = TRUE AND is_admin = false');
         const activeMatches = await pool.query("SELECT COUNT(*) FROM connections WHERE status = 'active' OR status = 'waiting_for_shadchan'");
         const openTickets = await pool.query("SELECT COUNT(*) FROM support_tickets WHERE status = 'open'");
 
