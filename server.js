@@ -385,7 +385,7 @@ const authenticateToken = (req, res, next) => {
     if (!token) return res.status(401).json({ message: "נא להתחבר למערכת" });
 
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ message: "החיבור פג תוקף, נא להתחבר מחדש" });
+        if (err) return res.status(401).json({ message: "החיבור פג תוקף, נא להתחבר מחדש" });
         req.user = user; // שומרים את פרטי המשתמש לבקשה הבאה
         next(); // ממשיכים הלאה
     });
@@ -1464,13 +1464,10 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
             [requesterId, targetId]
         );
 
+        let alreadyApproved = false;
         if (existing.rows.length > 0) {
             const row = existing.rows[0];
-            // pending — עדיין ממתינה
-            if (row.status === 'pending') {
-                return res.json({ message: "כבר שלחת בקשה", status: 'pending' });
-            }
-            // approved בתוקף — כבר יש גישה
+            // approved בתוקף — כבר יש גישה (לא נוצרת בקשה חדשה ולא נשלחת הודעה)
             if (row.status === 'approved') {
                 const validApproval = !row.updated_at ||
                     new Date(row.updated_at) > new Date(Date.now() - 48 * 60 * 60 * 1000);
@@ -1478,7 +1475,7 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
                     return res.json({ message: "כבר יש לך גישה לתמונות", status: 'approved' });
                 }
             }
-            // rejected או approved שפג — מאפשרים לשלוח מחדש, מאפסים את הרשומה
+            // pending / rejected / approved שפג — מאפסים ל-pending ושולחים הודעה רעננה
             await pool.query(
                 `UPDATE photo_approvals SET status = 'pending', updated_at = NOW()
                  WHERE requester_id = $1 AND target_id = $2`,
@@ -1496,6 +1493,14 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
         const requesterInfo = await pool.query('SELECT full_name FROM users WHERE id = $1', [requesterId]);
         const msgContent = `📷 ${requesterInfo.rows[0].full_name} מבקש/ת לראות את התמונות שלך`;
 
+        // ניקוי הודעות ישנות מסוג photo_request מאותו משתמש (לא להציף)
+        await pool.query(
+            `DELETE FROM messages
+             WHERE from_user_id = $1 AND to_user_id = $2 AND type = 'photo_request'
+               AND (is_read = FALSE OR is_read IS NULL)`,
+            [requesterId, targetId]
+        );
+
         await pool.query(
             `INSERT INTO messages (from_user_id, to_user_id, content, type) 
              VALUES ($1, $2, $3, 'photo_request')`,
@@ -1503,9 +1508,13 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
         );
 
         // מייל בקשת תמונות
-        await sendTemplateEmailForUser(targetId, 'photo_request', {
-            requesterName: requesterInfo.rows[0].full_name
-        });
+        try {
+            await sendTemplateEmailForUser(targetId, 'photo_request', {
+                requesterName: requesterInfo.rows[0].full_name
+            });
+        } catch (mailErr) {
+            console.error('Photo request email failed:', mailErr.message);
+        }
 
         setImmediate(() => logActivity(requesterId, 'photo_requested', { targetUserId: parseInt(targetId) }));
         res.json({ message: "הבקשה נשלחה! תקבל הודעה כשיאשרו את הבקשה" });

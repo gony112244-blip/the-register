@@ -76,6 +76,29 @@ export function forceLogout(navigateFn) {
   sessionStorage.removeItem('email_reminder_shown');
   window.dispatchEvent(new CustomEvent('userUpdated', { detail: null }));
   if (navigateFn) navigateFn('/login');
+  else if (typeof window !== 'undefined' && window.location && window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
+// Global fetch interceptor: any 401 response → auto logout
+if (typeof window !== 'undefined' && !window.__authFetchInstalled) {
+  window.__authFetchInstalled = true;
+  const _origFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const res = await _origFetch(input, init);
+    try {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      const hadToken = !!localStorage.getItem('token');
+      if (res && res.status === 401 && hadToken && url.includes(API_BASE)) {
+        // Avoid loop on /login or auth endpoints
+        if (!/\/(login|register|forgot-password|verify-reset-code|reset-password)\b/.test(url)) {
+          forceLogout(null);
+        }
+      }
+    } catch {}
+    return res;
+  };
 }
 
 function AppContent() {
