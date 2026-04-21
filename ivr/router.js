@@ -271,9 +271,19 @@ function buildFullProfileText(match) {
     }
     if (match.country_of_birth) {
         const ylidPrefix = isFemale ? 'יְלִידַת' : 'יְלִיד';
-        const cobMap = { israel: 'יִשְׂרָאֵל', abroad: 'חוּ"ל' };
-        const cobText = cobMap[match.country_of_birth] || match.country_of_birth;
-        parts.push(`${ylidPrefix} ${cobText}`);
+        if (match.country_of_birth === 'abroad' && match.origin_country) {
+            parts.push(`${ylidPrefix} ${match.origin_country}`);
+            if (match.aliyah_age) {
+                const aliyahVerb = isFemale ? 'עָלְתָה' : 'עָלָה';
+                parts.push(`${aliyahVerb} לָאָרֶץ בְּגִיל ${numberToHebrew(parseInt(match.aliyah_age, 10))}`);
+            }
+            if (match.languages) {
+                const speakVerb = isFemale ? 'מְדַבֶּרֶת' : 'מְדַבֵּר';
+                parts.push(`${speakVerb} ${match.languages}`);
+            }
+        } else if (match.country_of_birth === 'israel') {
+            parts.push(`${ylidPrefix} יִשְׂרָאֵל`);
+        }
     }
     if ((match.status === 'divorced' || match.status === 'widower') && match.has_children && match.children_count) {
         const childNum = parseInt(match.children_count, 10);

@@ -271,6 +271,9 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 <Row label="מספר אחים" val={user.siblings_count} />
                                 <Row label="מיקום בין האחים" val={user.sibling_position} />
                                 <Row label="ארץ לידה" val={tr('country_of_birth', user.country_of_birth)} />
+                                {user.country_of_birth === 'abroad' && <Row label="ארץ מוצא" val={user.origin_country} />}
+                                {user.country_of_birth === 'abroad' && user.aliyah_age && <Row label="עלה/תה לארץ בגיל" val={user.aliyah_age} />}
+                                {user.country_of_birth === 'abroad' && <Row label="שפות" val={user.languages} />}
                                 {show(user.siblings_details) && <Row label="פרטי אחים" val={user.siblings_details} fullWidth />}
                             </Section>
 

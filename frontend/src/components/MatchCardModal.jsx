@@ -279,6 +279,9 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                                 <Row label="מספר אחים" val={p.siblings_count} />
                                 <Row label="מיקום בין האחים" val={p.sibling_position} />
                                 <Row label="ארץ לידה" val={tr('country_of_birth', p.country_of_birth)} />
+                                {p.country_of_birth === 'abroad' && <Row label="ארץ מוצא" val={p.origin_country} />}
+                                {p.country_of_birth === 'abroad' && p.aliyah_age && <Row label="עלה/תה לארץ בגיל" val={p.aliyah_age} />}
+                                {p.country_of_birth === 'abroad' && <Row label="שפות" val={p.languages} />}
                                 {isAdmin && addressStr && <Row label="כתובת" val={addressStr} fullWidth />}
                             </Section>
 

@@ -1773,7 +1773,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
         id,
         // חלק א' - פרטים בסיסיים
         full_name, last_name, age, gender, phone,
-        birth_date, country_of_birth,
+        birth_date, country_of_birth, origin_country, aliyah_age, languages,
         status, has_children, children_count,
         // 📞 איש קשר לשידוך
         contact_person_type, contact_person_name, contact_phone_1, contact_phone_2,
@@ -1859,7 +1859,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
     }
     if (!Number.isNaN(minHeightNum) && !Number.isNaN(maxHeightNum) && minHeightNum > maxHeightNum) {
         return res.status(400).json({ message: "טווח הגובה אינו תקין", missingFields: ['search_height_min', 'search_height_max'] });
-    }
+    }git pull && pm2 restart hapinkas --update-env
     if (missingFields.length > 0) {
         return res.status(400).json({ message: "לא ניתן לשמור פרופיל לא מלא", missingFields: [...new Set(missingFields)] });
     }
@@ -1882,6 +1882,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
             `UPDATE users SET 
                 full_name = $1, last_name = $2, age = $3, gender = $4, phone = COALESCE($5, phone),
                 birth_date = $6, country_of_birth = $7,
+                origin_country = $78, aliyah_age = $79, languages = $80,
                 status = $8, has_children = $9, children_count = $10,
                 contact_person_type = $11, contact_person_name = $12, contact_phone_1 = $13, contact_phone_2 = $14,
                 family_background = $15, heritage_sector = $16, father_occupation = $17, mother_occupation = $18,
@@ -1907,7 +1908,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 search_skin_tones = $75, search_head_covering = $76,
                 city = $77,
                 is_profile_pending = TRUE
-             WHERE id = $78 RETURNING *`,
+             WHERE id = $81 RETURNING *`,
             [
                 full_name, last_name, cleanAge, gender, phone,
                 birth_date || null, country_of_birth || null,
@@ -1935,6 +1936,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
                 search_occupations, search_life_aspirations,
                 search_skin_tones || null, search_head_covering || null,
                 city, // עיר מגורים
+                origin_country || null, aliyah_age || null, languages || null,
                 id // ID בסוף
             ]
         );
@@ -1968,7 +1970,7 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
 // שדות רגישים שכן דורשים אישור: full_name, last_name, phone, status,
 //   full_address, father_full_name, mother_full_name, references, rabbi, mechutanim
 const SAFE_FIELDS = new Set([
-    'birth_date', 'country_of_birth', 'city', 'gender',
+    'birth_date', 'country_of_birth', 'origin_country', 'aliyah_age', 'languages', 'city', 'gender',
     'heritage_sector', 'family_background', 'father_occupation', 'mother_occupation',
     'father_heritage', 'mother_heritage', 'siblings_count', 'sibling_position',
     'height', 'body_type', 'skin_tone', 'appearance', 'head_covering',
@@ -1985,7 +1987,7 @@ const SAFE_FIELDS = new Set([
 ]);
 
 const NUMERIC_FIELDS = new Set(['age', 'height', 'children_count', 'siblings_count', 'sibling_position',
-    'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max']);
+    'search_min_age', 'search_max_age', 'search_height_min', 'search_height_max', 'aliyah_age']);
 
 app.post('/update-safe-fields', authenticateToken, async (req, res) => {
     const userId = req.user.id;
@@ -4737,6 +4739,15 @@ async function updateDbSchema() {
             END IF;
             IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='city') THEN 
                 ALTER TABLE users ADD COLUMN city VARCHAR(255); 
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='origin_country') THEN
+                ALTER TABLE users ADD COLUMN origin_country VARCHAR(255);
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='aliyah_age') THEN
+                ALTER TABLE users ADD COLUMN aliyah_age INTEGER;
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='languages') THEN
+                ALTER TABLE users ADD COLUMN languages VARCHAR(255);
             END IF;
         END $$;
     `);
