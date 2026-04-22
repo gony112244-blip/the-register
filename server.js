@@ -2636,21 +2636,22 @@ app.post('/connect', authenticateToken, async (req, res) => {
             return res.status(400).json({ message: "ההצעה אינה זמינה כרגע" });
         }
 
-        // בדיקה אם כבר יש בקשה פעילה/ממתינה בין השניים (ביטול ודחייה מאפשרים פנייה מחדש)
-        const existing = await pool.query(
-            `SELECT id FROM connections
-             WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
-             AND status NOT IN ('rejected', 'cancelled')`,
+        // INSERT אטומי — אם כבר קיימת בקשה פעילה/ממתינה בין השניים, מחזיר nothing_inserted
+        // ON CONFLICT מונע race condition של שתי בקשות כפולות בו-זמנית
+        const insertResult = await pool.query(
+            `INSERT INTO connections (sender_id, receiver_id)
+             SELECT $1, $2
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM connections
+                 WHERE ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
+                 AND status NOT IN ('rejected', 'cancelled')
+             )
+             RETURNING id`,
             [myId, targetId]
         );
-        if (existing.rows.length > 0) {
+        if (insertResult.rowCount === 0) {
             return res.status(400).json({ message: "כבר שלחת בקשה למשתמש זה" });
         }
-
-        await pool.query(
-            `INSERT INTO connections (sender_id, receiver_id) VALUES ($1, $2)`,
-            [myId, targetId]
-        );
 
         setImmediate(() => logActivity(myId, 'connection_sent', { targetUserId: parseInt(targetId) }));
         res.json({ message: "🎉 הפנייה נשלחה בהצלחה!" });
@@ -5084,8 +5085,11 @@ updateDbSchema().then(() => {
     app.listen(port, () => {
         console.log(`🚀 שרת השידוכים רץ בפורט ${port}: http://localhost:${port}/status`);
 
+        // jobs חד-פעמיים — רצים רק בעובד הראשון בקלסטר PM2 כדי למנוע ריצה כפולה
+        const isPrimaryWorker = process.env.NODE_APP_INSTANCE === '0' || process.env.NODE_APP_INSTANCE === undefined;
+
         // העלאת משפטים סטטיים לימות (ברקע, לא חוסם את השרת)
-        if (process.env.YEMOT_NUMBER && process.env.YEMOT_PASSWORD) {
+        if (isPrimaryWorker && process.env.YEMOT_NUMBER && process.env.YEMOT_PASSWORD) {
             const { getAllStaticPhrases } = require('./ivr/static-phrases');
             const { preloadStaticPhrases } = require('./ivr/tts');
             const phrases = getAllStaticPhrases();
@@ -5100,35 +5104,37 @@ updateDbSchema().then(() => {
         }
 
         // ניקוי חשבונות ללא פעילות מעל שנה — פועל פעם ביום, מתחיל מ-2027-04-19
-        async function purgeInactiveAccounts() {
-            if (new Date() < new Date('2027-04-19')) return;
-            try {
-                const cutoff = `NOW() - INTERVAL '1 year'`;
-                const res = await pool.query(
-                    `SELECT id FROM users
-                     WHERE is_admin = FALSE
-                       AND COALESCE(last_login, created_at) < ${cutoff}`
-                );
-                if (!res.rows.length) return;
-                console.log(`[purgeInactive] מוחק ${res.rows.length} חשבונות ישנים`);
-                for (const row of res.rows) {
-                    try {
-                        await pool.query(
-                            `INSERT INTO activity_log (user_id, action, note)
-                             VALUES ($1, 'account_auto_deleted', 'חשבון נמחק אוטומטית - ללא פעילות מעל שנה')`,
-                            [row.id]
-                        );
-                        await purgeUser(row.id);
-                    } catch (e) {
-                        console.error(`[purgeInactive] שגיאה במחיקת userId=${row.id}:`, e.message);
+        if (isPrimaryWorker) {
+            async function purgeInactiveAccounts() {
+                if (new Date() < new Date('2027-04-19')) return;
+                try {
+                    const cutoff = `NOW() - INTERVAL '1 year'`;
+                    const res = await pool.query(
+                        `SELECT id FROM users
+                         WHERE is_admin = FALSE
+                           AND COALESCE(last_login, created_at) < ${cutoff}`
+                    );
+                    if (!res.rows.length) return;
+                    console.log(`[purgeInactive] מוחק ${res.rows.length} חשבונות ישנים`);
+                    for (const row of res.rows) {
+                        try {
+                            await pool.query(
+                                `INSERT INTO activity_log (user_id, action, note)
+                                 VALUES ($1, 'account_auto_deleted', 'חשבון נמחק אוטומטית - ללא פעילות מעל שנה')`,
+                                [row.id]
+                            );
+                            await purgeUser(row.id);
+                        } catch (e) {
+                            console.error(`[purgeInactive] שגיאה במחיקת userId=${row.id}:`, e.message);
+                        }
                     }
+                } catch (e) {
+                    console.error('[purgeInactive] שגיאה:', e.message);
                 }
-            } catch (e) {
-                console.error('[purgeInactive] שגיאה:', e.message);
             }
+            purgeInactiveAccounts();
+            setInterval(purgeInactiveAccounts, 24 * 60 * 60 * 1000);
         }
-        purgeInactiveAccounts();
-        setInterval(purgeInactiveAccounts, 24 * 60 * 60 * 1000);
 
     });
 });
