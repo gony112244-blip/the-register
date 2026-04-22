@@ -320,10 +320,10 @@ function Matches() {
                 </div>
             )}
 
-            <div style={styles.container}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <h1 style={{ ...styles.title, margin: 0 }}>✨ הצעות שידוך</h1>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={styles.container} className="matches-container">
+                <div className="matches-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '10px' }}>
+                    <h1 style={{ ...styles.title, margin: 0 }} className="matches-title">✨ הצעות שידוך</h1>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <button onClick={() => navigate('/hidden-profiles')} style={styles.ghostBtn}>🗑️ סל המיחזור</button>
                         <button
                             onClick={() => setShowRecycleTip(v => !v)}
@@ -346,7 +346,7 @@ function Matches() {
                     </div>
                 ) : (
                     <>
-                        <div style={styles.grid}>
+                        <div style={styles.grid} className="matches-grid">
                             {currentMatches.map((match) => {
                                 const photoStatus = photoStatuses[match.id] || 'none';
                                 const connectStatus = connectStatuses[match.id] || null;

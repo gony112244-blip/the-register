@@ -361,7 +361,7 @@ function Connections() {
                         </button>
                     </div>
                 ) : (
-                    <div style={styles.grid}>
+                    <div style={styles.grid} className="connections-grid">
                         {connections.map(conn => {
                             const isSender = conn.sender_id === user.id;
                             const alreadyApproved = isSender ? conn.sender_final_approve : conn.receiver_final_approve;

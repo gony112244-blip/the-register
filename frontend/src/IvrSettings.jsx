@@ -102,16 +102,20 @@ function IvrSettings() {
                 {/* מדריך מקשים */}
                 <div style={styles.guideBox}>
                     <div style={styles.guideTitle}>🗝️ מפת המקשים — שמור אותה!</div>
+
+                    {/* תפריט ראשי */}
+                    <div style={styles.sectionLabel}>📋 תפריט ראשי (בכניסה למערכת)</div>
                     <div style={styles.keysGrid}>
                         {[
-                            { key: '1', desc: 'כן / מעוניין / אישור' },
-                            { key: '2', desc: 'לא / דחייה' },
-                            { key: '4', desc: 'פרטים נוספים' },
-                            { key: '5', desc: 'תיאור מלא' },
-                            { key: '8', desc: 'הבא / דלג' },
-                            { key: '9', desc: 'הגדרות' },
-                            { key: '0', desc: 'תפריט ראשי' },
-                            { key: '#', desc: 'תפריט ראשי (מכל מקום)' },
+                            { key: '1', desc: 'הצעות חדשות' },
+                            { key: '2', desc: 'אישור / דחיית בקשות תמונה' },
+                            { key: '3', desc: 'בקשות שידוך שהגיעו אליי' },
+                            { key: '4', desc: 'פניות ששלחתי (ממתינות)' },
+                            { key: '5', desc: 'שידוכים פעילים' },
+                            { key: '6', desc: 'הודעות חשובות' },
+                            { key: '7', desc: 'כל ההצעות כולל ישנות' },
+                            { key: '8', desc: 'הודעות אחרונות (שבוע אחרון)' },
+                            { key: '0', desc: 'שמיעה חוזרת של התפריט' },
                         ].map(({ key, desc }) => (
                             <div key={key} style={styles.keyItem}>
                                 <span style={styles.keyBadge}>{key}</span>
@@ -119,6 +123,26 @@ function IvrSettings() {
                             </div>
                         ))}
                     </div>
+
+                    {/* בזמן הקראה */}
+                    <div style={{ ...styles.sectionLabel, marginTop: '14px' }}>🎧 בזמן הקראת פרופיל / בקשה</div>
+                    <div style={styles.keysGrid}>
+                        {[
+                            { key: '1', desc: 'כן / אישור / שלח פנייה' },
+                            { key: '2', desc: 'לא / דחייה / ביטול' },
+                            { key: '4', desc: 'פרטים על המבקש/ת (בבקשות תמונה)' },
+                            { key: '8', desc: 'הבא / דלג' },
+                            { key: '9', desc: 'שמיעה חוזרת (השמע שוב)' },
+                            { key: '0', desc: 'חזרה לתפריט ראשי' },
+                            { key: '#', desc: 'חזרה לתפריט (מכל מקום)' },
+                        ].map(({ key, desc }) => (
+                            <div key={key} style={styles.keyItem}>
+                                <span style={styles.keyBadge}>{key}</span>
+                                <span style={styles.keyDesc}>{desc}</span>
+                            </div>
+                        ))}
+                    </div>
+
                     <div style={styles.guideTip}>
                         💡 <strong>טיפ:</strong> אפשר ללחוץ מיד — לא צריך להמתין לסוף ההקראה
                     </div>
@@ -475,6 +499,16 @@ const styles = {
         fontSize: '0.95rem',
         color: '#92400e',
         marginBottom: '14px',
+    },
+    sectionLabel: {
+        fontWeight: '700',
+        fontSize: '0.8rem',
+        color: '#6b7280',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        marginBottom: '8px',
+        paddingBottom: '4px',
+        borderBottom: '1px solid #fde68a',
     },
     keysGrid: {
         display: 'grid',
