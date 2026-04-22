@@ -637,7 +637,7 @@ async function respondToReferenceRequestFromIvr(requestId, responderId, response
     } else if (response === 'provide') {
         msg = `✅ ${responder_name} ${isFemale ? 'אישרה שתשלח' : 'אישר שישלח'} ממליץ נוסף — יצרו קשר ישירות.`;
     } else {
-        msg = `ℹ️ ${responder_name} ${isFemale ? 'ציינה' : 'ציין'} שלצערם בשלב זה אינם יכולים לספק ממליץ נוסף.`;
+        msg = `ℹ️ ${responder_name} ${isFemale ? 'ציינה שלצערה בשלב זה אינה יכולה' : 'ציין שלצערו בשלב זה אינו יכול'} לספק ממליץ נוסף.`;
     }
 
     await pool.query(

@@ -4137,7 +4137,7 @@ app.post('/respond-reference-request', authenticateToken, async (req, res) => {
         } else if (response === 'provide') {
             msg = `✅ ${responder_name} אישר/ה שישלח/ת ממליץ נוסף — יצרו קשר ישירות.`;
         } else {
-            msg = `ℹ️ ${responder_name} ציין/נה שלצערם/ן בשלב זה אינם יכולים לספק ממליץ נוסף.`;
+            msg = `ℹ️ ${responder_name} ציין/נה שלצערו/ה בשלב זה אינו/ה יכול/ה לספק ממליץ נוסף.`;
         }
 
         await pool.query(
