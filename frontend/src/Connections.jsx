@@ -126,7 +126,6 @@ function Connections() {
                 showToast('✅ הבקשה נשלחה לצד השני', 'success');
                 setRefModal(null);
                 setRefReason('');
-                setRefCount(1);
             } else {
                 showToast(data.message || 'שגיאה', 'error');
             }
@@ -472,7 +471,6 @@ function Connections() {
                                                     onClick={() => {
                                                         setRefModal({ connectionId: conn.id, otherName: conn.full_name });
                                                         setRefReason('');
-                                                        setRefCount(1);
                                                     }}
                                                     style={styles.refBtn}
                                                 >
