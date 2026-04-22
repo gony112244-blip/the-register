@@ -15,9 +15,7 @@ body {
   font-family: 'Heebo', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* מניעת גלישה אופקית במובייל — היה גורם להזזת תוכן בצד ימין */
-  overflow-x: hidden;
-  max-width: 100vw;
+  /* overflow-x: hidden על html/body שובר את גלילת iOS Safari — לא מגדירים כאן */
   width: 100%;
 }
 
@@ -27,7 +25,6 @@ body {
   margin: 0;
   padding: 0;
   text-align: right;
-  /* מבטיח שגם אם יש אלמנט שגולש — לא יוצר scroll אופקי גלובלי */
   overflow-x: hidden;
 }
 
