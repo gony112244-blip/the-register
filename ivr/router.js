@@ -1464,7 +1464,10 @@ router.get('/call', async (req, res) => {
                 // active — מצב אישורים
                 let approveTxt;
                 if (myApprove && !otherApprove) {
-                    approveTxt = `כבר אישרת התקדמות לשדכנית. ממתינים לאישור ${nameStr}.`;
+                    approveTxt = g(user.gender,
+                        `כְּבָר אִישַּׁרְתָּ הִתְקַדְּמוּת לְשַׁדְכָּנִית. מְמַתִּינִים לְאִישּׁוּר ${nameStr}.`,
+                        `כְּבָר אִישַּׁרְתְּ הִתְקַדְּמוּת לְשַׁדְכָּנִית. מְמַתִּינִים לְאִישּׁוּר ${nameStr}.`
+                    );
                 } else if (!myApprove && otherApprove) {
                     approveTxt = `${nameStr} כבר ${otherVerb('אישר', 'אישרה')} התקדמות לשדכנית ${otherVerb('ומחכה', 'ומחכה')} לאישור שלך.`;
                 } else if (myApprove && otherApprove) {
@@ -1508,8 +1511,8 @@ router.get('/call', async (req, res) => {
                         'לבקשת הַפְסָקַת הַהִתְקַדְּמוּת הָקִישִׁי שתיים. לבקשת ממליץ נוסף הָקִישִׁי שבע. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת הָקִישִׁי תשע. לשידוך הבא הָקִישִׁי שמונה. לתפריט הראשי הָקִישִׁי אפס.'
                     );
                 }
-                // פרטי בירורים — רק אם לא אישרתי עדיין (או אם יש prefix = אחרי פעולה)
-                const shouldPlayCard = !myApprove || prefix;
+                // פרטי בירורים — רק אם לא אישרתי עדיין
+                const shouldPlayCard = !myApprove;
                 text = [prefix, statusTxt, shouldPlayCard ? cardTxt : '', act].filter(Boolean).join(' ');
             }
             const file = await textToYemot(text);
@@ -1622,8 +1625,14 @@ router.get('/call', async (req, res) => {
                 if (connStatus !== 'active') return await loadNextActive();
                 const result = await finalizeConnectionFromIvr(connId, user.id).catch(() => 'error');
                 let pfx;
-                if (result === 'completed') pfx = 'מעולה. שני הצדדים אישרו — התיק עבר לשדכנית.';
-                else if (result === 'waiting') pfx = 'האישור שלך נקלט בהצלחה. כעת ממתינים לאישור של הצד השני.';
+                if (result === 'completed') pfx = g(user.gender,
+                    'מעולה. שני הצדדים אישרו — התיק עבר לשדכנית.',
+                    'מעולה. שני הצדדים אישרו — התיק עבר לשדכנית.'
+                );
+                else if (result === 'waiting') pfx = g(user.gender,
+                    'הָאִישּׁוּר שֶׁלְּךָ נִקְלַט בְּהַצְלָחָה. כְּעֵת מְמַתִּינִים לְאִישּׁוּר שֶׁל הַצַּד הַשֵּׁנִי.',
+                    'הָאִישּׁוּר שֶׁלָּךְ נִקְלַט בְּהַצְלָחָה. כְּעֵת מְמַתִּינִים לְאִישּׁוּר שֶׁל הַצַּד הַשֵּׁנִי.'
+                );
                 else pfx = 'אירעה תקלה. אנא נסה שוב מהאתר.';
                 await updateSession(enterId, 'active_sent', {
                     page: offset,
