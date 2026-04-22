@@ -95,8 +95,11 @@ function IvrSettings() {
                 <div style={styles.phoneBox}>
                     <div style={styles.phoneRow}>
                         <span style={styles.phoneLabel}>📲 מספר לחיוג</span>
-                        <a href="tel:0231307780" style={styles.phoneLink}>{phoneMain}</a>
+                        <a href="tel:023130778" style={styles.phoneLink}>{phoneMain}</a>
                     </div>
+                    <a href="tel:023130778" style={styles.callBtn}>
+                        📞 חייג עכשיו — {phoneMain}
+                    </a>
                 </div>
 
                 {/* מדריך מקשים */}
@@ -481,6 +484,21 @@ const styles = {
         textDecoration: 'none',
         letterSpacing: '0.5px',
         direction: 'ltr',
+    },
+    callBtn: {
+        display: 'block',
+        marginTop: '12px',
+        padding: '14px',
+        background: 'linear-gradient(135deg, #16a34a, #15803d)',
+        color: '#fff',
+        borderRadius: '12px',
+        textAlign: 'center',
+        fontWeight: '800',
+        fontSize: '1.1rem',
+        textDecoration: 'none',
+        letterSpacing: '0.5px',
+        boxShadow: '0 4px 15px rgba(21,128,61,0.3)',
+        transition: 'all 0.2s',
     },
     phoneDivider: {
         height: '1px',

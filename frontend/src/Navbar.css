@@ -133,6 +133,29 @@
     box-shadow: 0 4px 15px rgba(201, 162, 39, 0.4);
 }
 
+/* כפתור IVR — סמל טלפון קטן בלבד */
+.navbar-ivr-btn {
+    text-decoration: none;
+    color: #ef4444;
+    font-size: 1.2rem;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s;
+    flex-shrink: 0;
+}
+
+.navbar-ivr-btn:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: #ef4444;
+    transform: scale(1.1);
+}
+
 /* כפתור טלפון כשר */
 .navbar-phone-btn {
     text-decoration: none;

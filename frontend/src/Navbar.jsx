@@ -204,14 +204,14 @@ function Navbar() {
             {!user.is_admin && (
               <>
                 <Link to="/my-profile" className="navbar-profile-btn">📋 הכרטיס שלי</Link>
-                <a
-                  href="tel:023130778"
-                  className="navbar-phone-btn"
-                  title="התקשר למערכת הטלפונית"
+                <Link
+                  to="/ivr-settings"
+                  className="navbar-ivr-btn"
+                  title="הגדרות מערכת הטלפון — 02-313-0778"
+                  aria-label="הגדרות טלפון"
                 >
-                  📞 023130778
-                </a>
-                <Link to="/ivr-settings" className="navbar-profile-btn" style={{ background: 'rgba(79,70,229,0.12)', color: '#4f46e5', fontSize: '0.7rem', padding: '4px 8px' }} title="הגדרות טלפון כשר">הגדרות טלפון</Link>
+                  📱
+                </Link>
               </>
             )}
             <button onClick={handleLogout} className="navbar-logout-btn">יציאה</button>
