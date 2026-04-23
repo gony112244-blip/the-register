@@ -511,9 +511,28 @@ router.get('/call', async (req, res) => {
     console.log(`[IVR] 📞 שיחה נכנסת | phone: ${phone} | digits: ${rawDigs || 'none'} | enterId: ${enterId}`);
     console.log(`[IVR] 🔍 כל הפרמטרים:`, JSON.stringify(req.query));
 
-    // סיגנל ניתוק — ימות שולחים hangup=yes בסוף שיחה, אין מה להחזיר
+    // סיגנל ניתוק — ימות שולחים hangup=yes בסוף שיחה
     if (isHangup) {
         console.log(`[IVR] 📵 Hangup signal | phone: ${phone} | enterId: ${enterId}`);
+        // רישום משך שיחה ב-ivr_logs לצורך סטטיסטיקות
+        try {
+            const sessRow = await pool.query(
+                `SELECT user_id, created_at FROM ivr_sessions WHERE enter_id = $1`,
+                [enterId]
+            );
+            if (sessRow.rowCount > 0) {
+                const { user_id, created_at } = sessRow.rows[0];
+                const durationSec = Math.round((Date.now() - new Date(created_at).getTime()) / 1000);
+                await pool.query(
+                    `INSERT INTO ivr_logs (user_id, caller_phone, call_duration_seconds, created_at)
+                     VALUES ($1, $2, $3, NOW())`,
+                    [user_id, phone || null, durationSec > 0 ? durationSec : null]
+                );
+                console.log(`[IVR] 📊 שיחה נרשמה | userId: ${user_id} | משך: ${durationSec}s`);
+            }
+        } catch (e) {
+            console.error('[IVR hangup log]', e.message);
+        }
         return res.type('text').send('ok');
     }
 
