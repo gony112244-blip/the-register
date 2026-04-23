@@ -17,6 +17,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* overflow-x: hidden על html/body שובר את גלילת iOS Safari — לא מגדירים כאן */
   width: 100%;
+  /* מונע את ה"קפיצה" של iOS Safari בעת גלילה למטה (rubber band reset) */
+  overscroll-behavior-y: contain;
 }
 
 #root {
@@ -25,7 +27,8 @@ body {
   margin: 0;
   padding: 0;
   text-align: right;
-  overflow-x: hidden;
+  /* clip במקום hidden — לא יוצר scroll container ולכן לא שובר גלילת iOS */
+  overflow-x: clip;
 }
 
 /* מניעת גלישה כללית של תמונות וקנבסים */
@@ -214,9 +217,11 @@ input:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* Smooth Scrolling */
-html {
-  scroll-behavior: smooth;
+/* Smooth Scrolling — מנוטרל במובייל כי גורם לקופצנות ב-iOS */
+@media (min-width: 769px) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 /* Better Text Selection */
