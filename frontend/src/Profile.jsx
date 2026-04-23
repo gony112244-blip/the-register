@@ -4,6 +4,37 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
 import { forceLogout } from './App';
 
+/**
+ * דחיסת תמונה בצד הלקוח לפני העלאה.
+ * פותר שתי בעיות של iOS:
+ * 1. תמונות HEIC ממצלמת iPhone — Canvas ממיר הכל לJPEG אוטומטית.
+ * 2. תמונות כבדות (5-10MB) — מוקטנות ל~300KB לפני שליחה לשרת.
+ */
+function compressImage(file, maxWidthPx = 1600, quality = 0.82) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const scale = Math.min(1, maxWidthPx / Math.max(img.width, img.height));
+                const w = Math.round(img.width * scale);
+                const h = Math.round(img.height * scale);
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                canvas.toBlob(
+                    (blob) => resolve(new File([blob], 'image.jpg', { type: 'image/jpeg' })),
+                    'image/jpeg',
+                    quality
+                );
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 /** תוויות סטטוס לפי מגדר */
 function getMaritalStatusOptions(gender) {
     if (gender === 'male') {
@@ -511,10 +542,12 @@ function Profile() {
 
     // העלאת תמונת ת.ז.
     const handleIdCardUpload = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+        const rawFile = e.target.files[0];
+        if (!rawFile) return;
 
         setIdUploading(true);
+        showToast('⏳ מעבד תמונה...', 'info');
+        const file = await compressImage(rawFile, 1600, 0.85);
         const formData = new FormData();
         formData.append('idCard', file);
         formData.append('idOwner', user.contact_person_type === 'self' ? 'self' : (user.id_card_owner_type || 'candidate'));
@@ -2016,11 +2049,12 @@ function Profile() {
                                         accept="image/*"
                                         style={{ display: 'none' }}
                                         onChange={async (e) => {
-                                            const file = e.target.files[0];
-                                            if (!file) return;
+                                            const rawFile = e.target.files[0];
+                                            if (!rawFile) return;
 
                                             setIdUploading(true);
-                                            // showToast('⏳ מעלה תמונה...', 'info');
+                                            showToast('⏳ מעבד תמונה...', 'info');
+                                            const file = await compressImage(rawFile, 1600, 0.82);
 
                                             const formData = new FormData();
                                             formData.append('profileImage', file);
@@ -2047,13 +2081,13 @@ function Profile() {
                                     />
                                     <button
                                         onClick={() => document.getElementById('profileImageInput').click()}
-                                        disabled={imageUploading}
+                                        disabled={idUploading}
                                         style={{
                                             ...styles.saveButton,
-                                            background: imageUploading ? '#ccc' : 'linear-gradient(135deg, #22c55e, #16a34a)'
+                                            background: idUploading ? '#ccc' : 'linear-gradient(135deg, #22c55e, #16a34a)'
                                         }}
                                     >
-                                        {imageUploading ? '⏳ מעלה...' : `📤 הוסף תמונה (${(user.profile_images || []).length}/3)`}
+                                        {idUploading ? '⏳ מעבד ומעלה...' : `📤 הוסף תמונה (${(user.profile_images || []).length}/3)`}
                                     </button>
                                 </>
                             )}

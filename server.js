@@ -360,7 +360,8 @@ const storage = multer.diskStorage({
 
 // הסבר: סינון סוגי קבצים - רק תמונות!
 const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    // HEIC/HEIF — פורמט ברירת המחדל של מצלמת iPhone
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif'];
     if (allowedTypes.includes(file.mimetype)) {
         cb(null, true); // מותר
     } else {
