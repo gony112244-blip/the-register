@@ -85,7 +85,17 @@ async function countActiveSent(userId) {
     const result = await pool.query(
         `SELECT COUNT(*)::int AS count FROM connections
          WHERE (sender_id = $1 OR receiver_id = $1)
-           AND status IN ('active', 'waiting_for_shadchan')`,
+           AND status = 'active'`,
+        [userId]
+    );
+    return result.rows[0].count;
+}
+
+async function countShadchanPending(userId) {
+    const result = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM connections
+         WHERE (sender_id = $1 OR receiver_id = $1)
+           AND status = 'waiting_for_shadchan'`,
         [userId]
     );
     return result.rows[0].count;
@@ -95,15 +105,16 @@ async function countActiveSent(userId) {
  * כל הספירות בקריאה אחת (מקבילית) — כולל הודעות ופניות יוצאות
  */
 async function getMenuCounts(userId) {
-    const [matches, requests, photos, messages, pendingSent, activeSent] = await Promise.all([
+    const [matches, requests, photos, messages, pendingSent, activeSent, shadchanSent] = await Promise.all([
         countNewMatches(userId).catch(() => 0),
         countIncomingRequests(userId).catch(() => 0),
         countPhotoRequests(userId).catch(() => 0),
         countUnreadMessages(userId).catch(() => 0),
         countPendingSent(userId).catch(() => 0),
-        countActiveSent(userId).catch(() => 0)
+        countActiveSent(userId).catch(() => 0),
+        countShadchanPending(userId).catch(() => 0)
     ]);
-    return { matches, requests, photos, messages, pendingSent, activeSent };
+    return { matches, requests, photos, messages, pendingSent, activeSent, shadchanSent };
 }
 
 // ==========================================
@@ -421,7 +432,7 @@ async function finalizeConnectionFromIvr(connectionId, userId) {
         await pool.query(`UPDATE connections SET status = 'waiting_for_shadchan' WHERE id = $1`, [connectionId]);
 
         // שליחת הודעת מערכת לשני הצדדים
-        const msgText = 'מזל טוב! שני הצדדים אישרו התקדמות. התיק עבר לטיפול השדכנית.';
+        const msgText = 'מזל טוב! שני הצדדים אישרו התקדמות. התיק עבר לטיפול הַשַּׁדְּכָנִית.';
         await pool.query(
             `INSERT INTO messages (to_user_id, from_user_id, type, content, is_read, created_at)
              VALUES ($1, 1, 'system', $3, FALSE, NOW()),
@@ -758,7 +769,7 @@ async function updateTtsLastPlayed(profileUserId) {
 
 module.exports = {
     getMenuCounts,
-    countNewMatches, countIncomingRequests, countPhotoRequests, countPendingSent, countActiveSent, countUnreadMessages,
+    countNewMatches, countIncomingRequests, countPhotoRequests, countPendingSent, countActiveSent, countShadchanPending, countUnreadMessages,
     getMatchesForIvr, getAllMatchesForIvr, sendConnectionFromIvr, hideProfileFromIvr,
     getIncomingRequestsForIvr, approveRequestFromIvr, rejectRequestFromIvr,
     getMySentRequestsForIvr, cancelSentRequestFromIvr,

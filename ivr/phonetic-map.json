@@ -4,7 +4,7 @@
   "status": {
     "pending":               "ממתין לתשובה",
     "active":                "פעיל",
-    "waiting_for_shadchan":  "בטיפול שדכנית",
+    "waiting_for_shadchan":  "בטיפול שַׁדְּכָנִית",
     "rejected":              "הצעה שנסגרה",
     "cancelled":             "בוטל",
     "closed":                "נסגר"

@@ -58,7 +58,7 @@ const ACTIVE_CANCEL_REASONS = [
 // gender-aware כדי למנוע עיוות TTS במילה "לך"
 // ==========================================
 function buildStatusText(gender, counts) {
-    const { matches = 0, requests = 0, photos = 0, messages = 0, pendingSent = 0, activeSent = 0 } = counts || {};
+    const { matches = 0, requests = 0, photos = 0, messages = 0, pendingSent = 0, activeSent = 0, shadchanSent = 0 } = counts || {};
     const isMale = gender !== 'female';
     const lecha = isMale ? 'לְךָ' : 'לָך';
     const parts = [];
@@ -83,11 +83,18 @@ function buildStatusText(gender, counts) {
         const noun = messages === 1 ? 'הודעה חשובה' : `${numberToHebrew(messages, true)} הודעות חשובות`;
         parts.push(noun);
     }
-    // שידוך פעיל — מספר אחרי שם העצם (זכר: אחד/שני)
+    // שידוך פעיל בשלב בירורים
     if (activeSent > 0) {
         const noun = activeSent === 1
-            ? 'שידוך פעיל אחד'
-            : `${activeSent === 2 ? 'שני' : numberToHebrew(activeSent)} שידוכים פעילים`;
+            ? 'שידוך פעיל אחד בשלב בירורים'
+            : `${activeSent === 2 ? 'שני' : numberToHebrew(activeSent)} שידוכים פעילים בשלב בירורים`;
+        parts.push(noun);
+    }
+    // הצעות בטיפול שַׁדְּכָנִית
+    if (shadchanSent > 0) {
+        const noun = shadchanSent === 1
+            ? 'הצעה אחת בטיפול שַׁדְּכָנִית'
+            : `${shadchanSent === 2 ? 'שתי' : numberToHebrew(shadchanSent, true)} הצעות בטיפול שַׁדְּכָנִית`;
         parts.push(noun);
     }
 
@@ -107,6 +114,7 @@ function buildMenuText(gender, counts = {}) {
     const msg         = counts.messages    || 0;
     const pendingSent = counts.pendingSent || 0;
     const activeSent  = counts.activeSent  || 0;
+    const shadchanSent = counts.shadchanSent || 0;
     const isMale = gender !== 'female';
     // ניקוד מפורש — TTS יקרא "הָקֵשׁ" (פועל) ולא "הַקֵּשׁ" (שם עצם)
     const hk = isMale ? 'הָקֵשׁ' : 'הָקִישִׁי';
@@ -133,13 +141,23 @@ function buildMenuText(gender, counts = {}) {
         parts.push(txt);
     }
 
-    // 5 — שידוכים פעילים (רק אם יש) — מספר אחרי שם העצם (זכר: אחד/שני)
-    if (activeSent > 0) {
-        const txt = activeSent === 1
-            ? `לשידוך פעיל אחד, ${hk} חמש.`
-            : activeSent === 2
-                ? `לשני שידוכים פעילים, ${hk} חמש.`
-                : `ל${numberToHebrew(activeSent)} שידוכים פעילים, ${hk} חמש.`;
+    // 5 — שידוכים פעילים (בירורים + בטיפול שדכנית) — מספר אחרי שם העצם
+    const totalActive = activeSent + shadchanSent;
+    if (totalActive > 0) {
+        let txt;
+        if (activeSent > 0 && shadchanSent > 0) {
+            txt = `לשידוכים הפעילים שלך, ${hk} חמש.`;
+        } else if (activeSent === 1) {
+            txt = `לשידוך פעיל אחד, ${hk} חמש.`;
+        } else if (activeSent === 2) {
+            txt = `לשני שידוכים פעילים, ${hk} חמש.`;
+        } else if (activeSent > 2) {
+            txt = `ל${numberToHebrew(activeSent)} שידוכים פעילים, ${hk} חמש.`;
+        } else if (shadchanSent === 1) {
+            txt = `להצעה בטיפול שַׁדְּכָנִית, ${hk} חמש.`;
+        } else {
+            txt = `ל${numberToHebrew(shadchanSent, true)} הצעות בטיפול שַׁדְּכָנִית, ${hk} חמש.`;
+        }
         parts.push(txt);
     }
 
@@ -192,7 +210,7 @@ async function goToMenu(enterId, userId, gender, res, prefix = '') {
     try { awaitingRows = await getAwaitingMyApproval(userId); } catch {}
     for (const row of awaitingRows) {
         const otherName = [row.last_name, row.full_name].filter(Boolean).join(' ') || 'הצד השני';
-        parts.push(`שים לב: ${otherName} אישר התקדמות לשדכנית ומחכה לאישורך. לאישור כנס לשידוכים הפעילים.`);
+        parts.push(`שים לב: ${otherName} אישר התקדמות לשַׁדְּכָנִית ומחכה לאישורך. לאישור כנס לשידוכים הפעילים.`);
     }
 
     // הצג status רק אם יש פעילות (כדי למנוע כפילות עם prefix שאומר "אין...")
@@ -1488,9 +1506,9 @@ router.get('/call', async (req, res) => {
                         `כְּבָר אִישַּׁרְתְּ הִתְקַדְּמוּת לְשַׁדְכָּנִית. מַחֲכִים לְאִישּׁוּר ${nameStr}.`
                     );
                 } else if (!myApprove && otherApprove) {
-                    approveTxt = `${nameStr} כבר ${otherVerb('אישר', 'אישרה')} התקדמות לשדכנית ${otherVerb('ומחכה', 'ומחכה')} לאישור שלך.`;
+                    approveTxt = `${nameStr} כבר ${otherVerb('אישר', 'אישרה')} התקדמות לשַׁדְּכָנִית ${otherVerb('ומחכה', 'ומחכה')} לאישור שלך.`;
                 } else if (myApprove && otherApprove) {
-                    approveTxt = `שני הצדדים אישרו — עובר לשדכנית.`;
+                    approveTxt = `שני הצדדים אישרו — עובר לשַׁדְּכָנִית.`;
                 } else {
                     approveTxt = ``;
                 }
@@ -1520,8 +1538,8 @@ router.get('/call', async (req, res) => {
                 const cardTxt = [buildBeiurimCard(c), otherViewedTxt].filter(Boolean).join(' ');
                 if (canFinalize) {
                     act = g(user.gender,
-                        'לאישור ההתקדמות לשלב השדכנית הָקֵשׁ אחת. לביטול הַפְּנִיָּה הָקֵשׁ שתיים. לבקשת ממליץ נוסף הָקֵשׁ שבע. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת הָקֵשׁ תשע. לשידוך הבא הָקֵשׁ שמונה. לתפריט הראשי הָקֵשׁ אפס.',
-                        'לאישור ההתקדמות לשלב השדכנית הָקִישִׁי אחת. לביטול הַפְּנִיָּה הָקִישִׁי שתיים. לבקשת ממליץ נוסף הָקִישִׁי שבע. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת הָקִישִׁי תשע. לשידוך הבא הָקִישִׁי שמונה. לתפריט הראשי הָקִישִׁי אפס.'
+                        'לאישור ההתקדמות לשלב הַשַּׁדְּכָנִית הָקֵשׁ אחת. לביטול הַפְּנִיָּה הָקֵשׁ שתיים. לבקשת ממליץ נוסף הָקֵשׁ שבע. לשמיעת הפרופיל המלא הָקֵשׁ שש. לשמיעה חוזרת הָקֵשׁ תשע. לשידוך הבא הָקֵשׁ שמונה. לתפריט הראשי הָקֵשׁ אפס.',
+                        'לאישור ההתקדמות לשלב הַשַּׁדְּכָנִית הָקִישִׁי אחת. לביטול הַפְּנִיָּה הָקִישִׁי שתיים. לבקשת ממליץ נוסף הָקִישִׁי שבע. לשמיעת הפרופיל המלא הָקִישִׁי שש. לשמיעה חוזרת הָקִישִׁי תשע. לשידוך הבא הָקִישִׁי שמונה. לתפריט הראשי הָקִישִׁי אפס.'
                     );
                 } else {
                     // אישרתי כבר — אין מקש 1, יש מקש 2 לעצירה
@@ -1645,8 +1663,8 @@ router.get('/call', async (req, res) => {
                 const result = await finalizeConnectionFromIvr(connId, user.id).catch(() => 'error');
                 let pfx;
                 if (result === 'completed') pfx = g(user.gender,
-                    'מעולה. שני הצדדים אישרו — התיק עבר לשדכנית.',
-                    'מעולה. שני הצדדים אישרו — התיק עבר לשדכנית.'
+                    'מעולה. שני הצדדים אישרו — התיק עבר לשַׁדְּכָנִית.',
+                    'מעולה. שני הצדדים אישרו — התיק עבר לשַׁדְּכָנִית.'
                 );
                 else if (result === 'waiting') pfx = g(user.gender,
                     'הָאִישּׁוּר שֶׁלְּךָ נִקְלַט בְּהַצְלָחָה. מַחֲכִים לְאִישּׁוּר שֶׁל הַצַּד הַשֵּׁנִי.',
