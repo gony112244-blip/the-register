@@ -375,6 +375,7 @@ function buildFullProfileText(match) {
                 }
                 if (sub.length > 0) parts.push(`${numberToHebrew(idx + 1)}. ${sub.join(', ')}.`);
             });
+            parts.push(`עד כאן פרטי האחים.`);
         }
     }
 
