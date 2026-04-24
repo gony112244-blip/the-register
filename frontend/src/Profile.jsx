@@ -441,6 +441,18 @@ function Profile() {
 
         // הכנת הנתונים לשליחה (פירמוט שדות מורכבים)
         const dataToSend = { ...user };
+
+        // סינון שורות אחים וממליצים שנפתחו אך נשארו ריקות לחלוטין
+        dataToSend.siblings = (Array.isArray(user.siblings) ? user.siblings : [])
+            .filter(s => s.name?.trim() || s.city?.trim() || s.occupation?.trim());
+        dataToSend.extra_references = (Array.isArray(user.extra_references) ? user.extra_references : [])
+            .filter(r => r.name?.trim() || r.phone?.trim());
+
+        // ניקוי דרישה כלכלית אם נבחר "נדון בהמשך"
+        if (user.search_financial_discuss) {
+            dataToSend.search_financial_min = null;
+        }
+
         if (user.apartment_help === 'yes' && user.apartment_amount) {
             dataToSend.apartment_help = `yes (${user.apartment_amount})`;
         }
@@ -1835,16 +1847,21 @@ function Profile() {
                             <h3 style={styles.cardTitle}>💰 דרישות כלכליות</h3>
                             <div style={styles.grid}>
                                 <div style={styles.field}>
-                                    <label>דרישה כלכלית מינימלית</label>
-                                    <input name="search_financial_min" type="number" value={user.search_financial_min || ''} onChange={handleChange} style={styles.input} placeholder="השאר ריק = אין דרישה" />
-                                </div>
-                                <div style={styles.field}>
-                                    <label>או</label>
-                                    <select name="search_financial_discuss" value={user.search_financial_discuss ? 'yes' : 'no'} onChange={(e) => setUser(prev => ({ ...prev, search_financial_discuss: e.target.value === 'yes' }))} style={styles.input}>
+                                    <label>גישה לדרישה כלכלית</label>
+                                    <select name="search_financial_discuss" value={user.search_financial_discuss ? 'yes' : 'no'} onChange={(e) => {
+                                        const discuss = e.target.value === 'yes';
+                                        setUser(prev => ({ ...prev, search_financial_discuss: discuss, ...(discuss ? { search_financial_min: '' } : {}) }));
+                                    }} style={styles.input}>
                                         <option value="no">יש לי דרישה ספציפית</option>
-                                        <option value="yes">נדון בזה בהמשך</option>
+                                        <option value="yes">לא קריטי — נדון בהמשך</option>
                                     </select>
                                 </div>
+                                {!user.search_financial_discuss && (
+                                    <div style={styles.field}>
+                                        <label>דרישה כלכלית מינימלית (₪)</label>
+                                        <input name="search_financial_min" type="number" value={user.search_financial_min || ''} onChange={handleChange} style={styles.input} placeholder="לדוגמה: 50000" />
+                                    </div>
+                                )}
                             </div>
                         </div>
 
