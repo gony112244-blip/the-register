@@ -44,6 +44,8 @@ function Connections() {
     const refCount = 1;
     const [refSending, setRefSending] = useState(false);
     const [paymentModal, setPaymentModal] = useState(null);
+    const [photoStatuses, setPhotoStatuses] = useState({}); // targetId → 'none'|'pending'|'approved'
+    const [requestingPhoto, setRequestingPhoto] = useState(null);
     const navigate = useNavigate();
     const { showToast } = useToast();
 
@@ -94,6 +96,23 @@ function Connections() {
         });
     }, [connections, token]);
 
+    // טעינת סטטוס בקשות תמונה עבור כל חיבור פעיל
+    useEffect(() => {
+        if (!connections.length || !token) return;
+        connections.forEach(conn => {
+            const targetId = conn.sender_id === user.id ? conn.receiver_id : conn.sender_id;
+            fetch(`${API_BASE}/check-photo-access/${targetId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+                .then(r => r.json())
+                .then(data => {
+                    const st = data.canView ? 'approved' : (data.status === 'pending' ? 'pending' : 'none');
+                    setPhotoStatuses(prev => ({ ...prev, [targetId]: st }));
+                })
+                .catch(() => {});
+        });
+    }, [connections, token]);
+
     const handleCancelConnection = async (connectionId, reason) => {
         try {
             const res = await fetch(`${API_BASE}/cancel-active-connection`, {
@@ -133,6 +152,31 @@ function Connections() {
             showToast('שגיאה בשליחה', 'error');
         }
         setRefSending(false);
+    };
+
+    const handleRequestPhoto = async (targetId) => {
+        setRequestingPhoto(targetId);
+        try {
+            const res = await fetch(`${API_BASE}/request-photo-access`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ targetId })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                const already = typeof data.message === 'string' && data.message.includes('כבר');
+                showToast(
+                    already ? 'כבר יש בקשה פעילה' : '📸 הבקשה נשלחה — תקבל עדכון כשיאשרו',
+                    already ? 'info' : 'success'
+                );
+                setPhotoStatuses(prev => ({ ...prev, [targetId]: data.status === 'approved' ? 'approved' : 'pending' }));
+            } else {
+                showToast(data.message || 'שגיאה', 'warning');
+            }
+        } catch {
+            showToast('שגיאה בשליחה', 'error');
+        }
+        setRequestingPhoto(null);
     };
 
     const handleFinalApproveClick = (connectionId) => {
@@ -477,6 +521,34 @@ function Connections() {
                                                     📋 בקש ממליץ נוסף
                                                 </button>
 
+                                                {(() => {
+                                                    const targetId = isSender ? conn.receiver_id : conn.sender_id;
+                                                    const photoStatus = photoStatuses[targetId] || 'none';
+                                                    if (photoStatus === 'approved') {
+                                                        return (
+                                                            <div style={styles.photoApprovedBadge}>
+                                                                ✅ גישה לתמונות אושרה
+                                                            </div>
+                                                        );
+                                                    }
+                                                    if (photoStatus === 'pending') {
+                                                        return (
+                                                            <div style={styles.photoPendingBadge}>
+                                                                ⏳ בקשת תמונה ממתינה לאישור
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <button
+                                                            onClick={() => handleRequestPhoto(targetId)}
+                                                            disabled={requestingPhoto === targetId}
+                                                            style={styles.photoBtn}
+                                                        >
+                                                            {requestingPhoto === targetId ? '⏳ שולח...' : '📸 בקש תמונה'}
+                                                        </button>
+                                                    );
+                                                })()}
+
                                                 <button
                                                     onClick={() => setCancelModal({ connectionId: conn.id, name: conn.full_name })}
                                                     style={styles.cancelConnBtn}
@@ -681,6 +753,37 @@ const styles = {
         cursor: 'pointer',
         fontWeight: '700',
         fontSize: '0.9rem'
+    },
+    photoBtn: {
+        padding: '10px',
+        background: 'transparent',
+        color: '#7c3aed',
+        border: '1.5px solid #7c3aed',
+        borderRadius: '10px',
+        cursor: 'pointer',
+        fontWeight: '700',
+        fontSize: '0.9rem',
+        fontFamily: 'inherit'
+    },
+    photoApprovedBadge: {
+        background: '#d1fae5',
+        border: '1px solid #34d399',
+        borderRadius: '10px',
+        padding: '10px',
+        color: '#065f46',
+        fontWeight: '700',
+        fontSize: '0.9rem',
+        textAlign: 'center'
+    },
+    photoPendingBadge: {
+        background: '#ede9fe',
+        border: '1px solid #a78bfa',
+        borderRadius: '10px',
+        padding: '10px',
+        color: '#5b21b6',
+        fontWeight: '600',
+        fontSize: '0.9rem',
+        textAlign: 'center'
     },
     successBox: {
         background: 'linear-gradient(135deg, #d1fae5, #a7f3d0)',
