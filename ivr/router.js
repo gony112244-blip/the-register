@@ -670,7 +670,7 @@ router.get('/call', async (req, res) => {
 
         if (pinResult === 'blocked') {
             if (shouldHangupAfterTerminal(phone, enterId)) return yemotHangup(res);
-            const file = await textToYemot('הגישה חסומה לשלושים דקות, עקב ניסיונות כושלים חוזרים. נסה שוב מאוחר יותר.');
+            const file = await textToYemot(g(user?.gender, 'הגישה חסומה לשלושים דקות, עקב ניסיונות כושלים חוזרים. נסה שוב מאוחר יותר.', 'הגישה חסומה לשלושים דקות, עקב ניסיונות כושלים חוזרים. נסי שוב מאוחר יותר.'));
             return yemotPlayback(res, file);
         }
 
@@ -1583,7 +1583,7 @@ router.get('/call', async (req, res) => {
                     const result = await requestAdditionalReferenceFromIvr(connId, user.id, 1, reason).catch(() => 'error');
                     const pfx = result === 'ok'
                         ? 'הבקשה לממליץ נוסף נשלחה לצד השני.'
-                        : 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                        : g(user.gender, 'אירעה תקלה. אנא נסה שוב מהאתר.', 'אירעה תקלה. אנא נסי שוב מהאתר.');
                     await updateSession(enterId, 'active_sent', { page: offset, currentConnectionId: connId, currentConnectionStatus: connStatus, currentMyApproved: !!data.currentMyApproved, inRefRequestMenu: false });
                     return await loadNextActive(pfx);
                 }
@@ -1614,7 +1614,7 @@ router.get('/call', async (req, res) => {
                         ? (data.currentMyApproved
                             ? 'בקשת עצירת ההתקדמות נקלטה ונשלחה לצד השני.'
                             : 'ההצעה בוטלה והודעה נשלחה לצד השני.')
-                        : 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                        : g(user.gender, 'אירעה תקלה. אנא נסה שוב מהאתר.', 'אירעה תקלה. אנא נסי שוב מהאתר.');
                     offset++;
                     await updateSession(enterId, 'active_sent', {
                         page: offset,
@@ -1671,7 +1671,7 @@ router.get('/call', async (req, res) => {
                     'הָאִישּׁוּר שֶׁלְּךָ נִקְלַט בְּהַצְלָחָה. מַחֲכִים לְאִישּׁוּר שֶׁל הַצַּד הַשֵּׁנִי.',
                     'הָאִישּׁוּר שֶׁלָּךְ נִקְלַט בְּהַצְלָחָה. מַחֲכִים לְאִישּׁוּר שֶׁל הַצַּד הַשֵּׁנִי.'
                 );
-                else pfx = 'אירעה תקלה. אנא נסה שוב מהאתר.';
+                else pfx = g(user.gender, 'אירעה תקלה. אנא נסה שוב מהאתר.', 'אירעה תקלה. אנא נסי שוב מהאתר.');
                 await updateSession(enterId, 'active_sent', {
                     page: offset,
                     currentConnectionId: connId,
