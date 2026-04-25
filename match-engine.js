@@ -264,13 +264,11 @@ async function buildMatchConditions(userId, pool, opts = {}) {
         c.push(`(search_occupations IS NULL OR trim(coalesce(search_occupations,'')) = '')`);
     }
 
-    // שאיפות חיים
+    // שאיפות חיים — שדה רלוונטי לגברים בלבד. אם אין ערך (כגון אצל נשים) — לא מוסיפים תנאי מגביל
     if (currentUser.life_aspiration) {
         const arrExpr = `regexp_split_to_array(trim(both from coalesce(search_life_aspirations,'')), E'\\\\s*,\\\\s*')`;
         c.push(`(search_life_aspirations IS NULL OR trim(coalesce(search_life_aspirations,'')) = '' OR $${pi} = ANY(${arrExpr}))`);
         params.push(currentUser.life_aspiration); pi++;
-    } else {
-        c.push(`(search_life_aspirations IS NULL OR trim(coalesce(search_life_aspirations,'')) = '')`);
     }
 
     // כיסוי ראש

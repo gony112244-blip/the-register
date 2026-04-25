@@ -192,6 +192,11 @@ function UserCard({ user, label }) {
         <div style={S.userCard}>
             <div style={S.userCardHeader}>{label}</div>
             <div style={S.userName}>{user.name}</div>
+            {user.hasPendingChanges && (
+                <div style={{ background: '#fef9c3', color: '#854d0e', borderRadius: '6px', padding: '4px 8px', fontSize: '0.8rem', marginBottom: '6px', display: 'inline-block' }}>
+                    ⏳ הנתונים כוללים שינויים בהמתנה לאישור
+                </div>
+            )}
             <div style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '10px' }}>{user.phone} · מזהה: {user.id}</div>
             <div style={S.userRows}>
                 {rows.filter(([, v]) => v && v !== '—').map(([k, v]) => (

@@ -2305,7 +2305,15 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
         if (srcRes.rows.length === 0 || tgtRes.rows.length === 0)
             return res.status(404).json({ message: "משתמש לא נמצא" });
 
-        const u1 = srcRes.rows[0], u2 = tgtRes.rows[0];
+        const mergeWithPending = (user) => {
+            if (!user.pending_changes || typeof user.pending_changes !== 'object') return user;
+            const merged = { ...user };
+            Object.entries(user.pending_changes).forEach(([key, val]) => {
+                if (val !== null && val !== undefined && val !== '') merged[key] = val;
+            });
+            return merged;
+        };
+        const u1 = mergeWithPending(srcRes.rows[0]), u2 = mergeWithPending(tgtRes.rows[0]);
         const split = v => v ? v.split(',').map(t => t.trim()).filter(Boolean) : [];
         const inList = (val, csv) => !csv || csv.trim() === '' || split(csv).includes(val);
 
@@ -2397,9 +2405,10 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
         if (u2Skin.length) add('B: u2 רוצה גוון עור', !u1.skin_tone || u2Skin.includes(u1.skin_tone), `u1=${u1.skin_tone} in [${u2Skin}]`);
 
         const failed = checks.filter(c => !c.ok);
+        const u1Raw = srcRes.rows[0], u2Raw = tgtRes.rows[0];
         res.json({
-            u1: { id: u1.id, name: u1.full_name, phone: u1.phone, gender: u1.gender, age: u1.age, height: u1.height, heritage_sector: u1.heritage_sector, body_type: u1.body_type, appearance: u1.appearance, status: u1.status, skin_tone: u1.skin_tone, current_occupation: u1.current_occupation, life_aspiration: u1.life_aspiration, family_background: u1.family_background, head_covering: u1.head_covering },
-            u2: { id: u2.id, name: u2.full_name, phone: u2.phone, gender: u2.gender, age: u2.age, height: u2.height, heritage_sector: u2.heritage_sector, body_type: u2.body_type, appearance: u2.appearance, status: u2.status, skin_tone: u2.skin_tone, current_occupation: u2.current_occupation, life_aspiration: u2.life_aspiration, family_background: u2.family_background, head_covering: u2.head_covering },
+            u1: { id: u1.id, name: u1.full_name, phone: u1.phone, gender: u1.gender, age: u1.age, height: u1.height, heritage_sector: u1.heritage_sector, body_type: u1.body_type, appearance: u1.appearance, status: u1.status, skin_tone: u1.skin_tone, current_occupation: u1.current_occupation, life_aspiration: u1.life_aspiration, family_background: u1.family_background, head_covering: u1.head_covering, hasPendingChanges: !!u1Raw.pending_changes },
+            u2: { id: u2.id, name: u2.full_name, phone: u2.phone, gender: u2.gender, age: u2.age, height: u2.height, heritage_sector: u2.heritage_sector, body_type: u2.body_type, appearance: u2.appearance, status: u2.status, skin_tone: u2.skin_tone, current_occupation: u2.current_occupation, life_aspiration: u2.life_aspiration, family_background: u2.family_background, head_covering: u2.head_covering, hasPendingChanges: !!u2Raw.pending_changes },
             summary: failed.length === 0 ? 'MATCH ✅' : `BLOCKED ❌ (${failed.length} failures)`,
             failed,
             checks
