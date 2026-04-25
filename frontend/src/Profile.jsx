@@ -1477,9 +1477,23 @@ function Profile() {
                         </div>
 
                         {/* טיפ לפני הסינונים */}
-                        {/* הודעת אזהרה ומידע */}
                         <div style={{
-                            background: '#e0f2fe', // כחול בהיר ונעים
+                            background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                            border: '1.5px solid #f59e0b',
+                            borderRadius: '14px',
+                            padding: '16px 20px',
+                            marginBottom: '16px',
+                            direction: 'rtl',
+                            position: 'relative',
+                        }}>
+                            <div style={{ fontSize: '1.3rem', marginBottom: '6px' }}>💡 טיפ זהב</div>
+                            <p style={{ margin: 0, color: '#78350f', fontSize: '0.95rem', lineHeight: '1.7' }}>
+                                כל אדם הוא עולם. אל תתנו לנתונים יבשים או לפרטים שאינם קריטיים לגרום לכם לפספס את האדם המדהים שאולי מחכה לכם מעבר למסך.
+                            </p>
+                        </div>
+
+                        <div style={{
+                            background: '#e0f2fe',
                             color: '#0c4a6e',
                             padding: '15px',
                             borderRadius: '10px',
@@ -1498,21 +1512,6 @@ function Profile() {
                                 <br />
                                 • <span style={{ color: '#b45309', fontWeight: 'bold' }}>שים לב:</span> ככל שתוסיף יותר סינונים נוקשים, כך יופיעו פחות הצעות. מומלץ לסמן רק מה שבאמת קריטי לך.
                             </div>
-                        </div>
-
-                        <div style={{
-                            background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
-                            border: '1.5px solid #f59e0b',
-                            borderRadius: '14px',
-                            padding: '16px 20px',
-                            marginBottom: '24px',
-                            direction: 'rtl',
-                            position: 'relative',
-                        }}>
-                            <div style={{ fontSize: '1.3rem', marginBottom: '6px' }}>💡 טיפ זהב</div>
-                            <p style={{ margin: 0, color: '#78350f', fontSize: '0.95rem', lineHeight: '1.7' }}>
-                                כל אדם הוא עולם. אל תתנו לנתונים יבשים או לפרטים שאינם קריטיים לגרום לכם לפספס את האדם המדהים שאולי מחכה לכם מעבר למסך.
-                            </p>
                         </div>
 
                         <div style={styles.card}>
