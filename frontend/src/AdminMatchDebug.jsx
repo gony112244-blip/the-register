@@ -107,6 +107,64 @@ function translateCheckValue(field, v, ok) {
     return raw;
 }
 
+function buildCheckLines(field, v, ok, candidateName = 'הצד השני') {
+    if (v === undefined || v === null) return [];
+
+    const raw = String(v);
+    const fallback = translateCheckValue(field, v, ok);
+    const cleanCandidate = candidateName || 'הצד השני';
+
+    const ageHeightMatch = raw.match(/u\d\.\w+=(null|undefined|[0-9.]+)\s*(>=|<=)\s*([0-9.]+)/);
+    if (ageHeightMatch) {
+        const actualRaw = ageHeightMatch[1];
+        const op = ageHeightMatch[2];
+        const limitRaw = parseFloat(ageHeightMatch[3]);
+        const isHeight = field.includes('גובה');
+        const unit = isHeight ? ' ס"מ' : '';
+        const limit = isHeight ? Math.round(limitRaw) : limitRaw;
+        const actual = actualRaw === 'null' || actualRaw === 'undefined'
+            ? 'לא הוזן'
+            : `${isHeight ? Math.round(parseFloat(actualRaw)) : parseFloat(actualRaw)}${unit}`;
+        return [
+            `מחפש/ת: ${op === '>=' ? 'לפחות' : 'עד'} ${limit}${unit}`,
+            `בפועל אצל ${cleanCandidate}: ${actual}`,
+        ];
+    }
+
+    const listMatch = raw.match(/u\d=([^\s]+)\s+in\s+\[([^\]]+)\]/);
+    if (listMatch) {
+        const actual = listMatch[1] && listMatch[1] !== 'null' ? t(listMatch[1]) : 'לא הוגדר';
+        const allowed = listMatch[2].split(',').map(s => t(s.trim())).join(', ');
+        const lines = [
+            `מחפש/ת: ${allowed}`,
+            `בפועל אצל ${cleanCandidate}: ${actual}`,
+        ];
+        if (raw.includes('mixed_ok=')) {
+            lines.push(raw.includes('mixed_ok=true') ? 'הערה: מעורב מתקבל' : 'הערה: מעורב לא מתקבל');
+        }
+        return lines;
+    }
+
+    const wantMatch = raw.match(/u\d=([^\s]+)\s+want=([^\s]+)/);
+    if (wantMatch) {
+        const actual = wantMatch[1] && wantMatch[1] !== 'null' ? t(wantMatch[1]) : 'לא הוגדר';
+        const wanted = wantMatch[2] && wantMatch[2] !== 'null' ? t(wantMatch[2]) : 'לא הוגדר';
+        return [
+            `מחפש/ת: ${wanted}`,
+            `בפועל אצל ${cleanCandidate}: ${actual}`,
+        ];
+    }
+
+    if (raw.includes('has no age')) {
+        return [
+            'מחפש/ת: גיל מוגדר בטווח החיפוש',
+            `בפועל אצל ${cleanCandidate}: גיל לא הוזן`,
+        ];
+    }
+
+    return fallback ? [fallback] : [];
+}
+
 // שם שדה נקי בעברית
 function translateFieldName(field) {
     const clean = field.replace(/^[AB]: /, '').replace(/^u\d רוצה /, '');
@@ -150,12 +208,12 @@ function UserCard({ user, label }) {
 // ── שורת בדיקה ────────────────────────────────────────────────
 const BASIC_FIELDS = ['מאושר u1', 'מאושר u2', 'לא חסום u2', 'מגדר נגדי', 'אין חיבור קיים', 'לא מוסתר', 'לא חסום'];
 
-function CheckRow({ check }) {
+function CheckRow({ check, candidateName }) {
     const isBasic = BASIC_FIELDS.includes(check.field);
     const isA = check.field.startsWith('A:');
     const isB = check.field.startsWith('B:');
     const label = isBasic ? check.field : translateFieldName(check.field);
-    const valueText = translateCheckValue(check.field, check.v, check.ok);
+    const valueLines = buildCheckLines(check.field, check.v, check.ok, candidateName);
 
     return (
         <div style={{ ...S.checkRow, background: check.ok ? '#f0fdf4' : '#fef2f2', borderRight: `4px solid ${check.ok ? '#22c55e' : '#ef4444'}` }}>
@@ -164,8 +222,10 @@ function CheckRow({ check }) {
                 <div style={{ fontWeight: 700, color: check.ok ? '#166534' : '#991b1b', fontSize: '0.88rem' }}>
                     {label}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '2px' }}>
-                    {valueText}
+                <div style={{ fontSize: '0.8rem', color: '#475569', marginTop: '3px', lineHeight: 1.55 }}>
+                    {valueLines.map((line, idx) => (
+                        <div key={idx}>{line}</div>
+                    ))}
                 </div>
             </div>
         </div>
@@ -275,18 +335,18 @@ export default function AdminMatchDebug() {
                                 {basicChecks.map((c, i) => <CheckRow key={i} check={c} />)}
                             </div>
                             <div style={S.checkGroup}>
-                                <div style={S.checkGroupTitle}>← {result.u1?.name} מחפשת/מחפש</div>
-                                <div style={S.checkGroupSub}>מה {result.u1?.name} דורש/ת ממועמד ב׳</div>
+                                <div style={S.checkGroupTitle}>← מה {result.u1?.name} מחפש/ת</div>
+                                <div style={S.checkGroupSub}>והאם {result.u2?.name} מתאים/ה לתנאים האלה</div>
                                 {aChecks.length === 0
                                     ? <div style={S.noChecks}>אין פילטרים מוגדרים</div>
-                                    : aChecks.map((c, i) => <CheckRow key={i} check={c} />)}
+                                    : aChecks.map((c, i) => <CheckRow key={i} check={c} candidateName={result.u2?.name} />)}
                             </div>
                             <div style={S.checkGroup}>
-                                <div style={S.checkGroupTitle}>→ {result.u2?.name} מחפשת/מחפש</div>
-                                <div style={S.checkGroupSub}>מה {result.u2?.name} דורש/ת ממועמד א׳</div>
+                                <div style={S.checkGroupTitle}>→ מה {result.u2?.name} מחפש/ת</div>
+                                <div style={S.checkGroupSub}>והאם {result.u1?.name} מתאים/ה לתנאים האלה</div>
                                 {bChecks.length === 0
                                     ? <div style={S.noChecks}>אין פילטרים מוגדרים</div>
-                                    : bChecks.map((c, i) => <CheckRow key={i} check={c} />)}
+                                    : bChecks.map((c, i) => <CheckRow key={i} check={c} candidateName={result.u1?.name} />)}
                             </div>
                         </div>
                     </div>
