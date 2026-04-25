@@ -176,7 +176,7 @@ async function buildMatchConditions(userId, pool, opts = {}) {
                 apartment_help = 'full'
                 OR (
                     apartment_amount IS NOT NULL
-                    AND NULLIF(regexp_replace(apartment_amount, '[^0-9]', '', 'g'), '')::int >= $${pi}
+                    AND NULLIF(regexp_replace(apartment_amount, '[^0-9]', '', 'g'), '')::bigint >= $${pi}
                 )
             )`);
             params.push(minAmt); pi++;
@@ -295,7 +295,7 @@ async function buildMatchConditions(userId, pool, opts = {}) {
     } else if (currentUser.apartment_amount) {
         const myAmt = parseInt(String(currentUser.apartment_amount).replace(/[^0-9]/g, ''), 10);
         if (!isNaN(myAmt) && myAmt > 0) {
-            c.push(`(search_financial_discuss = TRUE OR search_financial_min IS NULL OR NULLIF(regexp_replace(search_financial_min, '[^0-9]', '', 'g'), '') IS NULL OR NULLIF(regexp_replace(search_financial_min, '[^0-9]', '', 'g'), '')::int <= $${pi})`);
+            c.push(`(search_financial_discuss = TRUE OR search_financial_min IS NULL OR NULLIF(regexp_replace(search_financial_min, '[^0-9]', '', 'g'), '') IS NULL OR NULLIF(regexp_replace(search_financial_min, '[^0-9]', '', 'g'), '')::bigint <= $${pi})`);
             params.push(myAmt); pi++;
         } else {
             c.push(noFinReq);
