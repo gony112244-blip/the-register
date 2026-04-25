@@ -405,6 +405,18 @@ function Matches() {
                                             <div style={styles.tags}>
                                                 {match.body_type && <span style={styles.tag}>{tr('body_type', match.body_type)}</span>}
                                                 {match.appearance && <span style={styles.tag}>{tr('appearance', match.appearance)}</span>}
+                                                {match.apartment_help === 'full' && (
+                                                    <span style={{ ...styles.tag, background: '#dcfce7', color: '#166534', fontWeight: 600 }}>🏠 דירה מלאה</span>
+                                                )}
+                                                {match.apartment_help === 'discuss' && (
+                                                    <span style={{ ...styles.tag, background: '#fef9c3', color: '#854d0e', fontWeight: 600 }}>💬 עזרה לדירה: נדון</span>
+                                                )}
+                                                {match.apartment_help === 'yes' && match.apartment_amount && (
+                                                    <span style={{ ...styles.tag, background: '#dbeafe', color: '#1e40af', fontWeight: 600 }}>🏠 עזרה: {Number(String(match.apartment_amount).replace(/[^0-9]/g,'')).toLocaleString('he-IL')} ₪</span>
+                                                )}
+                                                {match.apartment_help === 'no' && (
+                                                    <span style={{ ...styles.tag, background: '#fee2e2', color: '#991b1b' }}>🚫 ללא עזרה לדירה</span>
+                                                )}
                                             </div>
 
                                             {match.about_me && (

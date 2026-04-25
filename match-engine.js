@@ -289,9 +289,12 @@ async function buildMatchConditions(userId, pool, opts = {}) {
     }
 
     // כלכלה — דו-כיווני: גם הצד השני צריך לקבל את ההצעה הכלכלית שלי
+    // 'full' = דירה מלאה | 'discuss' = נדון עם השדכנ/ית (עוקף סינון) | 'yes'+סכום = סכום ספציפי | else = לא
     const noFinReq = `(search_financial_discuss = TRUE OR search_financial_min IS NULL OR NULLIF(regexp_replace(search_financial_min, '[^0-9]', '', 'g'), '') IS NULL)`;
     if (currentUser.apartment_help === 'full') {
         // אני מציע דירה מלאה — תמיד עומד בדרישות
+    } else if (currentUser.apartment_help === 'discuss') {
+        // נדון עם השדכנ/ית — עוקף סינון כלכלי: יוצג לכולם ללא קשר לסכום שדרשו
     } else if (currentUser.apartment_amount) {
         const myAmt = parseInt(String(currentUser.apartment_amount).replace(/[^0-9]/g, ''), 10);
         if (!isNaN(myAmt) && myAmt > 0) {

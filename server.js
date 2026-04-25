@@ -2287,7 +2287,8 @@ app.get('/matches', authenticateToken, async (req, res) => {
             SELECT id, full_name, last_name, age, height, gender, phone,
                    family_background, heritage_sector, body_type, appearance, skin_tone,
                    current_occupation, about_me, profile_images_count, life_aspiration, study_place, work_field,
-                   head_covering, city, status, has_children, children_count
+                   head_covering, city, status, has_children, children_count,
+                   apartment_help, apartment_amount
             FROM users
             WHERE ${mc.conditions.join(' AND ')}
             ORDER BY id DESC

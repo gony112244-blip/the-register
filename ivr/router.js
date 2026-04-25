@@ -412,7 +412,7 @@ function buildFullProfileText(match) {
     if (match.apartment_help) {
         const helpMap = {
             full: 'דירה מלאה', partial: 'עזרה חלקית', none: 'ללא עזרה',
-            yes: 'כן', no: 'לא', discuss: 'נדון עם השדכן'
+            yes: 'כן', no: 'לא', discuss: 'יידון עם הַשַּׁדְּכָנִית'
         };
         let rawHelp = String(match.apartment_help).trim();
         let embeddedAmount = null;
