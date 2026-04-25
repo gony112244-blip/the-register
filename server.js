@@ -5109,7 +5109,7 @@ app.delete('/user/delete-account', authenticateToken, async (req, res) => {
     }
 });
 
-updateDbSchema().then(() => {
+updateDbSchema().then(async () => {
     // הגשת frontend בפרודקשן — חייב להיות אחרי כל ה-API routes
     const distPath = path.join(__dirname, 'frontend', 'dist');
     if (require('fs').existsSync(distPath)) {
