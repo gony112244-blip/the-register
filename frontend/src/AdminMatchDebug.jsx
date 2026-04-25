@@ -127,7 +127,7 @@ function buildCheckLines(field, v, ok, candidateName = 'הצד השני') {
             : `${isHeight ? Math.round(parseFloat(actualRaw)) : parseFloat(actualRaw)}${unit}`;
         return [
             `מחפש/ת: ${op === '>=' ? 'לפחות' : 'עד'} ${limit}${unit}`,
-            `בפועל אצל ${cleanCandidate}: ${actual}`,
+            `אצל ${cleanCandidate}: ${actual}`,
         ];
     }
 
@@ -137,7 +137,7 @@ function buildCheckLines(field, v, ok, candidateName = 'הצד השני') {
         const allowed = listMatch[2].split(',').map(s => t(s.trim())).join(', ');
         const lines = [
             `מחפש/ת: ${allowed}`,
-            `בפועל אצל ${cleanCandidate}: ${actual}`,
+            `אצל ${cleanCandidate}: ${actual}`,
         ];
         if (raw.includes('mixed_ok=')) {
             lines.push(raw.includes('mixed_ok=true') ? 'הערה: מעורב מתקבל' : 'הערה: מעורב לא מתקבל');
@@ -151,14 +151,14 @@ function buildCheckLines(field, v, ok, candidateName = 'הצד השני') {
         const wanted = wantMatch[2] && wantMatch[2] !== 'null' ? t(wantMatch[2]) : 'לא הוגדר';
         return [
             `מחפש/ת: ${wanted}`,
-            `בפועל אצל ${cleanCandidate}: ${actual}`,
+            `אצל ${cleanCandidate}: ${actual}`,
         ];
     }
 
     if (raw.includes('has no age')) {
         return [
             'מחפש/ת: גיל מוגדר בטווח החיפוש',
-            `בפועל אצל ${cleanCandidate}: גיל לא הוזן`,
+            `אצל ${cleanCandidate}: גיל לא הוזן`,
         ];
     }
 
