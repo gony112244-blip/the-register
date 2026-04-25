@@ -3854,6 +3854,8 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
                     'is_email_verified', 'email_notifications_enabled', 'never_ask_email']);
                 const dateCols = new Set(['birth_date']);
 
+                let appliedBirthDate = null;
+
                 // עדכון שדה-שדה כדי שמשהו בעייתי לא יעצור את כל האישור
                 for (const [key, rawVal] of safeChanges) {
                     try {
@@ -3862,7 +3864,7 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
                         if (val !== null) {
                             if (numericCols.has(key)) val = Number(val);
                             else if (boolCols.has(key)) val = (val === 'true' || val === true);
-                            else if (dateCols.has(key)) val = val || null;
+                            else if (dateCols.has(key)) { val = val || null; if (key === 'birth_date') appliedBirthDate = val; }
                             else if (Array.isArray(val)) val = val;
                             else if (typeof val === 'object') val = JSON.stringify(val);
                         }
@@ -3872,6 +3874,21 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
                         );
                     } catch (fieldErr) {
                         console.warn(`[Approve] Skipping field "${key}" due to error: ${fieldErr.message}`);
+                    }
+                }
+
+                // אם birth_date עודכן — חשב גיל מחדש ועדכן את עמודת age
+                if (appliedBirthDate) {
+                    try {
+                        const bd = new Date(appliedBirthDate);
+                        const today = new Date();
+                        let calculatedAge = today.getFullYear() - bd.getFullYear();
+                        const m = today.getMonth() - bd.getMonth();
+                        if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) calculatedAge--;
+                        await pool.query(`UPDATE users SET age = $1 WHERE id = $2`, [calculatedAge, userId]);
+                        console.log(`[Approve] גיל חושב מחדש מ-birth_date: ${calculatedAge} לאישור משתמש ${userId}`);
+                    } catch (ageErr) {
+                        console.warn(`[Approve] שגיאה בחישוב גיל: ${ageErr.message}`);
                     }
                 }
             }
@@ -5090,6 +5107,22 @@ updateDbSchema().then(() => {
             res.sendFile(path.join(distPath, 'index.html'));
         });
         console.log('📦 Frontend served from dist/');
+    }
+
+    // סנכרון גיל מ-birth_date לכל המשתמשים שיש להם birth_date — מונע אי-עקביות
+    try {
+        const syncResult = await pool.query(`
+            UPDATE users
+            SET age = DATE_PART('year', AGE(birth_date::date))
+            WHERE birth_date IS NOT NULL
+              AND birth_date != ''
+              AND age != DATE_PART('year', AGE(birth_date::date))
+        `);
+        if (syncResult.rowCount > 0) {
+            console.log(`[AgeSync] ✅ עודכן גיל לפי birth_date עבור ${syncResult.rowCount} משתמשים`);
+        }
+    } catch (ageSyncErr) {
+        console.warn('[AgeSync] ⚠️ שגיאה בסנכרון גיל:', ageSyncErr.message);
     }
 
     app.listen(port, () => {
