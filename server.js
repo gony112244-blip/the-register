@@ -3846,11 +3846,10 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
             const colMeta = {};
             colsResult.rows.forEach(r => { colMeta[r.column_name] = r.data_type; });
 
-            // שדות שאסור לעדכן / לא קיימים בטבלה / מנוהלים בנפרד
+            // שדות שאסור לעדכן — רק אלו שבאמת מסוכנים
             const forbiddenCols = new Set([
                 'id', 'password', 'created_at', 'email_verification_code',
-                'profile_images', 'profile_images_count', // מנוהלים ע"י upload routes
-                'apartment_amount', 'yeshiva_ketana_name', // שדות וירטואליים של הטופס
+                'profile_images', 'profile_images_count',
                 'is_admin', 'is_blocked'
             ]);
 
@@ -5131,6 +5130,22 @@ updateDbSchema().then(() => {
             res.sendFile(path.join(distPath, 'index.html'));
         });
         console.log('📦 Frontend served from dist/');
+    }
+
+    // בדיקת תקינות: כל שדה ב-SAFE_FIELDS חייב להיות עמודה בטבלת users
+    try {
+        const colCheck = await pool.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`
+        );
+        const dbCols = new Set(colCheck.rows.map(r => r.column_name));
+        const missingInDb = [...SAFE_FIELDS].filter(f => !dbCols.has(f));
+        if (missingInDb.length > 0) {
+            console.error(`[Startup] ❌ שדות ב-SAFE_FIELDS שלא קיימים בDB: ${missingInDb.join(', ')}`);
+        } else {
+            console.log(`[Startup] ✅ כל ${SAFE_FIELDS.size} שדות ב-SAFE_FIELDS קיימים בDB`);
+        }
+    } catch (colCheckErr) {
+        console.warn('[Startup] ⚠️ שגיאה בבדיקת SAFE_FIELDS:', colCheckErr.message);
     }
 
     // סנכרון גיל מ-birth_date לכל המשתמשים שיש להם birth_date — מונע אי-עקביות
