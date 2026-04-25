@@ -146,11 +146,11 @@ async function buildMatchConditions(userId, pool, opts = {}) {
         params.push(...occupations); pi += occupations.length;
     }
 
-    // שאיפות חיים — שדה רלוונטי לגברים בלבד; נשים לא ממלאות אותו, לכן לא מסננים לפי שאיפה של מועמדת נקבה
+    // שאיפות חיים — גברים ממלאים "שאיפה בחיים", נשים ממלאות "שאיפה לגבי הבעל" — שניהם נשמרים ב-life_aspiration
     const aspirations = splitField(currentUser.search_life_aspirations);
     if (aspirations.length > 0) {
         const ph = aspirations.map((_, i) => `$${pi + i}`).join(',');
-        c.push(`(gender != 'male' OR life_aspiration IS NULL OR life_aspiration IN (${ph}))`);
+        c.push(`(life_aspiration IS NULL OR life_aspiration IN (${ph}))`);
         params.push(...aspirations); pi += aspirations.length;
     }
 

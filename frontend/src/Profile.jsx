@@ -1162,16 +1162,6 @@ function Profile() {
                                             <input name="yeshiva_ketana_name" value={user.yeshiva_ketana_name || ''} onChange={handleChange} style={styles.input} />
                                         </div>
                                         <div style={styles.field}>
-                                            <label>{user.gender === 'female' ? 'שאיפה לגבי הבעל' : 'שאיפה בחיים'}</label>
-                                            <select name="life_aspiration" value={user.life_aspiration || ''} onChange={handleChange} style={styles.input}>
-                                                <option value="">בחר...</option>
-                                                <option value="study_only">ללמוד יום שלם</option>
-                                                <option value="study_and_work">ללמוד ולעבוד</option>
-                                                <option value="fixed_times">לקבוע עיתים</option>
-                                                <option value="work_only">רק לעבוד</option>
-                                            </select>
-                                        </div>
-                                        <div style={styles.field}>
                                             <label>חלק אהוב בלימוד</label>
                                             <select name="favorite_study" value={user.favorite_study || ''} onChange={handleChange} style={styles.input}>
                                                 <option value="">בחר...</option>
@@ -1182,6 +1172,18 @@ function Profile() {
                                         </div>
                                     </>
                                 )}
+
+                                {/* שאיפה — משותף לשני המינים עם תווית מותאמת */}
+                                <div style={styles.field}>
+                                    <label>{user.gender === 'female' ? 'שאיפה לגבי הבעל (צורת הבית)' : 'שאיפה בחיים'}</label>
+                                    <select name="life_aspiration" value={user.life_aspiration || ''} onChange={handleChange} style={styles.input}>
+                                        <option value="">בחר...</option>
+                                        <option value="study_only">{user.gender === 'female' ? 'ילמד יום שלם (כולל)' : 'ללמוד יום שלם'}</option>
+                                        <option value="study_and_work">{user.gender === 'female' ? 'ילמד ויעבוד' : 'ללמוד ולעבוד'}</option>
+                                        <option value="fixed_times">{user.gender === 'female' ? 'יקבע עיתים' : 'לקבוע עיתים'}</option>
+                                        <option value="work_only">{user.gender === 'female' ? 'יעבוד בלבד' : 'רק לעבוד'}</option>
+                                    </select>
+                                </div>
 
                                 {/* שדות מותאמים לנשים */}
                                 {/* שדות מותאמים לנשים */}
