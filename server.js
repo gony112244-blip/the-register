@@ -2067,7 +2067,12 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
         }
 
         // סינון לשדות מאושרים בלבד
-        const safeEntries = Object.entries(changes).filter(([key]) => SAFE_FIELDS.has(key));
+        const allEntries = Object.entries(changes);
+        const safeEntries = allEntries.filter(([key]) => SAFE_FIELDS.has(key));
+        const droppedKeys = allEntries.filter(([key]) => !SAFE_FIELDS.has(key)).map(([k]) => k);
+        if (droppedKeys.length > 0) {
+            console.warn(`[update-safe-fields] ⚠️ userId=${userId} — שדות שנדלגו (לא ב-SAFE_FIELDS): ${droppedKeys.join(', ')}`);
+        }
         if (safeEntries.length === 0) {
             return res.json({ message: "אין שדות לעדכן" });
         }
@@ -2087,6 +2092,17 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
             `UPDATE users SET ${setClause} WHERE id = $${values.length + 1}`,
             [...values, userId]
         );
+
+        // אם birth_date השתנה — חשב גיל מחדש ועדכן
+        const birthDateEntry = safeEntries.find(([k]) => k === 'birth_date');
+        if (birthDateEntry && birthDateEntry[1]) {
+            const bd = new Date(birthDateEntry[1]);
+            const today = new Date();
+            let calcAge = today.getFullYear() - bd.getFullYear();
+            const m = today.getMonth() - bd.getMonth();
+            if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) calcAge--;
+            await pool.query(`UPDATE users SET age = $1 WHERE id = $2`, [calcAge, userId]);
+        }
 
         const updated = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
         const user = updated.rows[0];
@@ -3838,14 +3854,22 @@ app.post('/admin/approve-profile-changes/:userId', authenticateToken, async (req
                 'is_admin', 'is_blocked'
             ]);
 
+            const skippedFields = [];
             const safeChanges = Object.entries(pendingChanges).filter(([key]) => {
-                if (forbiddenCols.has(key)) return false;
+                if (forbiddenCols.has(key)) {
+                    skippedFields.push({ field: key, reason: 'forbidden' });
+                    return false;
+                }
                 if (!colMeta[key]) {
-                    console.warn(`[Approve] Skipping unknown column: ${key}`);
+                    skippedFields.push({ field: key, reason: 'not_in_db' });
                     return false;
                 }
                 return true;
             });
+            if (skippedFields.length > 0) {
+                console.warn(`[Approve] ⚠️ userId=${userId} — שדות שנדלגו:`, JSON.stringify(skippedFields));
+            }
+            console.log(`[Approve] userId=${userId} — ${safeChanges.length} שדות מאושרים: ${safeChanges.map(([k]) => k).join(', ')}`);
 
             if (safeChanges.length > 0) {
                 const numericCols = new Set(['age', 'children_count', 'siblings_count', 'sibling_position', 'height',
