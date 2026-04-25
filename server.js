@@ -2420,14 +2420,71 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
         const u2Skin = split(u2.search_skin_tones);
         if (u2Skin.length) add('B: u2 רוצה גוון עור', !u1.skin_tone || u2Skin.includes(u1.skin_tone), `u1=${u1.skin_tone} in [${u2Skin}]`);
 
+        // --- בדיקת כלכלה (חסרה בדיבוג הפשוט) ---
+        // כיוון A: u1 מחפש → u2 צריך לעמוד בדרישות הכלכלה של u1
+        if (!u1.search_financial_discuss && u1.search_financial_min) {
+            const reqAmt = parseInt(String(u1.search_financial_min).replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(reqAmt) && reqAmt > 0) {
+                if (u2.apartment_help === 'full') {
+                    add('A: כלכלה', true, `u2 מציע דירה מלאה`);
+                } else {
+                    const u2Amt = parseInt(String(u2.apartment_amount || '').replace(/[^0-9]/g, ''), 10);
+                    add('A: כלכלה', !isNaN(u2Amt) && u2Amt >= reqAmt, `u2 מציע ${u2Amt || 0} ₪, u1 דורש ${reqAmt} ₪`);
+                }
+            }
+        }
+        // כיוון B: u2 מחפש ← u1 צריך לעמוד בדרישות הכלכלה של u2
+        if (!u2.search_financial_discuss && u2.search_financial_min) {
+            const reqAmt2 = parseInt(String(u2.search_financial_min).replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(reqAmt2) && reqAmt2 > 0) {
+                if (u1.apartment_help === 'full') {
+                    add('B: כלכלה', true, `u1 מציע דירה מלאה`);
+                } else {
+                    const u1Amt = parseInt(String(u1.apartment_amount || '').replace(/[^0-9]/g, ''), 10);
+                    add('B: כלכלה', !isNaN(u1Amt) && u1Amt >= reqAmt2, `u1 מציע ${u1Amt || 0} ₪, u2 דורש ${reqAmt2} ₪`);
+                }
+            }
+        }
+
+        // --- בדיקה במנוע האמיתי: האם u2 מופיע בהתאמות של u1 ולהפך? ---
+        const [mcU1, mcU2] = await Promise.all([
+            buildMatchConditions(u1.id, pool, { includeHidden: true }),
+            buildMatchConditions(u2.id, pool, { includeHidden: true })
+        ]);
+        let realU1SeesU2 = false, realU2SeesU1 = false, realEngineError = null;
+        try {
+            if (mcU1.valid) {
+                const r1 = await pool.query(
+                    `SELECT id FROM users WHERE ${mcU1.conditions.join(' AND ')} AND id = $${mcU1.paramIndex}`,
+                    [...mcU1.params, u2.id]
+                );
+                realU1SeesU2 = r1.rows.length > 0;
+            }
+            if (mcU2.valid) {
+                const r2 = await pool.query(
+                    `SELECT id FROM users WHERE ${mcU2.conditions.join(' AND ')} AND id = $${mcU2.paramIndex}`,
+                    [...mcU2.params, u1.id]
+                );
+                realU2SeesU1 = r2.rows.length > 0;
+            }
+        } catch (realErr) {
+            realEngineError = realErr.message;
+        }
+
         const failed = checks.filter(c => !c.ok);
         const u1Raw = srcRes.rows[0], u2Raw = tgtRes.rows[0];
         res.json({
-            u1: { id: u1.id, name: u1.full_name, phone: u1.phone, gender: u1.gender, age: u1.age, height: u1.height, heritage_sector: u1.heritage_sector, body_type: u1.body_type, appearance: u1.appearance, status: u1.status, skin_tone: u1.skin_tone, current_occupation: u1.current_occupation, life_aspiration: u1.life_aspiration, family_background: u1.family_background, head_covering: u1.head_covering, hasPendingChanges: !!u1Raw.pending_changes },
-            u2: { id: u2.id, name: u2.full_name, phone: u2.phone, gender: u2.gender, age: u2.age, height: u2.height, heritage_sector: u2.heritage_sector, body_type: u2.body_type, appearance: u2.appearance, status: u2.status, skin_tone: u2.skin_tone, current_occupation: u2.current_occupation, life_aspiration: u2.life_aspiration, family_background: u2.family_background, head_covering: u2.head_covering, hasPendingChanges: !!u2Raw.pending_changes },
+            u1: { id: u1.id, name: u1.full_name, phone: u1.phone, gender: u1.gender, age: u1.age, height: u1.height, heritage_sector: u1.heritage_sector, body_type: u1.body_type, appearance: u1.appearance, status: u1.status, skin_tone: u1.skin_tone, current_occupation: u1.current_occupation, life_aspiration: u1.life_aspiration, family_background: u1.family_background, head_covering: u1.head_covering, apartment_help: u1.apartment_help, apartment_amount: u1.apartment_amount, search_financial_min: u1.search_financial_min, search_financial_discuss: u1.search_financial_discuss, hasPendingChanges: !!u1Raw.pending_changes },
+            u2: { id: u2.id, name: u2.full_name, phone: u2.phone, gender: u2.gender, age: u2.age, height: u2.height, heritage_sector: u2.heritage_sector, body_type: u2.body_type, appearance: u2.appearance, status: u2.status, skin_tone: u2.skin_tone, current_occupation: u2.current_occupation, life_aspiration: u2.life_aspiration, family_background: u2.family_background, head_covering: u2.head_covering, apartment_help: u2.apartment_help, apartment_amount: u2.apartment_amount, search_financial_min: u2.search_financial_min, search_financial_discuss: u2.search_financial_discuss, hasPendingChanges: !!u2Raw.pending_changes },
             summary: failed.length === 0 ? 'MATCH ✅' : `BLOCKED ❌ (${failed.length} failures)`,
             failed,
-            checks
+            checks,
+            realEngine: {
+                u1SeesU2: realU1SeesU2,
+                u2SeesU1: realU2SeesU1,
+                error: realEngineError,
+                note: (!realU1SeesU2 || !realU2SeesU1) ? '⚠️ המנוע האמיתי חוסם — הדיבוג חסר תנאי' : '✅ המנוע האמיתי מאשר'
+            }
         });
     } catch (err) {
         res.status(500).json({ message: err.message });

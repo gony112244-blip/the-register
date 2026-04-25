@@ -304,27 +304,62 @@ export default function AdminMatchDebug() {
                 {result && (
                     <div>
                         {/* באנר סיכום */}
-                        <div style={{
-                            ...S.summary,
-                            background: isMatch ? '#dcfce7' : '#fee2e2',
-                            border: `2px solid ${isMatch ? '#22c55e' : '#ef4444'}`,
-                            color: isMatch ? '#166534' : '#991b1b',
-                        }}>
-                            <span style={{ fontSize: '2.2rem' }}>{isMatch ? '✅' : '❌'}</span>
-                            <div>
-                                <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>
-                                    {isMatch
-                                        ? 'ההתאמה תקינה — שני המשתמשים אמורים לראות אחד את השני'
-                                        : 'אין התאמה — המשתמשים לא יראו אחד את השני'}
-                                </div>
-                                {result.failed?.length > 0 && (
-                                    <div style={{ fontSize: '0.9rem', marginTop: '6px' }}>
-                                        <strong>הסיבות לחסימה ({result.failed.length}):</strong>{' '}
-                                        {result.failed.map(f => translateFieldName(f.field)).join(' · ')}
+                        {(() => {
+                            const re = result.realEngine;
+                            const realOk = re && re.u1SeesU2 && re.u2SeesU1;
+                            const realPartial = re && (re.u1SeesU2 !== re.u2SeesU1);
+                            const showRealWarning = re && !re.error && (isMatch && !realOk);
+                            return (
+                                <>
+                                    <div style={{
+                                        ...S.summary,
+                                        background: isMatch ? '#dcfce7' : '#fee2e2',
+                                        border: `2px solid ${isMatch ? '#22c55e' : '#ef4444'}`,
+                                        color: isMatch ? '#166534' : '#991b1b',
+                                    }}>
+                                        <span style={{ fontSize: '2.2rem' }}>{isMatch ? '✅' : '❌'}</span>
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: '1.15rem' }}>
+                                                {isMatch
+                                                    ? 'ההתאמה תקינה — שני המשתמשים אמורים לראות אחד את השני'
+                                                    : 'אין התאמה — המשתמשים לא יראו אחד את השני'}
+                                            </div>
+                                            {result.failed?.length > 0 && (
+                                                <div style={{ fontSize: '0.9rem', marginTop: '6px' }}>
+                                                    <strong>הסיבות לחסימה ({result.failed.length}):</strong>{' '}
+                                                    {result.failed.map(f => translateFieldName(f.field)).join(' · ')}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        </div>
+                                    {re && (
+                                        <div style={{
+                                            margin: '0 0 16px',
+                                            padding: '10px 16px',
+                                            borderRadius: '10px',
+                                            background: showRealWarning ? '#fef9c3' : (realOk ? '#f0fdf4' : '#fee2e2'),
+                                            border: `1.5px solid ${showRealWarning ? '#fbbf24' : (realOk ? '#86efac' : '#fca5a5')}`,
+                                            color: showRealWarning ? '#92400e' : (realOk ? '#166534' : '#991b1b'),
+                                            fontSize: '0.9rem',
+                                            display: 'flex', gap: '10px', alignItems: 'flex-start'
+                                        }}>
+                                            <span style={{ fontSize: '1.3rem' }}>{showRealWarning ? '⚠️' : (realOk ? '✅' : '❌')}</span>
+                                            <div>
+                                                <strong>בדיקת מנוע אמיתי:</strong>{' '}
+                                                {re.error ? `שגיאה: ${re.error}` : (
+                                                    <>
+                                                        {result.u1?.name} {re.u1SeesU2 ? 'רואה' : '❌ לא רואה'} את {result.u2?.name}
+                                                        {' · '}
+                                                        {result.u2?.name} {re.u2SeesU1 ? 'רואה' : '❌ לא רואה'} את {result.u1?.name}
+                                                        {showRealWarning && <div style={{ marginTop: '4px' }}>⚠️ הדיבוג הידני אמר "תקין" אך המנוע האמיתי חוסם — ייתכן שהבעיה בתנאי כלכלה</div>}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
 
                         {/* כרטיסי משתמשים */}
                         <div style={S.userCards}>
