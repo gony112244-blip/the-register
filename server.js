@@ -5152,13 +5152,14 @@ updateDbSchema().then(() => {
     try {
         const syncResult = await pool.query(`
             UPDATE users
-            SET age = DATE_PART('year', AGE(birth_date::date))
+            SET age = DATE_PART('year', AGE(birth_date))
             WHERE birth_date IS NOT NULL
-              AND birth_date != ''
-              AND age != DATE_PART('year', AGE(birth_date::date))
+              AND age IS DISTINCT FROM DATE_PART('year', AGE(birth_date))
         `);
         if (syncResult.rowCount > 0) {
             console.log(`[AgeSync] ✅ עודכן גיל לפי birth_date עבור ${syncResult.rowCount} משתמשים`);
+        } else {
+            console.log(`[AgeSync] ✅ כל הגילאים מסונכרנים`);
         }
     } catch (ageSyncErr) {
         console.warn('[AgeSync] ⚠️ שגיאה בסנכרון גיל:', ageSyncErr.message);
