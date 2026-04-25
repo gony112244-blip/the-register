@@ -2298,9 +2298,10 @@ app.get('/matches', authenticateToken, async (req, res) => {
         res.json(result.rows);
 
     } catch (err) {
-        console.error("Match error:", err.message);
-        console.error("Full error:", err);
-        res.status(500).json({ message: "תקלה בטעינת השידוכים" });
+        console.error(`[Match] ❌ שגיאה עבור userId=${userId}: ${err.message}`);
+        console.error(`[Match] SQL: ${err.query || 'N/A'}`);
+        console.error(`[Match] Stack:`, err.stack);
+        res.status(500).json({ message: "תקלה בטעינת השידוכים", debug: err.message });
     }
 });
 

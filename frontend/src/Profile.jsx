@@ -126,7 +126,13 @@ function Profile() {
         id_card_owner_type: 'candidate',
 
         // יבוא נתונים שמורים (דורס את הדיפולטים)
-        ...savedUser
+        ...savedUser,
+        // birth_date חייב להיות בפורמט yyyy-MM-dd לטופס date
+        ...(savedUser?.birth_date ? {
+            birth_date: (() => {
+                try { return new Date(savedUser.birth_date).toISOString().split('T')[0]; } catch { return savedUser.birth_date; }
+            })()
+        } : {})
     });
 
     const [activeSection, setActiveSection] = useState(1); // איזה חלק פתוח
