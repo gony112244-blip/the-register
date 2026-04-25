@@ -2369,7 +2369,8 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
         const myOcc = split(u1.search_occupations);
         if (myOcc.length) add('A: עיסוק', !u2.current_occupation || myOcc.includes(u2.current_occupation), `u2=${u2.current_occupation} in [${myOcc}]`);
         const myLA = split(u1.search_life_aspirations);
-        if (myLA.length) add('A: שאיפה', !u2.life_aspiration || myLA.includes(u2.life_aspiration), `u2=${u2.life_aspiration} in [${myLA}]`);
+        // שאיפה רלוונטית לגברים בלבד — לא בודקים אם u2 היא אישה
+        if (myLA.length && u2.gender === 'male') add('A: שאיפה', !u2.life_aspiration || myLA.includes(u2.life_aspiration), `u2=${u2.life_aspiration} in [${myLA}]`);
         if (u1.search_head_covering && u1.search_head_covering !== 'not_relevant')
             add('A: כיסוי ראש', !u2.head_covering || u2.head_covering === 'flexible' || u2.head_covering === u1.search_head_covering, `u2=${u2.head_covering} want=${u1.search_head_covering}`);
         const mySkin = split(u1.search_skin_tones);
@@ -2398,7 +2399,8 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
         const u2Occ = split(u2.search_occupations);
         if (u2Occ.length) add('B: u2 רוצה עיסוק', !u1.current_occupation || u2Occ.includes(u1.current_occupation), `u1=${u1.current_occupation} in [${u2Occ}]`);
         const u2LA = split(u2.search_life_aspirations);
-        if (u2LA.length) add('B: u2 רוצה שאיפה', !u1.life_aspiration || u2LA.includes(u1.life_aspiration), `u1=${u1.life_aspiration} in [${u2LA}]`);
+        // שאיפה רלוונטית לגברים בלבד — לא בודקים אם u1 היא אישה
+        if (u2LA.length && u1.gender === 'male') add('B: u2 רוצה שאיפה', !u1.life_aspiration || u2LA.includes(u1.life_aspiration), `u1=${u1.life_aspiration} in [${u2LA}]`);
         if (u2.search_head_covering && u2.search_head_covering !== 'not_relevant')
             add('B: u2 רוצה כיסוי ראש', !u1.head_covering || u1.head_covering === 'flexible' || u1.head_covering === u2.search_head_covering, `u1=${u1.head_covering} want=${u2.search_head_covering}`);
         const u2Skin = split(u2.search_skin_tones);
