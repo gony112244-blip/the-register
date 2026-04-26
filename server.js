@@ -4984,6 +4984,20 @@ async function updateDbSchema() {
         // עמודת tts_last_played — מתי פרופיל הושמע לאחרונה ב-IVR (לניקוי אודיו ישן)
         await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tts_last_played TIMESTAMP`);
 
+        // נרמול apartment_help: "yes (סכום)" → apartment_help='yes' + apartment_amount=סכום
+        const normResult = await pool.query(`
+            UPDATE users
+            SET
+                apartment_amount = COALESCE(
+                    NULLIF(apartment_amount, ''),
+                    substring(apartment_help FROM 'yes \\((\\d[\\d,]*)\\)')
+                ),
+                apartment_help = 'yes'
+            WHERE apartment_help LIKE 'yes (%)'
+        `);
+        if (normResult.rowCount > 0)
+            console.log(`[Normalize] ✅ נורמלו ${normResult.rowCount} רשומות apartment_help מ-"yes (סכום)" ל-"yes"`);
+
         console.log("✅ DB Schema updated: Wizard columns + IVR tables ensured.");
 
     } catch (err) {

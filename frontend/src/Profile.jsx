@@ -459,9 +459,7 @@ function Profile() {
             dataToSend.search_financial_min = null;
         }
 
-        if (user.apartment_help === 'yes' && user.apartment_amount) {
-            dataToSend.apartment_help = `yes (${user.apartment_amount})`;
-        }
+        // apartment_help נשמר בנפרד מ-apartment_amount — לא משלבים לפורמט "yes (סכום)"
         if (user.yeshiva_name && user.yeshiva_ketana_name) {
             dataToSend.yeshiva_name = `${user.yeshiva_name} (קטנה: ${user.yeshiva_ketana_name})`;
         }

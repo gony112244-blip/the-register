@@ -168,19 +168,16 @@ async function buildMatchConditions(userId, pool, opts = {}) {
         params.push(...skinTones); pi += skinTones.length;
     }
 
-    // כלכלה — מינימום עזרה בדיור
-    // apartment_help יכול להיות 'yes' או 'yes (930000)' — תומכים בשני הפורמטים
+    // כלכלה — מינימום עזרה בדיור (apartment_help תמיד 'yes' אחרי נרמול ב-updateDbSchema)
     if (!currentUser.search_financial_discuss && currentUser.search_financial_min) {
         const minAmt = parseInt(String(currentUser.search_financial_min).replace(/[,\s]/g, ''), 10);
         if (!isNaN(minAmt) && minAmt > 0) {
             c.push(`(
                 apartment_help = 'full'
                 OR (
-                    (apartment_help = 'yes' OR apartment_help LIKE 'yes (%)')
-                    AND NULLIF(regexp_replace(COALESCE(
-                        NULLIF(apartment_amount, ''),
-                        substring(apartment_help FROM 'yes \\((\\d[\\d,]*)\\)')
-                    ), '[^0-9]', '', 'g'), '')::bigint >= $${pi}
+                    apartment_help = 'yes'
+                    AND apartment_amount IS NOT NULL
+                    AND NULLIF(regexp_replace(apartment_amount, '[^0-9]', '', 'g'), '')::bigint >= $${pi}
                 )
             )`);
             params.push(minAmt); pi++;
@@ -299,12 +296,8 @@ async function buildMatchConditions(userId, pool, opts = {}) {
         // אני מציע דירה מלאה — תמיד עומד בדרישות
     } else if (currentUser.apartment_help === 'discuss') {
         // נדון עם השדכנ/ית — עוקף סינון כלכלי: יוצג לכולם ללא קשר לסכום שדרשו
-    } else if (currentUser.apartment_help && (currentUser.apartment_help === 'yes' || currentUser.apartment_help.startsWith('yes (') || currentUser.apartment_help.startsWith('yes('))) {
-        // תומכים בפורמט 'yes' עם apartment_amount נפרד וגם בפורמט 'yes (930000)' משולב
-        const rawAh = currentUser.apartment_help;
-        const embMatch = rawAh.match(/yes\s*\((\d[\d,]*)\)/i);
-        const amtStr = currentUser.apartment_amount || (embMatch ? embMatch[1] : '');
-        const myAmt = parseInt(String(amtStr).replace(/[^0-9]/g, ''), 10);
+    } else if (currentUser.apartment_help === 'yes' && currentUser.apartment_amount) {
+        const myAmt = parseInt(String(currentUser.apartment_amount).replace(/[^0-9]/g, ''), 10);
         if (!isNaN(myAmt) && myAmt > 0) {
             c.push(`(search_financial_discuss = TRUE OR search_financial_min IS NULL OR NULLIF(regexp_replace(search_financial_min, '[^0-9]', '', 'g'), '') IS NULL OR NULLIF(regexp_replace(search_financial_min, '[^0-9]', '', 'g'), '')::bigint <= $${pi})`);
             params.push(myAmt); pi++;
