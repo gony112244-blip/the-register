@@ -154,8 +154,10 @@ async function buildMatchConditions(userId, pool, opts = {}) {
         params.push(...aspirations); pi += aspirations.length;
     }
 
-    // כיסוי ראש
-    if (currentUser.search_head_covering && currentUser.search_head_covering !== 'not_relevant') {
+    // כיסוי ראש — אם דרש 'flexible' או 'not_relevant' — לא מסנן (פתוח לכל)
+    if (currentUser.search_head_covering
+        && currentUser.search_head_covering !== 'not_relevant'
+        && currentUser.search_head_covering !== 'flexible') {
         c.push(`(head_covering IS NULL OR head_covering = 'flexible' OR head_covering = $${pi})`);
         params.push(currentUser.search_head_covering); pi++;
     }
@@ -168,12 +170,14 @@ async function buildMatchConditions(userId, pool, opts = {}) {
         params.push(...skinTones); pi += skinTones.length;
     }
 
-    // כלכלה — מינימום עזרה בדיור (apartment_help תמיד 'yes' אחרי נרמול ב-updateDbSchema)
+    // כלכלה — מינימום עזרה בדיור
+    // 'full' תמיד עובר, 'discuss' עוקף את הסינון, 'yes' חייב סכום מספיק
     if (!currentUser.search_financial_discuss && currentUser.search_financial_min) {
         const minAmt = parseInt(String(currentUser.search_financial_min).replace(/[,\s]/g, ''), 10);
         if (!isNaN(minAmt) && minAmt > 0) {
             c.push(`(
                 apartment_help = 'full'
+                OR apartment_help = 'discuss'
                 OR (
                     apartment_help = 'yes'
                     AND apartment_amount IS NOT NULL

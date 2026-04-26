@@ -2388,7 +2388,7 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
         if (myOcc.length) add('A: עיסוק', !u2.current_occupation || myOcc.includes(u2.current_occupation), `u2=${u2.current_occupation} in [${myOcc}]`);
         const myLA = split(u1.search_life_aspirations);
         if (myLA.length) add('A: שאיפה', !u2.life_aspiration || myLA.includes(u2.life_aspiration), `u2=${u2.life_aspiration} in [${myLA}]`);
-        if (u1.search_head_covering && u1.search_head_covering !== 'not_relevant')
+        if (u1.search_head_covering && u1.search_head_covering !== 'not_relevant' && u1.search_head_covering !== 'flexible')
             add('A: כיסוי ראש', !u2.head_covering || u2.head_covering === 'flexible' || u2.head_covering === u1.search_head_covering, `u2=${u2.head_covering} want=${u1.search_head_covering}`);
         const mySkin = split(u1.search_skin_tones);
         if (mySkin.length) add('A: גוון עור', !u2.skin_tone || mySkin.includes(u2.skin_tone), `u2=${u2.skin_tone} in [${mySkin}]`);
@@ -2417,21 +2417,23 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
         if (u2Occ.length) add('B: u2 רוצה עיסוק', !u1.current_occupation || u2Occ.includes(u1.current_occupation), `u1=${u1.current_occupation} in [${u2Occ}]`);
         const u2LA = split(u2.search_life_aspirations);
         if (u2LA.length) add('B: u2 רוצה שאיפה', !u1.life_aspiration || u2LA.includes(u1.life_aspiration), `u1=${u1.life_aspiration} in [${u2LA}]`);
-        if (u2.search_head_covering && u2.search_head_covering !== 'not_relevant')
+        if (u2.search_head_covering && u2.search_head_covering !== 'not_relevant' && u2.search_head_covering !== 'flexible')
             add('B: u2 רוצה כיסוי ראש', !u1.head_covering || u1.head_covering === 'flexible' || u1.head_covering === u2.search_head_covering, `u1=${u1.head_covering} want=${u2.search_head_covering}`);
         const u2Skin = split(u2.search_skin_tones);
         if (u2Skin.length) add('B: u2 רוצה גוון עור', !u1.skin_tone || u2Skin.includes(u1.skin_tone), `u1=${u1.skin_tone} in [${u2Skin}]`);
 
-        // --- בדיקת כלכלה (חסרה בדיבוג הפשוט) ---
+        // --- בדיקת כלכלה ---
         // כיוון A: u1 מחפש → u2 צריך לעמוד בדרישות הכלכלה של u1
         if (!u1.search_financial_discuss && u1.search_financial_min) {
             const reqAmt = parseInt(String(u1.search_financial_min).replace(/[^0-9]/g, ''), 10);
             if (!isNaN(reqAmt) && reqAmt > 0) {
                 if (u2.apartment_help === 'full') {
                     add('A: כלכלה', true, `u2 מציע דירה מלאה`);
+                } else if (u2.apartment_help === 'discuss') {
+                    add('A: כלכלה', true, `u2 בחר/ה "נדון עם השדכן/ית" — עוקף סינון`);
                 } else {
                     const u2Amt = parseInt(String(u2.apartment_amount || '').replace(/[^0-9]/g, ''), 10);
-                    add('A: כלכלה', !isNaN(u2Amt) && u2Amt >= reqAmt, `u2 מציע ${u2Amt || 0} ₪, u1 דורש ${reqAmt} ₪`);
+                    add('A: כלכלה', u2.apartment_help === 'yes' && !isNaN(u2Amt) && u2Amt >= reqAmt, `u2 מציע ${u2Amt || 0} ₪ (apartment_help=${u2.apartment_help}), u1 דורש ${reqAmt} ₪`);
                 }
             }
         }
@@ -2441,9 +2443,11 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
             if (!isNaN(reqAmt2) && reqAmt2 > 0) {
                 if (u1.apartment_help === 'full') {
                     add('B: כלכלה', true, `u1 מציע דירה מלאה`);
+                } else if (u1.apartment_help === 'discuss') {
+                    add('B: כלכלה', true, `u1 בחר/ה "נדון עם השדכן/ית" — עוקף סינון`);
                 } else {
                     const u1Amt = parseInt(String(u1.apartment_amount || '').replace(/[^0-9]/g, ''), 10);
-                    add('B: כלכלה', !isNaN(u1Amt) && u1Amt >= reqAmt2, `u1 מציע ${u1Amt || 0} ₪, u2 דורש ${reqAmt2} ₪`);
+                    add('B: כלכלה', u1.apartment_help === 'yes' && !isNaN(u1Amt) && u1Amt >= reqAmt2, `u1 מציע ${u1Amt || 0} ₪ (apartment_help=${u1.apartment_help}), u2 דורש ${reqAmt2} ₪`);
                 }
             }
         }
