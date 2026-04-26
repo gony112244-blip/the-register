@@ -310,7 +310,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
 
                             <Section title="🏠 דיור ומימון" color="#fef9ec" border="#fcd34d">
                                 <Row label="עזרת דירה" val={tr('apartment_help', ahVal)} />
-                                {ahAmount && <Row label="סכום עזרה" val={`₪${Number(ahAmount).toLocaleString()}`} />}
+                                {ahVal === 'yes' && ahAmount && <Row label="סכום עזרה" val={`₪${Number(String(ahAmount).replace(/[^0-9]/g,'')).toLocaleString()}`} />}
                             </Section>
 
                             {(show(p.about_me) || show(p.home_style) || show(p.important_in_life)) && (
