@@ -65,6 +65,8 @@ import './App.css';
 
 /** דקות ללא פעילות לפני ניתוק אוטומטי (מחשב משותף / עזיבת המחשב) */
 const IDLE_LOGOUT_MINUTES = 30;
+/** דקות ללא פעילות בעת מילוי פרופיל — ארוך יותר, כדי לא לנתק באמצע מילוי טופס ארוך */
+const IDLE_LOGOUT_PROFILE_MINUTES = 60;
 
 /**
  * ניתוק גלובלי על 401 — מנקה token ומפנה ל-login.
@@ -201,8 +203,10 @@ function AppContent() {
     const bump = () => { lastActivity = Date.now(); };
 
     // mousemove — מכסה גלילה עם העכבר ותנועות בלי לחיצה
-    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click', 'pointerdown'];
-    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true }));
+    // input/change — מכסה הקלדה במקלדת וירטואלית של טלפונים (שלא תמיד שולחת keydown)
+    // focusin — מכסה מעבר בין שדות בטופס (גם אם אין הקלדה ממש)
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'touchmove', 'click', 'pointerdown', 'input', 'change', 'focusin'];
+    events.forEach((ev) => window.addEventListener(ev, bump, { passive: true, capture: true }));
 
     // visibilitychange — כשחוזרים לטאב אחרי היעדרות, מעדכנים lastActivity
     // כך חזרה לטאב תמיד "מאפסת" את ספירת הדקות (הניתוק יתחיל רק אחרי חצי שעה של חוסר פעילות בתוך הטאב)
@@ -211,7 +215,11 @@ function AppContent() {
 
     const tick = () => {
       if (!localStorage.getItem('token') || idleLogoutDone.current) return;
-      const ms = IDLE_LOGOUT_MINUTES * 60 * 1000;
+      // בדף מילוי פרופיל — סבלנות ארוכה יותר (טופס ארוך, אנשים שוהים על שאלה)
+      // קוראים ישירות מ-window.location כדי לקבל את הערך העדכני (העפקט עצמו לא רץ-מחדש על כל ניווט)
+      const isProfilePage = (typeof window !== 'undefined') && window.location.pathname === '/profile';
+      const minutes = isProfilePage ? IDLE_LOGOUT_PROFILE_MINUTES : IDLE_LOGOUT_MINUTES;
+      const ms = minutes * 60 * 1000;
       if (Date.now() - lastActivity < ms) return;
       idleLogoutDone.current = true;
       localStorage.removeItem('user');
@@ -225,7 +233,7 @@ function AppContent() {
 
     const intervalId = setInterval(tick, 60 * 1000);
     return () => {
-      events.forEach((ev) => window.removeEventListener(ev, bump));
+      events.forEach((ev) => window.removeEventListener(ev, bump, { capture: true }));
       document.removeEventListener('visibilitychange', onVisible);
       clearInterval(intervalId);
     };
