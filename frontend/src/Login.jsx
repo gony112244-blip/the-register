@@ -13,11 +13,23 @@ function Login() {
     const handleLogin = async (e) => {
         e.preventDefault();
 
+        const trimmedPhone = phone.trim();
+        const trimmedPassword = password.trim();
+
+        if (!trimmedPhone) {
+            showToast("יש להזין מספר טלפון", "error");
+            return;
+        }
+        if (!trimmedPassword) {
+            showToast("יש להזין סיסמה", "error");
+            return;
+        }
+
         try {
             const response = await fetch(`${API_BASE}/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone, password })
+                body: JSON.stringify({ phone: trimmedPhone, password: trimmedPassword })
             });
 
             const data = await response.json();

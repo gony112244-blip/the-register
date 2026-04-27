@@ -678,17 +678,25 @@ app.post('/register', async (req, res) => {
 // התחברות למערכת (תומך באימייל או טלפון)
 app.post('/login', loginLimiter, async (req, res) => {
     // Frontend שולח לפעמים phone ולפעמים email, ולפעמים identifier
-    const identifier = req.body.identifier || req.body.email || req.body.phone;
+    const rawIdentifier = req.body.identifier || req.body.email || req.body.phone;
     const { password } = req.body;
 
-    console.log(`[Login Attempt] Identifier: ${identifier}, Password Provided: ${password ? 'Yes' : 'No'}`);
-
-    if (!identifier) {
+    if (!rawIdentifier || !rawIdentifier.toString().trim()) {
         return res.status(400).json({ message: "יש להזין כתובת מייל או מספר טלפון" });
     }
+    if (!password) {
+        return res.status(400).json({ message: "יש להזין סיסמה" });
+    }
+
+    // נרמול: טלפון → ספרות בלבד (כמו שנשמר ברישום). אימייל → כתיבה קטנה
+    const identifier = rawIdentifier.includes('@')
+        ? rawIdentifier.trim().toLowerCase()
+        : rawIdentifier.replace(/\D/g, '');
+
+    console.log(`[Login Attempt] Identifier: ${identifier}, Password Provided: Yes`);
 
     try {
-        // 1. חיפוש המשתמש לפי אימייל או טלפון
+        // 1. חיפוש המשתמש לפי אימייל או טלפון (טלפון נשמר כספרות בלבד)
         const userResult = await pool.query(
             'SELECT * FROM users WHERE email = $1 OR phone = $1',
             [identifier]
