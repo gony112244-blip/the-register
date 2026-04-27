@@ -1923,12 +1923,32 @@ function Profile() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', justifyContent: 'center' }}>
                                 <span style={{ fontSize: '2rem' }}>🆔</span>
                                 <div style={{ textAlign: 'right' }}>
-                                    <h3 style={{ ...styles.cardTitle, margin: 0 }}>אימות זהות - תעודת זהות</h3>
-                                    <p style={{ ...styles.hint, margin: 0 }}>למען ביטחון הקהילה, חובה להעלות זיהוי רשמי (כולל ספח פתוח)</p>
+                                    <h3 style={{ ...styles.cardTitle, margin: 0 }}>אימות זהות</h3>
+                                    <p style={{ ...styles.hint, margin: 0 }}>תעודת זהות, רישיון נהיגה או דרכון — לאימות בלבד, נמחק מיד לאחר אישור</p>
                                 </div>
                             </div>
 
-                            {user.id_card_image_url && (
+                            {/* אם הפרופיל כבר אושר — הת"ז נמחק אוטומטית */}
+                            {user.identity_verified && !user.id_card_image_url && (
+                                <div style={{
+                                    padding: '14px 20px',
+                                    borderRadius: '12px',
+                                    marginBottom: '20px',
+                                    background: 'rgba(34,197,94,0.1)',
+                                    border: '1px solid #22c55e',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '10px',
+                                    fontWeight: '600',
+                                    color: '#166534',
+                                    fontSize: '0.97rem'
+                                }}>
+                                    ✅ הזהות אומתה — אמצעי הזיהוי נמחק מהמערכת באופן אוטומטי לאחר האישור
+                                </div>
+                            )}
+
+                            {user.id_card_image_url && !user.identity_verified && (
                                 <div style={{
                                     padding: '12px 20px',
                                     borderRadius: '12px',
@@ -1946,7 +1966,7 @@ function Profile() {
                                 </div>
                             )}
 
-                            <div style={{
+                            {!user.identity_verified && <div style={{
                                 background: '#fff',
                                 padding: '20px',
                                 borderRadius: '15px',
@@ -2045,10 +2065,10 @@ function Profile() {
                                             boxShadow: '0 4px 12px rgba(30, 58, 95, 0.2)'
                                         }}
                                     >
-                                        {idUploading ? '⏳ מעלה...' : '📤 העלה צילום תעודת זהות'}
+                                        {idUploading ? '⏳ מעלה...' : '📤 העלה אמצעי זיהוי (ת"ז / רישיון / דרכון)'}
                                     </button>
                                 )}
-                            </div>
+                            </div>}
                         </div>
 
                         {/* תמונות פרופיל */}

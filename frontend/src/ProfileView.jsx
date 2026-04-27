@@ -203,6 +203,11 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                             {show(user.real_id_number) && <span style={S.contactValue}>🪪 ת.ז: {user.real_id_number}</span>}
                             {show(user.phone) && <span style={S.contactValue}>📞 {user.phone}</span>}
                             {show(user.email) && <span style={S.contactValue}>📧 {user.email}</span>}
+                            {user.identity_verified && !user.id_card_image_url && (
+                                <span style={{ color: '#166534', fontWeight: '600', fontSize: '0.9rem' }}>
+                                    ✅ זהות אומתה — אמצעי הזיהוי נמחק אוטומטית
+                                </span>
+                            )}
                             {show(user.id_card_image_url) && (
                                 <span
                                     onClick={() => setLightboxSrc(mediaUrl(user.id_card_image_url))}

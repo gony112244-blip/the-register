@@ -3983,7 +3983,25 @@ app.put('/admin/approve/:userId', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "גישה נדחתה" });
     const { userId } = req.params;
     try {
-        await pool.query('UPDATE users SET is_approved = TRUE WHERE id = $1', [userId]);
+        // שליפת נתיב קובץ ת"ז לפני האישור
+        const idCardRow = await pool.query('SELECT id_card_image_url FROM users WHERE id = $1', [userId]);
+        const idCardPath = idCardRow.rows[0]?.id_card_image_url;
+
+        // אישור המשתמש + סימון אומת זהות + ניקוי נתיב ת"ז מה-DB
+        await pool.query(
+            'UPDATE users SET is_approved = TRUE, identity_verified = TRUE, id_card_image_url = NULL WHERE id = $1',
+            [userId]
+        );
+
+        // מחיקת קובץ ת"ז מהדיסק
+        if (idCardPath) {
+            const fs = require('fs');
+            const absPath = path.join(__dirname, 'uploads', path.basename(String(idCardPath)));
+            fs.unlink(absPath, (err) => {
+                if (err) console.warn(`[approve] לא ניתן למחוק ת"ז: ${absPath}`, err.message);
+                else console.log(`[approve] ת"ז נמחק: ${absPath}`);
+            });
+        }
 
         // הודעה למשתמש במערכת
         await pool.query(
@@ -4825,6 +4843,9 @@ async function updateDbSchema() {
                 created_at TIMESTAMP DEFAULT NOW()
             )
         `);
+
+        // אימות זהות — מסומן TRUE לאחר אישור, הקובץ עצמו נמחק מיידית
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS identity_verified BOOLEAN DEFAULT FALSE`);
 
         // עמודות חיוניות לטבלת photo_approvals
         await pool.query(`ALTER TABLE photo_approvals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`);
