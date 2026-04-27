@@ -48,6 +48,12 @@ function AdminUsers() {
     const [diagnosisData, setDiagnosisData] = useState(null);
     const [diagnosisLoading, setDiagnosisLoading] = useState(false);
 
+    // שגיאות אחרונות
+    const [showErrors, setShowErrors] = useState(false);
+    const [errorsData, setErrorsData] = useState(null);
+    const [errorsLoading, setErrorsLoading] = useState(false);
+    const [errorsDays, setErrorsDays] = useState(7);
+
     useEffect(() => {
         if (!token) { navigate('/login'); return; }
         fetchUsers();
@@ -106,6 +112,27 @@ function AdminUsers() {
             setShowDiagnosis(false);
         }
         setDiagnosisLoading(false);
+    };
+
+    const fetchRecentErrors = async (days = errorsDays) => {
+        setErrorsLoading(true);
+        setShowErrors(true);
+        try {
+            const res = await fetch(`${API_BASE}/admin/recent-errors?days=${days}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setErrorsData(data);
+            } else {
+                showToast(data.message || 'שגיאה בטעינת השגיאות', 'error');
+                setShowErrors(false);
+            }
+        } catch (err) {
+            showToast('שגיאה בתקשורת עם השרת', 'error');
+            setShowErrors(false);
+        }
+        setErrorsLoading(false);
     };
 
     const fetchHistory = async (userId) => {
@@ -267,9 +294,14 @@ function AdminUsers() {
                         <h1 style={st.title}>👥 ניהול משתמשים</h1>
                         <p style={st.subtitle}>סה״כ {users.length} משתמשים · מוצגים {filteredUsers.length}</p>
                     </div>
-                    <button onClick={fetchDiagnosis} style={st.diagnosisBtn}>
-                        🔍 אבחון ממתינים
-                    </button>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <button onClick={fetchDiagnosis} style={st.diagnosisBtn}>
+                            🔍 אבחון ממתינים
+                        </button>
+                        <button onClick={() => fetchRecentErrors()} style={st.errorsBtn}>
+                            ⚠️ שגיאות אחרונות
+                        </button>
+                    </div>
                 </div>
 
                 {/* --- אזור סינון --- */}
@@ -363,6 +395,16 @@ function AdminUsers() {
                             onClose={() => setShowDiagnosis(false)}
                             onApprove={handleApprove}
                             onOpenUser={(uid) => { setShowDiagnosis(false); fetchFullUser(uid); }}
+                        />
+                    )}
+                    {showErrors && (
+                        <RecentErrorsModal
+                            data={errorsData}
+                            loading={errorsLoading}
+                            days={errorsDays}
+                            onChangeDays={(d) => { setErrorsDays(d); fetchRecentErrors(d); }}
+                            onClose={() => setShowErrors(false)}
+                            onOpenUser={(uid) => { setShowErrors(false); fetchFullUser(uid); }}
                         />
                     )}
                     {filteredUsers.map(user => (
@@ -678,6 +720,13 @@ const st = {
         color: '#1a1a1a', border: 'none', borderRadius: '10px',
         fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem',
         boxShadow: '0 4px 14px rgba(0,0,0,0.2)'
+    },
+    errorsBtn: {
+        padding: '12px 22px',
+        background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+        color: '#fff', border: 'none', borderRadius: '10px',
+        fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.2)'
     }
 };
 
@@ -917,6 +966,169 @@ const dst = {
         padding: '8px 16px',
         background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff',
         border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold'
+    }
+};
+
+const ERROR_ACTION_LABELS = {
+    profile_update_failed: '⚠️ שמירת פרופיל',
+    login_failed: '🔐 ניסיון כניסה',
+    photo_upload_failed: '📷 העלאת תמונה'
+};
+
+function RecentErrorsModal({ data, loading, days, onChangeDays, onClose, onOpenUser }) {
+    const fmt = (d) => d ? new Date(d).toLocaleString('he-IL', {
+        day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
+    }) : '—';
+
+    const dayOptions = [1, 3, 7, 14, 30];
+
+    return (
+        <div style={dst.overlay} onClick={onClose}>
+            <div style={dst.modal} onClick={(e) => e.stopPropagation()}>
+                <div style={{ ...dst.header, background: 'linear-gradient(135deg, #991b1b, #dc2626)' }}>
+                    <h2 style={dst.title}>⚠️ שגיאות אחרונות במערכת</h2>
+                    <button onClick={onClose} style={dst.closeBtn}>✖</button>
+                </div>
+
+                <div style={est.daysRow}>
+                    <span style={est.daysLabel}>תקופה:</span>
+                    {dayOptions.map(d => (
+                        <button
+                            key={d}
+                            onClick={() => onChangeDays(d)}
+                            style={days === d ? est.dayBtnActive : est.dayBtn}
+                        >
+                            {d === 1 ? 'יום' : `${d} ימים`}
+                        </button>
+                    ))}
+                </div>
+
+                {loading ? (
+                    <div style={dst.loading}>
+                        <div style={{ fontSize: '2rem' }}>⏳</div>
+                        <div>טוען שגיאות...</div>
+                    </div>
+                ) : !data ? (
+                    <div style={dst.loading}>אין נתונים</div>
+                ) : data.errors.length === 0 ? (
+                    <div style={dst.loading}>
+                        <div style={{ fontSize: '2.5rem' }}>🎉</div>
+                        <div>אין שגיאות ב-{days} הימים האחרונים!</div>
+                    </div>
+                ) : (
+                    <>
+                        <div style={est.summaryRow}>
+                            <div style={est.summaryCard}>
+                                <div style={est.summaryNum}>{data.summary.total}</div>
+                                <div style={est.summaryLabel}>סה״כ שגיאות</div>
+                            </div>
+                            <div style={est.summaryCard}>
+                                <div style={est.summaryNum}>{data.summary.unique_users}</div>
+                                <div style={est.summaryLabel}>משתמשים שנפגעו</div>
+                            </div>
+                            <div style={est.summaryCard}>
+                                <div style={est.summaryNum}>{data.summary.profile_update_failed}</div>
+                                <div style={est.summaryLabel}>שמירת פרופיל</div>
+                            </div>
+                            <div style={est.summaryCard}>
+                                <div style={est.summaryNum}>{data.summary.photo_upload_failed}</div>
+                                <div style={est.summaryLabel}>העלאת תמונה</div>
+                            </div>
+                        </div>
+
+                        <div style={dst.list}>
+                            {data.errors.map(e => (
+                                <div key={e.id} style={est.errorBox}>
+                                    <div style={est.errorTopRow}>
+                                        <div>
+                                            <div style={est.errorAction}>
+                                                {ERROR_ACTION_LABELS[e.action] || e.action}
+                                            </div>
+                                            <div style={est.userRow}>
+                                                {e.user_id ? (
+                                                    <button
+                                                        onClick={() => onOpenUser(e.user_id)}
+                                                        style={est.userLink}
+                                                    >
+                                                        #{e.user_id} · {e.full_name || ''} {e.last_name || ''}
+                                                    </button>
+                                                ) : (
+                                                    <span>משתמש לא ידוע</span>
+                                                )}
+                                                {e.is_blocked && <span style={est.blockedTag}>🚫 חסום</span>}
+                                                {e.is_approved === false && <span style={est.pendingTag}>⏳ ממתין</span>}
+                                            </div>
+                                            {e.phone && <div style={est.userMeta}>📱 {e.phone}{e.email && ` · 📧 ${e.email}`}</div>}
+                                        </div>
+                                        <div style={est.errorTime}>{fmt(e.created_at)}</div>
+                                    </div>
+                                    {e.note && (
+                                        <div style={est.errorNote}>{e.note}</div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+const est = {
+    daysRow: {
+        display: 'flex', gap: '8px', padding: '14px 24px',
+        borderBottom: '1px solid #e5e7eb', alignItems: 'center', flexWrap: 'wrap'
+    },
+    daysLabel: { fontWeight: 'bold', color: '#374151' },
+    dayBtn: {
+        padding: '6px 14px', background: '#f3f4f6', border: '1px solid #d1d5db',
+        borderRadius: '999px', cursor: 'pointer', fontSize: '0.85rem'
+    },
+    dayBtnActive: {
+        padding: '6px 14px', background: '#dc2626', border: '1px solid #dc2626',
+        color: '#fff', borderRadius: '999px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold'
+    },
+    summaryRow: {
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px',
+        padding: '16px 24px 0'
+    },
+    summaryCard: {
+        padding: '12px', borderRadius: '10px', textAlign: 'center',
+        background: '#fef2f2', border: '1px solid #fecaca'
+    },
+    summaryNum: { fontSize: '1.6rem', fontWeight: 'bold', color: '#991b1b', lineHeight: 1 },
+    summaryLabel: { fontSize: '0.78rem', color: '#7f1d1d', marginTop: '4px' },
+    errorBox: {
+        background: '#fff', border: '1px solid #fecaca', borderRight: '4px solid #dc2626',
+        borderRadius: '10px', padding: '14px', marginBottom: '10px'
+    },
+    errorTopRow: {
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        gap: '12px', flexWrap: 'wrap', marginBottom: '8px'
+    },
+    errorAction: { fontWeight: 'bold', color: '#991b1b', fontSize: '0.95rem' },
+    userRow: {
+        display: 'flex', gap: '8px', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap'
+    },
+    userLink: {
+        background: 'none', border: 'none', padding: 0, color: '#1e3a5f',
+        textDecoration: 'underline', cursor: 'pointer', fontSize: '0.95rem', fontWeight: 'bold'
+    },
+    userMeta: { fontSize: '0.82rem', color: '#6b7280', marginTop: '2px' },
+    errorTime: { fontSize: '0.8rem', color: '#6b7280', whiteSpace: 'nowrap' },
+    errorNote: {
+        background: '#fef2f2', borderRadius: '6px', padding: '8px 10px',
+        fontFamily: 'monospace', fontSize: '0.8rem', color: '#7f1d1d',
+        wordBreak: 'break-word', marginTop: '6px'
+    },
+    blockedTag: {
+        background: '#fee2e2', color: '#991b1b', padding: '2px 8px',
+        borderRadius: '999px', fontSize: '0.72rem', fontWeight: 'bold'
+    },
+    pendingTag: {
+        background: '#fef3c7', color: '#92400e', padding: '2px 8px',
+        borderRadius: '999px', fontSize: '0.72rem', fontWeight: 'bold'
     }
 };
 

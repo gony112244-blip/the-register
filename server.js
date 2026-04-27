@@ -2600,6 +2600,42 @@ app.get('/admin/all-users', authenticateToken, async (req, res) => {
     }
 });
 
+// שגיאות אחרונות של משתמשים — מציג כשלי שמירת פרופיל לכל משתמש (כולל מאושרים)
+app.get('/admin/recent-errors', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const days = Math.max(1, Math.min(90, parseInt(req.query.days) || 7));
+    const limit = Math.max(10, Math.min(500, parseInt(req.query.limit) || 100));
+
+    try {
+        const result = await pool.query(
+            `SELECT al.id, al.user_id, al.action, al.note, al.created_at,
+                    u.full_name, u.last_name, u.phone, u.email,
+                    u.is_approved, u.is_blocked
+             FROM activity_log al
+             LEFT JOIN users u ON u.id = al.user_id
+             WHERE al.action IN ('profile_update_failed', 'login_failed', 'photo_upload_failed')
+               AND al.created_at > NOW() - INTERVAL '${days} days'
+             ORDER BY al.created_at DESC
+             LIMIT $1`,
+            [limit]
+        );
+
+        const summary = {
+            total: result.rows.length,
+            unique_users: new Set(result.rows.map(r => r.user_id)).size,
+            profile_update_failed: result.rows.filter(r => r.action === 'profile_update_failed').length,
+            login_failed: result.rows.filter(r => r.action === 'login_failed').length,
+            photo_upload_failed: result.rows.filter(r => r.action === 'photo_upload_failed').length
+        };
+
+        res.json({ errors: result.rows, summary, days });
+    } catch (err) {
+        console.error("Recent errors fetch failed:", err);
+        res.status(500).json({ message: "שגיאה בשליפת שגיאות" });
+    }
+});
+
 // אבחון משתמשים לא־מאושרים: מה כל אחד מהם מילא בפרופיל ומה לא
 // משמש לזהות מי "נרשם וברח", מי התחיל למלא ולא סיים, ומי באמת מוכן לאישור.
 app.get('/admin/pending-users-diagnosis', authenticateToken, async (req, res) => {
