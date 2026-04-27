@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
 import MatchCardModal from './components/MatchCardModal';
 import InitialsAvatar from './components/InitialsAvatar';
+import { formatHeight } from './utils';
 
 const fmtDate = (d) => new Date(d).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -25,7 +26,7 @@ function RequestRow({ item, type, onViewCard, onAction }) {
                 <div>
                     <div style={S.rowName}>{item.full_name}{item.age ? `, ${item.age}` : ''}</div>
                     <div style={S.rowSub}>
-                        {item.height && `${item.height} ס"מ`}
+                        {item.height && `${formatHeight(item.height)} ס"מ`}
                         {item.heritage_sector && ` · ${tr('heritage_sector', item.heritage_sector)}`}
                         {item.current_occupation && ` · ${tr('current_occupation', item.current_occupation)}`}
                     </div>

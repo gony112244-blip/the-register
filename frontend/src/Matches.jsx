@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from './components/ToastProvider';
 import MatchCardModal from './components/MatchCardModal';
 import InitialsAvatar from './components/InitialsAvatar';
+import { formatHeight } from './utils';
 
 // ── תרגומים בסיסיים לכרטיסי הרשימה ──
 const T = {
@@ -398,7 +399,7 @@ function Matches() {
                                                     {match.last_name} {match.full_name?.[0]}.
                                                 </p>
                                             )}
-                                            <p style={styles.detail}>📏 {match.height} ס"מ | {tr('current_occupation', match.current_occupation)}</p>
+                                            <p style={styles.detail}>📏 {formatHeight(match.height)} ס"מ | {tr('current_occupation', match.current_occupation)}</p>
                                             <p style={styles.detail}>🛐 {tr('heritage_sector', match.heritage_sector)} | {tr('family_background', match.family_background)}</p>
                                             {match.city && <p style={styles.detail}>📍 {match.city}</p>}
 

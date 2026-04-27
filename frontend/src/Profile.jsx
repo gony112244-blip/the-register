@@ -1070,7 +1070,13 @@ function Profile() {
                             <div style={styles.grid}>
                                 <div style={styles.field}>
                                     <label>גובה (ס"מ) *</label>
-                                    <input name="height" type="number" value={user.height || ''} onChange={handleChange} style={{ ...styles.input, borderColor: errors.height ? 'red' : '#e2e8f0' }} />
+                                    <input
+                                        name="height" type="number" min="100" max="220" step="1"
+                                        placeholder="לדוגמה: 165"
+                                        value={user.height ? Math.round(Number(user.height)) : ''}
+                                        onChange={handleChange}
+                                        style={{ ...styles.input, borderColor: errors.height ? 'red' : '#e2e8f0' }}
+                                    />
                                 </div>
                                 <div style={styles.field}>
                                     <label>מבנה גוף *</label>
@@ -1539,11 +1545,21 @@ function Profile() {
                                 </div>
                                 <div style={styles.field}>
                                     <label>גובה מינימלי (ס"מ)</label>
-                                    <input name="search_height_min" type="number" value={user.search_height_min || ''} onChange={handleChange} style={styles.input} />
+                                    <input
+                                        name="search_height_min" type="number" min="100" max="220" step="1"
+                                        placeholder="לדוגמה: 155"
+                                        value={user.search_height_min ? Math.round(Number(user.search_height_min)) : ''}
+                                        onChange={handleChange} style={styles.input}
+                                    />
                                 </div>
                                 <div style={styles.field}>
                                     <label>גובה מקסימלי (ס"מ)</label>
-                                    <input name="search_height_max" type="number" value={user.search_height_max || ''} onChange={handleChange} style={styles.input} />
+                                    <input
+                                        name="search_height_max" type="number" min="100" max="220" step="1"
+                                        placeholder="לדוגמה: 180"
+                                        value={user.search_height_max ? Math.round(Number(user.search_height_max)) : ''}
+                                        onChange={handleChange} style={styles.input}
+                                    />
                                 </div>
                             </div>
                         </div>

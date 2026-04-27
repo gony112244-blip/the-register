@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ImageLightbox from './components/ImageLightbox';
 import InitialsAvatar from './components/InitialsAvatar';
+import { formatHeight } from './utils';
 
 function ProfileView({ externalUser, readOnly, isAdminView }) {
     const navigate = useNavigate();
@@ -162,7 +163,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                         <div style={S.heroTags}>
                             {show(user.age) && <span style={S.heroTag}>🎂 {user.age} שנים</span>}
                             {show(user.gender) && <span style={S.heroTag}>{tr('gender', user.gender)}</span>}
-                            {show(user.height) && <span style={S.heroTag}>📏 {user.height} ס"מ</span>}
+                            {show(user.height) && <span style={S.heroTag}>📏 {formatHeight(user.height)} ס"מ</span>}
                             {show(user.city) && <span style={S.heroTag}>📍 {user.city}</span>}
                             {show(user.status) && <span style={S.heroTag}>{tr('status', user.status)}</span>}
                             {show(user.heritage_sector) && <span style={S.heroTag}>{tr('heritage_sector', user.heritage_sector)}</span>}
@@ -296,7 +297,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
 
                             {/* Appearance */}
                             <Section title="🪞 מראה חיצוני" color="#f0f9ff" border="#93c5fd">
-                                <Row label="גובה" val={show(user.height) ? `${user.height} ס"מ` : null} />
+                                <Row label="גובה" val={show(user.height) ? `${formatHeight(user.height)} ס"מ` : null} />
                                 <Row label="מבנה גוף" val={tr('body_type', user.body_type)} />
                                 <Row label="גוון עור" val={tr('skin_tone', user.skin_tone)} />
                                 <Row label="מראה כללי" val={tr('appearance', user.appearance)} />
@@ -426,7 +427,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                         <div style={S.tabGrid}>
                             <Section title="🔍 מה אני מחפש" color="#fef3c7" border="#fcd34d" fullWidth>
                                 <Row label="טווח גילאים" val={show(user.search_min_age) ? `${user.search_min_age}–${user.search_max_age}` : null} />
-                                <Row label="טווח גובה" val={show(user.search_height_min) ? `${user.search_height_min}–${user.search_height_max} ס"מ` : null} />
+                                <Row label="טווח גובה" val={show(user.search_height_min) ? `${formatHeight(user.search_height_min)}–${formatHeight(user.search_height_max)} ס"מ` : null} />
 
                                 {show(user.search_heritage_sectors) && (
                                     <div style={S.fullRow}>

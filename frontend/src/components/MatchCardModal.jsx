@@ -2,6 +2,7 @@ import { API_BASE, getSecureUrl } from '../config';
 import { useState, useEffect } from 'react';
 import ImageLightbox from './ImageLightbox';
 import InitialsAvatar from './InitialsAvatar';
+import { formatHeight } from '../utils';
 
 // ── תרגומים ──
 const T = {
@@ -197,7 +198,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             </h2>
                             <div style={S.heroTags}>
                                 {show(p.age) && <span style={S.tag}>🎂 {p.age} שנים</span>}
-                                {show(p.height) && <span style={S.tag}>📏 {p.height} ס"מ</span>}
+                                {show(p.height) && <span style={S.tag}>📏 {formatHeight(p.height)} ס"מ</span>}
                                 {show(p.city) && <span style={S.tag}>📍 {p.city}</span>}
                                 {show(p.status) && <span style={S.tag}>{tr('status', p.status)}</span>}
                                 {show(p.heritage_sector) && <span style={S.tag}>{tr('heritage_sector', p.heritage_sector)}</span>}
@@ -302,7 +303,7 @@ export default function MatchCardModal({ person, onClose, token: tokenProp, targ
                             )}
 
                             <Section title="🪞 מראה חיצוני" color="#f0f9ff" border="#93c5fd">
-                                <Row label="גובה" val={show(p.height) ? `${p.height} ס"מ` : null} />
+                                <Row label="גובה" val={show(p.height) ? `${formatHeight(p.height)} ס"מ` : null} />
                                 <Row label="מבנה גוף" val={tr('body_type', p.body_type)} />
                                 <Row label="גוון עור" val={tr('skin_tone', p.skin_tone)} />
                                 <Row label="מראה כללי" val={tr('appearance', p.appearance)} />
