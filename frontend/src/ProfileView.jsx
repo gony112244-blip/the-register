@@ -204,10 +204,11 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                             {show(user.phone) && <span style={S.contactValue}>📞 {user.phone}</span>}
                             {show(user.email) && <span style={S.contactValue}>📧 {user.email}</span>}
                             {show(user.id_card_image_url) && (
-                                <a href={mediaUrl(user.id_card_image_url)} target="_blank" rel="noreferrer"
-                                   style={{color: '#be123c', fontWeight: 'bold', textDecoration: 'underline'}}>
-                                    🖼️ פתח צילום ת.ז בלשונית חדשה
-                                </a>
+                                <span
+                                    onClick={() => setLightboxSrc(mediaUrl(user.id_card_image_url))}
+                                    style={{color: '#be123c', fontWeight: 'bold', textDecoration: 'underline', cursor: 'pointer'}}>
+                                    🖼️ הצג צילום ת.ז בגדול
+                                </span>
                             )}
                         </div>
                         {show(user.id_card_image_url) && (
@@ -233,20 +234,23 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                                 <div style={{ fontWeight: '800', color: '#9f1239', marginBottom: '10px', fontSize: '0.95rem' }}>📷 כל תמונות הפרופיל ({images.length})</div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
                                     {images.map((img, i) => (
-                                        <a key={i} href={mediaUrl(img)} target="_blank" rel="noreferrer">
-                                            <img
-                                                src={mediaUrl(img)}
-                                                alt={`פרופיל ${i + 1}`}
-                                                style={{
-                                                    width: '140px',
-                                                    height: '170px',
-                                                    objectFit: 'cover',
-                                                    borderRadius: '12px',
-                                                    border: '3px solid #c9a227'
-                                                }}
-                                                onError={(e) => { e.target.style.display = 'none'; }}
-                                            />
-                                        </a>
+                                        <img
+                                            key={i}
+                                            src={mediaUrl(img)}
+                                            alt={`פרופיל ${i + 1}`}
+                                            draggable={false}
+                                            onContextMenu={e => e.preventDefault()}
+                                            onClick={() => setLightboxSrc(mediaUrl(img))}
+                                            style={{
+                                                width: '140px',
+                                                height: '170px',
+                                                objectFit: 'cover',
+                                                borderRadius: '12px',
+                                                border: '3px solid #c9a227',
+                                                cursor: 'zoom-in'
+                                            }}
+                                            onError={(e) => { e.target.style.display = 'none'; }}
+                                        />
                                     ))}
                                 </div>
                             </div>
