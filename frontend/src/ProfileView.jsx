@@ -23,8 +23,20 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
         fetch(`${API_BASE}/my-profile`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
-            .then(res => res.json())
-            .then(data => { setUser(data); setLoading(false); })
+            .then(async res => {
+                if (res.status === 401) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    navigate('/login');
+                    return null;
+                }
+                if (!res.ok) {
+                    setLoading(false);
+                    return null;
+                }
+                return res.json();
+            })
+            .then(data => { if (data) { setUser(data); setLoading(false); } })
             .catch(() => setLoading(false));
     }, [navigate, token, externalUser]);
 

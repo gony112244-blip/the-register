@@ -69,13 +69,14 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// הגבלה מחמירה לניסיונות התחברות
+// הגבלה לניסיונות התחברות — סופר רק כשלונות, מאפשר חיבורים חוזרים מאותה רשת
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
-    message: { message: "יותר מדי ניסיונות התחברות, נא לנסות שוב בעוד 15 דקות." },
+    max: 20,
+    message: { message: "יותר מדי ניסיונות התחברות כושלים, נא לנסות שוב בעוד 15 דקות." },
     standardHeaders: true,
     legacyHeaders: false,
+    skipSuccessfulRequests: true, // התחברות מוצלחת לא נספרת
 });
 
 // הגבלה לתמונות (sharp כבד על ה-CPU)
@@ -1262,7 +1263,8 @@ app.get('/my-profile', authenticateToken, async (req, res) => {
         const result = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ message: "משתמש לא נמצא" });
+            // טוקן תקף אבל המשתמש נמחק — הפרונט יזהה 401 וינתב ל-login
+            return res.status(401).json({ message: "החיבור פג תוקף, נא להתחבר מחדש", code: 'USER_NOT_FOUND' });
         }
 
         const user = result.rows[0];

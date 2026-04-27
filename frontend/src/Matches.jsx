@@ -60,7 +60,15 @@ function Matches() {
         fetch(`${API_BASE}/my-profile`, {
             headers: { 'Authorization': `Bearer ${token}` }
         })
-            .then(r => r.ok ? r.json() : null)
+            .then(r => {
+                if (r.status === 401) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    navigate('/login');
+                    return null;
+                }
+                return r.ok ? r.json() : null;
+            })
             .then(fresh => {
                 if (!fresh) return;
                 const updated = { ...storedUser, ...fresh };
