@@ -2575,6 +2575,104 @@ app.get('/admin/all-users', authenticateToken, async (req, res) => {
     }
 });
 
+// אבחון משתמשים לא־מאושרים: מה כל אחד מהם מילא בפרופיל ומה לא
+// משמש לזהות מי "נרשם וברח", מי התחיל למלא ולא סיים, ומי באמת מוכן לאישור.
+app.get('/admin/pending-users-diagnosis', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const PROFILE_FIELDS = [
+        'age', 'birth_date', 'gender', 'height', 'city', 'heritage_sector',
+        'family_background', 'status', 'about_me', 'home_style',
+        'head_covering', 'occupation', 'studies',
+        'father_name', 'mother_name', 'siblings_count', 'sibling_position',
+        'rabbi_name', 'rabbi_phone',
+        'search_min_age', 'search_max_age', 'search_heritage_sectors'
+    ];
+
+    try {
+        const colsRes = await pool.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_name = 'users'`
+        );
+        const existingCols = new Set(colsRes.rows.map(r => r.column_name));
+        const fieldsToCheck = PROFILE_FIELDS.filter(f => existingCols.has(f));
+
+        const usersRes = await pool.query(
+            `SELECT id, full_name, last_name, phone, email, created_at, last_login,
+                    is_email_verified, is_profile_pending, pending_changes,
+                    profile_images_count,
+                    ${fieldsToCheck.join(', ')}
+             FROM users
+             WHERE is_admin = FALSE AND is_approved = FALSE
+             ORDER BY created_at DESC`
+        );
+
+        const result = [];
+        for (const u of usersRes.rows) {
+            const filled = [];
+            const empty = [];
+            for (const f of fieldsToCheck) {
+                const v = u[f];
+                if (v === null || v === undefined || v === '' ||
+                    (Array.isArray(v) && v.length === 0)) {
+                    empty.push(f);
+                } else {
+                    filled.push(f);
+                }
+            }
+
+            const logRes = await pool.query(
+                `SELECT action, created_at FROM activity_log
+                 WHERE user_id = $1
+                 ORDER BY created_at DESC LIMIT 5`,
+                [u.id]
+            );
+
+            const pendingChangesCount = u.pending_changes
+                ? Object.keys(u.pending_changes).length : 0;
+
+            let diagnosis;
+            if (filled.length <= 2) {
+                diagnosis = 'not_completed';
+            } else if (!u.is_profile_pending && pendingChangesCount === 0) {
+                diagnosis = 'partial_not_submitted';
+            } else {
+                diagnosis = 'ready_for_approval';
+            }
+
+            result.push({
+                id: u.id,
+                full_name: u.full_name,
+                last_name: u.last_name,
+                phone: u.phone,
+                email: u.email,
+                created_at: u.created_at,
+                last_login: u.last_login,
+                is_email_verified: u.is_email_verified,
+                is_profile_pending: u.is_profile_pending,
+                pending_changes_count: pendingChangesCount,
+                profile_images_count: u.profile_images_count || 0,
+                fields_filled: filled,
+                fields_empty: empty,
+                fields_total: fieldsToCheck.length,
+                recent_activity: logRes.rows,
+                diagnosis
+            });
+        }
+
+        const summary = {
+            total: result.length,
+            not_completed: result.filter(r => r.diagnosis === 'not_completed').length,
+            partial_not_submitted: result.filter(r => r.diagnosis === 'partial_not_submitted').length,
+            ready_for_approval: result.filter(r => r.diagnosis === 'ready_for_approval').length
+        };
+
+        res.json({ users: result, summary });
+    } catch (err) {
+        console.error("Pending users diagnosis error:", err);
+        res.status(500).json({ message: "שגיאה באבחון משתמשים" });
+    }
+});
+
 // חסימה/שחרור משתמש
 app.post('/admin/block-user', authenticateToken, async (req, res) => {
     if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });

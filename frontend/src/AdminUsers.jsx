@@ -43,6 +43,11 @@ function AdminUsers() {
     const [filterAgeMax, setFilterAgeMax] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
 
+    // אבחון ממתינים
+    const [showDiagnosis, setShowDiagnosis] = useState(false);
+    const [diagnosisData, setDiagnosisData] = useState(null);
+    const [diagnosisLoading, setDiagnosisLoading] = useState(false);
+
     useEffect(() => {
         if (!token) { navigate('/login'); return; }
         fetchUsers();
@@ -80,6 +85,27 @@ function AdminUsers() {
             console.error(err);
         }
         setExpandingUserId(null);
+    };
+
+    const fetchDiagnosis = async () => {
+        setDiagnosisLoading(true);
+        setShowDiagnosis(true);
+        try {
+            const res = await fetch(`${API_BASE}/admin/pending-users-diagnosis`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setDiagnosisData(data);
+            } else {
+                showToast(data.message || 'שגיאה בטעינת האבחון', 'error');
+                setShowDiagnosis(false);
+            }
+        } catch (err) {
+            showToast('שגיאה בתקשורת עם השרת', 'error');
+            setShowDiagnosis(false);
+        }
+        setDiagnosisLoading(false);
     };
 
     const fetchHistory = async (userId) => {
@@ -236,8 +262,15 @@ function AdminUsers() {
     return (
         <div style={st.page}>
             <div style={st.container}>
-                <h1 style={st.title}>👥 ניהול משתמשים</h1>
-                <p style={st.subtitle}>סה״כ {users.length} משתמשים · מוצגים {filteredUsers.length}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                    <div>
+                        <h1 style={st.title}>👥 ניהול משתמשים</h1>
+                        <p style={st.subtitle}>סה״כ {users.length} משתמשים · מוצגים {filteredUsers.length}</p>
+                    </div>
+                    <button onClick={fetchDiagnosis} style={st.diagnosisBtn}>
+                        🔍 אבחון ממתינים
+                    </button>
+                </div>
 
                 {/* --- אזור סינון --- */}
                 <div style={st.filterBox}>
@@ -322,6 +355,15 @@ function AdminUsers() {
                         <div style={{ color: '#fff', textAlign: 'center', padding: '40px', opacity: 0.7 }}>
                             לא נמצאו משתמשים התואמים את הסינון
                         </div>
+                    )}
+                    {showDiagnosis && (
+                        <DiagnosisModal
+                            data={diagnosisData}
+                            loading={diagnosisLoading}
+                            onClose={() => setShowDiagnosis(false)}
+                            onApprove={handleApprove}
+                            onOpenUser={(uid) => { setShowDiagnosis(false); fetchFullUser(uid); }}
+                        />
                     )}
                     {filteredUsers.map(user => (
                         <div key={user.id} style={{ marginBottom: '10px' }}>
@@ -629,6 +671,231 @@ const st = {
         background: '#fef9ec', border: '1px solid #fcd34d', borderRadius: '8px',
         padding: '10px 14px', marginBottom: '12px', color: '#92400e', fontSize: '0.9rem',
         lineHeight: 1.5
+    },
+    diagnosisBtn: {
+        padding: '12px 22px',
+        background: 'linear-gradient(135deg, #c9a227, #a8871d)',
+        color: '#1a1a1a', border: 'none', borderRadius: '10px',
+        fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem',
+        boxShadow: '0 4px 14px rgba(0,0,0,0.2)'
+    }
+};
+
+const DIAGNOSIS_LABELS = {
+    not_completed: { text: '🔴 לא השלים את הפרופיל', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+    partial_not_submitted: { text: '🟡 התחיל ולא שלח לאישור', color: '#92400e', bg: '#fef9ec', border: '#fcd34d' },
+    ready_for_approval: { text: '🟢 מוכן לאישור', color: '#166534', bg: '#f0fdf4', border: '#86efac' }
+};
+
+const ACTION_LABELS = {
+    registered: 'נרשם',
+    login: 'התחבר',
+    login_success: 'התחבר',
+    profile_updated: 'עדכן פרופיל',
+    profile_submitted: 'שלח פרופיל',
+    photo_uploaded: 'העלה תמונה',
+    email_verified: 'אימת מייל'
+};
+
+function DiagnosisModal({ data, loading, onClose, onApprove, onOpenUser }) {
+    const fmt = (d) => d ? new Date(d).toLocaleString('he-IL', {
+        day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'
+    }) : '—';
+
+    return (
+        <div style={dst.overlay} onClick={onClose}>
+            <div style={dst.modal} onClick={(e) => e.stopPropagation()}>
+                <div style={dst.header}>
+                    <h2 style={dst.title}>🔍 אבחון משתמשים ממתינים</h2>
+                    <button onClick={onClose} style={dst.closeBtn}>✖</button>
+                </div>
+
+                {loading ? (
+                    <div style={dst.loading}>
+                        <div style={{ fontSize: '2rem' }}>⏳</div>
+                        <div>טוען אבחון...</div>
+                    </div>
+                ) : !data ? (
+                    <div style={dst.loading}>אין נתונים</div>
+                ) : data.users.length === 0 ? (
+                    <div style={dst.loading}>אין משתמשים ממתינים לאישור 🎉</div>
+                ) : (
+                    <>
+                        <div style={dst.summaryRow}>
+                            <div style={{ ...dst.summaryCard, borderColor: DIAGNOSIS_LABELS.not_completed.border, background: DIAGNOSIS_LABELS.not_completed.bg }}>
+                                <div style={{ ...dst.summaryNum, color: DIAGNOSIS_LABELS.not_completed.color }}>{data.summary.not_completed}</div>
+                                <div style={dst.summaryLabel}>לא השלימו פרופיל</div>
+                            </div>
+                            <div style={{ ...dst.summaryCard, borderColor: DIAGNOSIS_LABELS.partial_not_submitted.border, background: DIAGNOSIS_LABELS.partial_not_submitted.bg }}>
+                                <div style={{ ...dst.summaryNum, color: DIAGNOSIS_LABELS.partial_not_submitted.color }}>{data.summary.partial_not_submitted}</div>
+                                <div style={dst.summaryLabel}>התחילו ולא שלחו</div>
+                            </div>
+                            <div style={{ ...dst.summaryCard, borderColor: DIAGNOSIS_LABELS.ready_for_approval.border, background: DIAGNOSIS_LABELS.ready_for_approval.bg }}>
+                                <div style={{ ...dst.summaryNum, color: DIAGNOSIS_LABELS.ready_for_approval.color }}>{data.summary.ready_for_approval}</div>
+                                <div style={dst.summaryLabel}>מוכנים לאישור</div>
+                            </div>
+                        </div>
+
+                        <div style={dst.list}>
+                            {data.users.map(u => {
+                                const label = DIAGNOSIS_LABELS[u.diagnosis] || DIAGNOSIS_LABELS.not_completed;
+                                return (
+                                    <div key={u.id} style={{ ...dst.userBox, borderColor: label.border }}>
+                                        <div style={dst.userTopRow}>
+                                            <div>
+                                                <div style={dst.userName}>
+                                                    #{u.id} · {u.full_name || ''} {u.last_name || ''}
+                                                </div>
+                                                <div style={dst.userMeta}>
+                                                    📱 {u.phone || '—'}
+                                                    {' · '}
+                                                    📧 {u.email || '—'} {u.is_email_verified ? '✓' : '✗'}
+                                                    {' · '}
+                                                    🖼️ {u.profile_images_count} תמונות
+                                                </div>
+                                                <div style={dst.userMeta}>
+                                                    נרשם: {fmt(u.created_at)}
+                                                    {' · '}
+                                                    כניסה אחרונה: {u.last_login ? fmt(u.last_login) : 'לא חזר'}
+                                                </div>
+                                            </div>
+                                            <div style={{ ...dst.diagnosisBadge, background: label.bg, color: label.color, borderColor: label.border }}>
+                                                {label.text}
+                                            </div>
+                                        </div>
+
+                                        <div style={dst.fieldsRow}>
+                                            <div style={dst.fieldsBar}>
+                                                <div style={{
+                                                    ...dst.fieldsBarFill,
+                                                    width: `${(u.fields_filled.length / u.fields_total) * 100}%`,
+                                                    background: label.color
+                                                }} />
+                                            </div>
+                                            <div style={dst.fieldsLabel}>
+                                                {u.fields_filled.length}/{u.fields_total} שדות מולאו
+                                            </div>
+                                        </div>
+
+                                        {u.fields_empty.length > 0 && (
+                                            <details style={dst.details}>
+                                                <summary style={dst.summary}>צפה בשדות החסרים ({u.fields_empty.length})</summary>
+                                                <div style={dst.fieldsList}>
+                                                    {u.fields_empty.map(f => (
+                                                        <span key={f} style={dst.fieldChipEmpty}>{f}</span>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        )}
+
+                                        {u.recent_activity && u.recent_activity.length > 0 && (
+                                            <details style={dst.details}>
+                                                <summary style={dst.summary}>פעילות אחרונה ({u.recent_activity.length})</summary>
+                                                <div style={{ marginTop: '8px' }}>
+                                                    {u.recent_activity.map((a, i) => (
+                                                        <div key={i} style={dst.activityItem}>
+                                                            <span>{ACTION_LABELS[a.action] || a.action}</span>
+                                                            <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>{fmt(a.created_at)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        )}
+
+                                        <div style={dst.actionsRow}>
+                                            <button onClick={() => onOpenUser(u.id)} style={dst.viewBtn}>
+                                                👁 לכרטיס המשתמש
+                                            </button>
+                                            {u.diagnosis === 'ready_for_approval' && (
+                                                <button onClick={() => onApprove(u.id)} style={dst.quickApproveBtn}>
+                                                    ✅ אשר עכשיו
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+const dst = {
+    overlay: {
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+        display: 'flex', justifyContent: 'center', alignItems: 'center',
+        zIndex: 1000, padding: '20px', direction: 'rtl'
+    },
+    modal: {
+        background: '#fff', borderRadius: '16px', maxWidth: '900px', width: '100%',
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+        fontFamily: "'Heebo', 'Segoe UI', sans-serif", overflow: 'hidden'
+    },
+    header: {
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '18px 24px', borderBottom: '1px solid #e5e7eb',
+        background: 'linear-gradient(135deg, #1e3a5f, #2d4a6f)', color: '#fff'
+    },
+    title: { margin: 0, fontSize: '1.4rem' },
+    closeBtn: {
+        background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff',
+        width: '34px', height: '34px', borderRadius: '50%', cursor: 'pointer', fontSize: '1rem'
+    },
+    loading: { padding: '60px', textAlign: 'center', color: '#6b7280' },
+    summaryRow: {
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px',
+        padding: '20px 24px 0'
+    },
+    summaryCard: {
+        padding: '14px', borderRadius: '12px', border: '2px solid', textAlign: 'center'
+    },
+    summaryNum: { fontSize: '1.8rem', fontWeight: 'bold', lineHeight: 1 },
+    summaryLabel: { fontSize: '0.85rem', color: '#374151', marginTop: '4px' },
+    list: { padding: '20px 24px', overflowY: 'auto' },
+    userBox: {
+        background: '#fff', border: '2px solid', borderRadius: '12px',
+        padding: '16px', marginBottom: '12px'
+    },
+    userTopRow: {
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        gap: '12px', flexWrap: 'wrap', marginBottom: '12px'
+    },
+    userName: { fontWeight: 'bold', fontSize: '1.05rem', color: '#1f2937', marginBottom: '4px' },
+    userMeta: { color: '#6b7280', fontSize: '0.85rem', marginTop: '2px' },
+    diagnosisBadge: {
+        padding: '6px 12px', borderRadius: '999px', border: '1px solid',
+        fontSize: '0.85rem', fontWeight: 'bold', whiteSpace: 'nowrap'
+    },
+    fieldsRow: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' },
+    fieldsBar: {
+        flex: 1, height: '8px', background: '#e5e7eb', borderRadius: '999px', overflow: 'hidden'
+    },
+    fieldsBarFill: { height: '100%', borderRadius: '999px', transition: 'width 0.4s' },
+    fieldsLabel: { fontSize: '0.85rem', color: '#374151', whiteSpace: 'nowrap' },
+    details: { marginTop: '8px', cursor: 'pointer' },
+    summary: { fontSize: '0.85rem', color: '#1e3a5f', cursor: 'pointer', userSelect: 'none' },
+    fieldsList: { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' },
+    fieldChipEmpty: {
+        background: '#fef2f2', color: '#991b1b', padding: '3px 9px',
+        borderRadius: '999px', fontSize: '0.75rem', border: '1px solid #fecaca'
+    },
+    activityItem: {
+        display: 'flex', justifyContent: 'space-between',
+        padding: '6px 10px', background: '#f9fafb', borderRadius: '6px',
+        marginBottom: '4px', fontSize: '0.85rem'
+    },
+    actionsRow: { display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' },
+    viewBtn: {
+        padding: '8px 16px', background: '#1e3a5f', color: '#fff',
+        border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold'
+    },
+    quickApproveBtn: {
+        padding: '8px 16px',
+        background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff',
+        border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold'
     }
 };
 
