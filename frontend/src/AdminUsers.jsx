@@ -1,5 +1,5 @@
 import API_BASE from './config';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProfileView from './ProfileView';
 import AdminUserHistory from './AdminUserHistory';
@@ -25,6 +25,7 @@ function AdminUsers() {
     const { showToast } = useToast();
     const token = localStorage.getItem('token');
     const [users, setUsers] = useState([]);
+    const expandedPanelRef = useRef(null);
     const [loading, setLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
     const [expandingUserId, setExpandingUserId] = useState(null);
@@ -71,6 +72,15 @@ function AdminUsers() {
         }
         setLoading(false);
     };
+
+    // גלילה אוטומטית לפאנל שנפתח
+    useEffect(() => {
+        if (selectedUser && expandedPanelRef.current) {
+            setTimeout(() => {
+                expandedPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+    }, [selectedUser]);
 
     const fetchFullUser = async (userId, noteDefault) => {
         setExpandingUserId(userId);
@@ -451,7 +461,7 @@ function AdminUsers() {
 
                             {/* פאנל מורחב */}
                             {(selectedUser?.id === user.id || expandingUserId === user.id) && (
-                                <div style={st.expandedPanel}>
+                                <div ref={selectedUser?.id === user.id ? expandedPanelRef : null} style={st.expandedPanel}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                                         <div style={{ display: 'flex', gap: '10px' }}>
                                             <button
