@@ -218,7 +218,7 @@ function ProfileView({ externalUser, readOnly, isAdminView }) {
                         </div>
                         {show(user.id_card_image_url) && (
                             <div style={{ background: '#fff', borderRadius: '12px', padding: '12px', border: '1px solid #fecdd3' }}>
-                                <div style={{ fontWeight: '800', color: '#9f1239', marginBottom: '10px', fontSize: '0.95rem' }}>🆔 תצוגה מקדימה — תעודת זהות</div>
+                                <div style={{ fontWeight: '800', color: '#9f1239', marginBottom: '10px', fontSize: '0.95rem' }}>🆔 תצוגה מקדימה — אמצעי זיהוי</div>
                                 <img
                                     src={mediaUrl(user.id_card_image_url)}
                                     alt="צילום תעודת זהות"

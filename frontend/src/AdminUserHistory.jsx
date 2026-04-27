@@ -15,7 +15,7 @@ const ACTION_LABELS = {
     profile_safe_fields_updated: { icon: '✏️', text: 'עדכן שדות בסיסיים' },
     profile_approved:            { icon: '🎉', text: 'פרופיל אושר' },
     profile_change_requested:    { icon: '📝', text: 'ביקש שינוי פרופיל' },
-    id_card_uploaded:            { icon: '🪪', text: 'העלה תעודת זהות' },
+    id_card_uploaded:            { icon: '🪪', text: 'העלה אמצעי זיהוי' },
     profile_image_uploaded:      { icon: '🖼️', text: 'העלה תמונת פרופיל' },
     profile_image_deleted:       { icon: '🗑️', text: 'מחק תמונת פרופיל' },
     user_image_added:            { icon: '🖼️', text: 'הוסיף תמונה' },

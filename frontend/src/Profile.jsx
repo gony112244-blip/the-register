@@ -441,7 +441,7 @@ function Profile() {
         if (!user.id_card_image_url) {
             setActiveSection(4);
             window.scrollTo(0, 0);
-            showToast("חובה להעלות תעודת זהות לפני השליחה לאישור", "error");
+            showToast("חובה להעלות ת\"ז או אמצעי זיהוי רשמי אחר לפני השליחה לאישור", "error");
             return;
         }
 
@@ -594,7 +594,7 @@ function Profile() {
 
             if (res.ok) {
                 setUser(prev => ({ ...prev, id_card_image_url: data.imageUrl }));
-                showToast("תמונת ת.ז. הועלתה בהצלחה!", "success");
+                showToast("אמצעי הזיהוי הועלה בהצלחה!", "success");
             } else {
                 console.error("Upload error data:", data);
                 showToast(data.message || "שגיאה בהעלאת הקובץ", "error");
@@ -1915,7 +1915,7 @@ function Profile() {
                     <div style={styles.section}>
                         <div style={styles.sectionHeader}>
                             <h2>📸 חלק ד' - תמונות ואימות</h2>
-                            <p style={styles.sectionDesc}>לסיום, נעלה תעודת זהות לאימות ותמונות פרופיל (אופציונלי אך מומלץ).</p>
+                            <p style={styles.sectionDesc}>לסיום, נעלה ת"ז או אמצעי זיהוי רשמי אחר לאימות, ותמונות פרופיל (אופציונלי אך מומלץ).</p>
                         </div>
 
                         {/* תעודת זהות */}
@@ -1924,7 +1924,7 @@ function Profile() {
                                 <span style={{ fontSize: '2rem' }}>🆔</span>
                                 <div style={{ textAlign: 'right' }}>
                                     <h3 style={{ ...styles.cardTitle, margin: 0 }}>אימות זהות</h3>
-                                    <p style={{ ...styles.hint, margin: 0 }}>תעודת זהות, רישיון נהיגה או דרכון — לאימות בלבד, נמחק מיד לאחר אישור</p>
+                                    <p style={{ ...styles.hint, margin: 0 }}>לאימות זהות בלבד — ת"ז או אמצעי זיהוי רשמי אחר. נמחק אוטומטית לאחר האישור.</p>
                                 </div>
                             </div>
 
@@ -1990,8 +1990,8 @@ function Profile() {
 
                                     <p style={{ ...styles.hint, marginBottom: '0', fontWeight: '600', color: '#1e293b', textAlign: 'center' }}>
                                         {(user.id_card_owner_type === 'parent')
-                                            ? '📌 חובה להעלות צילום ת"ז של ההורה הכולל ספח פתוח שבו מופיע שם המועמד ותאריך הלידה שלו.'
-                                            : '📌 העלה צילום תעודת זהות של המועמד/ת (במקרה זה אין חובה להוסיף ספח).'
+                                            ? '📌 יש להעלות ת"ז או אמצעי זיהוי רשמי אחר של ההורה, הכולל את שם המועמד ותאריך הלידה שלו.'
+                                            : '📌 יש להעלות ת"ז או אמצעי זיהוי רשמי אחר של המועמד/ת (רישיון נהיגה, דרכון וכו\'). לאימות בלבד.'
                                         }
                                     </p>
                                 </div>
@@ -2065,7 +2065,7 @@ function Profile() {
                                             boxShadow: '0 4px 12px rgba(30, 58, 95, 0.2)'
                                         }}
                                     >
-                                        {idUploading ? '⏳ מעלה...' : '📤 העלה אמצעי זיהוי (ת"ז / רישיון / דרכון)'}
+                                        {idUploading ? '⏳ מעלה...' : '📤 העלה ת"ז או אמצעי זיהוי רשמי אחר'}
                                     </button>
                                 )}
                             </div>}
