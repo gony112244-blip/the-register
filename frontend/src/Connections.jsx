@@ -243,7 +243,7 @@ function Connections() {
                 />
             )}
 
-            {/* מודל תנאי תשלום לשדכנית */}
+            {/* מודל אישור העברה לשדכנית */}
             {paymentModal && (
                 <div style={styles.overlay}>
                     <div style={{
@@ -267,14 +267,16 @@ function Connections() {
                             marginBottom: '20px'
                         }}>
                             <p style={{ color: '#4a4540', lineHeight: '1.9', fontSize: '0.95rem', margin: 0 }}>
-                                אם השידוך יצא לפועל בסייעתא דשמיא,
-                                יש לשלם <strong style={{ color: '#c9a227' }}>4,000 ש"ח</strong> לשדכנית שליוותה את התהליך.
+                                במקרה ששידוך יוצא לפועל בסייעתא דשמיא, דמי השדכנות ייקבעו בתיאום מראש עם השדכנית ובגישה הוגנת ומכובדת.
                                 <br /><br />
                                 <span style={{ fontSize: '0.85rem', color: '#7a756d' }}>
-                                    יש שאלות בנושא התשלום? מוזמנים לפנות אלינו בכל עת.
+                                    יש שאלות? מוזמנים לפנות אלינו בכל עת.
                                 </span>
                             </p>
                         </div>
+                        {/* === הקפאה זמנית — לשימוש עתידי ===
+                        אם השידוך יצא לפועל בסייעתא דשמיא, יש לשלם 4,000 ש"ח לשדכנית שליוותה את התהליך.
+                        === סוף הקפאה === */}
                         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
                             <button
                                 onClick={handleFinalApproveConfirm}
