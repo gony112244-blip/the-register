@@ -1877,16 +1877,22 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
 
     // פונקציית עזר לניקוי ערכים מספריים (ריק הופך ל-null)
     const toNum = (val) => (val === '' || val === undefined || val === null) ? null : Number(val);
+    // גובה תמיד בסנטימטרים שלמים — אם הוגש במטרים (למשל 1.72) ממיר ל-172
+    const toHeightCm = (val) => {
+        const n = toNum(val);
+        if (n === null) return null;
+        return Math.round(n < 3 ? n * 100 : n);
+    };
 
     const cleanAge = toNum(age);
     const cleanChildrenCount = toNum(children_count);
     const cleanSiblingsCount = toNum(siblings_count);
     const cleanSiblingPosition = toNum(sibling_position);
-    const cleanHeight = toNum(height);
+    const cleanHeight = toHeightCm(height);
     const cleanSearchMinAge = toNum(search_min_age);
     const cleanSearchMaxAge = toNum(search_max_age);
-    const cleanSearchHeightMin = toNum(search_height_min);
-    const cleanSearchHeightMax = toNum(search_height_max);
+    const cleanSearchHeightMin = toHeightCm(search_height_min);
+    const cleanSearchHeightMax = toHeightCm(search_height_max);
 
     try {
         const result = await pool.query(
@@ -2078,12 +2084,18 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
         }
 
         const JSONB_FIELDS = new Set(['siblings', 'extra_references']);
+        const HEIGHT_FIELDS = new Set(['height', 'search_height_min', 'search_height_max']);
         const setClause = safeEntries.map(([key], i) => {
             return JSONB_FIELDS.has(key) ? `"${key}" = $${i + 1}::jsonb` : `"${key}" = $${i + 1}`;
         }).join(', ');
         const values = safeEntries.map(([key, val]) => {
             if (val === '' || val === undefined) return null;
             if (JSONB_FIELDS.has(key)) return JSON.stringify(Array.isArray(val) ? val : []);
+            if (HEIGHT_FIELDS.has(key)) {
+                // ממיר מטרים לסנטימטרים אם הוגש כ-1.72 במקום 172
+                const n = val === null ? null : Number(val);
+                return n === null ? null : Math.round(n < 3 ? n * 100 : n);
+            }
             if (NUMERIC_FIELDS.has(key)) return (val === null ? null : Number(val));
             return val;
         });
