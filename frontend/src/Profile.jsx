@@ -1072,11 +1072,14 @@ function Profile() {
                                     <label>גובה (ס"מ) *</label>
                                     <input
                                         name="height" type="number" min="100" max="220" step="1"
-                                        placeholder="לדוגמה: 165"
+                                        placeholder="לדוגמה: 170"
                                         value={user.height ? Math.round(Number(user.height)) : ''}
                                         onChange={handleChange}
                                         style={{ ...styles.input, borderColor: errors.height ? 'red' : '#e2e8f0' }}
                                     />
+                                    <small style={{ color: '#6b7280', fontSize: '0.78rem', marginTop: '4px', display: 'block' }}>
+                                        יש להזין את הגובה בסנטימטרים בלבד — מטר ושבעים = 170
+                                    </small>
                                 </div>
                                 <div style={styles.field}>
                                     <label>מבנה גוף *</label>
@@ -1551,6 +1554,9 @@ function Profile() {
                                         value={user.search_height_min ? Math.round(Number(user.search_height_min)) : ''}
                                         onChange={handleChange} style={styles.input}
                                     />
+                                    <small style={{ color: '#6b7280', fontSize: '0.78rem', marginTop: '4px', display: 'block' }}>
+                                        יש להזין בסנטימטרים — מטר חמישים וחמש = 155
+                                    </small>
                                 </div>
                                 <div style={styles.field}>
                                     <label>גובה מקסימלי (ס"מ)</label>
@@ -1560,6 +1566,9 @@ function Profile() {
                                         value={user.search_height_max ? Math.round(Number(user.search_height_max)) : ''}
                                         onChange={handleChange} style={styles.input}
                                     />
+                                    <small style={{ color: '#6b7280', fontSize: '0.78rem', marginTop: '4px', display: 'block' }}>
+                                        יש להזין בסנטימטרים — מטר שמונים = 180
+                                    </small>
                                 </div>
                             </div>
                         </div>
