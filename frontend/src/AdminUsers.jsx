@@ -692,7 +692,9 @@ const ACTION_LABELS = {
     login: 'התחבר',
     login_success: 'התחבר',
     profile_updated: 'עדכן פרופיל',
+    profile_safe_fields_updated: 'עדכן פרטים',
     profile_submitted: 'שלח פרופיל',
+    profile_update_failed: '⚠️ שמירת פרופיל נכשלה',
     photo_uploaded: 'העלה תמונה',
     email_verified: 'אימת מייל'
 };
@@ -792,12 +794,31 @@ function DiagnosisModal({ data, loading, onClose, onApprove, onOpenUser }) {
                                             <details style={dst.details}>
                                                 <summary style={dst.summary}>פעילות אחרונה ({u.recent_activity.length})</summary>
                                                 <div style={{ marginTop: '8px' }}>
-                                                    {u.recent_activity.map((a, i) => (
-                                                        <div key={i} style={dst.activityItem}>
-                                                            <span>{ACTION_LABELS[a.action] || a.action}</span>
-                                                            <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>{fmt(a.created_at)}</span>
-                                                        </div>
-                                                    ))}
+                                                    {u.recent_activity.map((a, i) => {
+                                                        const isError = a.action === 'profile_update_failed';
+                                                        return (
+                                                            <div key={i} style={{
+                                                                ...dst.activityItem,
+                                                                ...(isError ? { background: '#fef2f2', border: '1px solid #fecaca' } : {})
+                                                            }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                    <span style={isError ? { color: '#991b1b', fontWeight: 'bold' } : {}}>
+                                                                        {ACTION_LABELS[a.action] || a.action}
+                                                                    </span>
+                                                                    <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>{fmt(a.created_at)}</span>
+                                                                </div>
+                                                                {a.note && (
+                                                                    <div style={{
+                                                                        marginTop: '4px', fontSize: '0.78rem',
+                                                                        color: isError ? '#991b1b' : '#6b7280',
+                                                                        fontFamily: 'monospace', wordBreak: 'break-word'
+                                                                    }}>
+                                                                        {a.note}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </details>
                                         )}

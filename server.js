@@ -1982,7 +1982,14 @@ app.post('/update-profile', authenticateToken, async (req, res) => {
 
     } catch (err) {
         console.error("Update error:", err);
-        res.status(500).json({ message: "שגיאה בשמירת הנתונים בשרת" });
+        const errMsg = err.message || String(err);
+        // לוג של הכשל ב-activity_log כדי שהמנהל יראה את זה
+        setImmediate(() => logActivity(id, 'profile_update_failed', { note: errMsg.slice(0, 250) }).catch(() => {}));
+        res.status(500).json({
+            message: "השמירה נכשלה. השגיאה נרשמה ונבדקת. נסה שוב או פנה לתמיכה.",
+            errorCode: 'DB_SAVE_FAILED',
+            errorDetail: errMsg.slice(0, 200)
+        });
     }
 });
 
@@ -2133,7 +2140,13 @@ app.post('/update-safe-fields', authenticateToken, async (req, res) => {
 
     } catch (err) {
         console.error("update-safe-fields error:", err);
-        res.status(500).json({ message: "שגיאה בשמירה: " + err.message });
+        const errMsg = err.message || String(err);
+        setImmediate(() => logActivity(userId, 'profile_update_failed', { note: errMsg.slice(0, 250) }).catch(() => {}));
+        res.status(500).json({
+            message: "השמירה נכשלה. השגיאה נרשמה ונבדקת. נסה שוב או פנה לתמיכה.",
+            errorCode: 'DB_SAVE_FAILED',
+            errorDetail: errMsg.slice(0, 200)
+        });
     }
 });
 
@@ -2633,9 +2646,9 @@ app.get('/admin/pending-users-diagnosis', authenticateToken, async (req, res) =>
             }
 
             const logRes = await pool.query(
-                `SELECT action, created_at FROM activity_log
+                `SELECT action, created_at, note FROM activity_log
                  WHERE user_id = $1
-                 ORDER BY created_at DESC LIMIT 5`,
+                 ORDER BY created_at DESC LIMIT 8`,
                 [u.id]
             );
 
