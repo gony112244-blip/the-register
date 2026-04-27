@@ -548,7 +548,15 @@ function Profile() {
                     showToast("הפרופיל עודכן בהצלחה! יש להמתין לאישור המנהל.", "success");
                     navigate('/matches');
                 } else {
-                    showToast("שגיאה בעדכון הפרופיל", "error");
+                    let errMsg = "שגיאה בעדכון הפרופיל";
+                    try {
+                        const errData = await res.json();
+                        if (errData.message) errMsg = errData.message;
+                        if (errData.missingFields && errData.missingFields.length > 0) {
+                            errMsg += ` — שדות חסרים: ${errData.missingFields.join(', ')}`;
+                        }
+                    } catch (_) { /* ignore parse error */ }
+                    showToast(errMsg, "error");
                 }
             }
         } catch (err) {
