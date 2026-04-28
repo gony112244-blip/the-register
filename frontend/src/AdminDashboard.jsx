@@ -151,6 +151,11 @@ function AdminDashboard() {
                             <div style={{ fontWeight: 'bold', marginTop: '8px' }}>בדיקת התאמה</div>
                             <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '4px' }}>למה שניים לא רואים אחד את השני</div>
                         </button>
+                        <button style={s.navBtn} onClick={() => navigate('/admin/match-stats')}>
+                            <div style={{ fontSize: '2rem' }}>📊</div>
+                            <div style={{ fontWeight: 'bold', marginTop: '8px' }}>סטטיסטיקת הצעות</div>
+                            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '4px' }}>כמה הצעות כל משתמש רואה ומי בלי הצעות</div>
+                        </button>
                     </div>
                 </div>
 

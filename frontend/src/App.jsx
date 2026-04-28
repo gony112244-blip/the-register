@@ -59,6 +59,7 @@ import AdminPendingProfiles from './AdminPendingProfiles';
 import AdminUsers from './AdminUsers';
 import AdminSupport from './AdminSupport';
 import AdminMatchDebug from './AdminMatchDebug';
+import AdminMatchStats from './AdminMatchStats';
 import ContactForm from './ContactForm';
 
 import './App.css';
@@ -272,6 +273,7 @@ function AppContent() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/support" element={<AdminSupport />} />
         <Route path="/admin/match-debug" element={<AdminMatchDebug />} />
+        <Route path="/admin/match-stats" element={<AdminMatchStats />} />
       </Routes>
     </div>
   );

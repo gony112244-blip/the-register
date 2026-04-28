@@ -2540,6 +2540,74 @@ app.get('/matches-debug/:targetId', authenticateToken, async (req, res) => {
 // 🛡️ ניהול מנהל (Admin Management)
 // ==========================================
 
+// סטטיסטיקת התאמות לכל המשתמשים — כמה הצעות כל אחד רואה
+// משמש למסך אדמין שמראה מי בלי הצעות, מי עם המון, וכו'
+app.get('/admin/match-stats', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    try {
+        // שולפים את כל המשתמשים המאושרים (כולל פרטים בסיסיים לתצוגה)
+        const usersResult = await pool.query(
+            `SELECT id, full_name, last_name, gender, age, heritage_sector, city, is_approved
+             FROM users
+             WHERE is_admin IS NOT TRUE
+             ORDER BY full_name`
+        );
+        const users = usersResult.rows;
+
+        // לכל משתמש — מריצים את אותו מנוע התאמות שמריצים בעמוד "ההצעות שלי"
+        // כאן רק COUNT — מהיר, בלי לטעון את כל הנתונים של המתאימים
+        const stats = await Promise.all(users.map(async (u) => {
+            try {
+                if (!u.is_approved) {
+                    return { ...u, matchCount: null, error: 'profile_not_approved' };
+                }
+                const mc = await buildMatchConditions(u.id, pool, { includePendingSent: true });
+                if (!mc.valid) {
+                    return { ...u, matchCount: 0, error: mc.reason || 'invalid' };
+                }
+                const countSql = `SELECT COUNT(*)::int AS c FROM users WHERE ${mc.conditions.join(' AND ')}`;
+                const countRes = await pool.query(countSql, mc.params);
+                return { ...u, matchCount: countRes.rows[0].c, error: null };
+            } catch (err) {
+                console.error(`[match-stats] error for user ${u.id}:`, err.message);
+                return { ...u, matchCount: null, error: err.message };
+            }
+        }));
+
+        res.json(stats);
+    } catch (err) {
+        console.error('[admin/match-stats]', err);
+        res.status(500).json({ message: "שגיאה בשליפת סטטיסטיקות התאמות" });
+    }
+});
+
+// רשימת ההצעות הספציפיות שמשתמש מסוים רואה (לחיצה על שורה במסך הסטטיסטיקה)
+app.get('/admin/match-stats/:userId', authenticateToken, async (req, res) => {
+    if (!req.user.is_admin) return res.status(403).json({ message: "אין לך הרשאות מנהל" });
+
+    const userId = parseInt(req.params.userId, 10);
+    if (!userId) return res.status(400).json({ message: "userId לא תקין" });
+
+    try {
+        const mc = await buildMatchConditions(userId, pool, { includePendingSent: true });
+        if (!mc.valid) {
+            return res.json({ valid: false, reason: mc.reason || 'invalid', matches: [] });
+        }
+        const sql = `
+            SELECT id, full_name, last_name, gender, age, heritage_sector, city, current_occupation
+            FROM users
+            WHERE ${mc.conditions.join(' AND ')}
+            ORDER BY full_name
+        `;
+        const result = await pool.query(sql, mc.params);
+        res.json({ valid: true, matches: result.rows });
+    } catch (err) {
+        console.error('[admin/match-stats/:userId]', err);
+        res.status(500).json({ message: "שגיאה בשליפת רשימת ההצעות" });
+    }
+});
+
 
 // שליפת תיקים שממתינים לשדכן
 app.get('/admin/waiting-matches', authenticateToken, async (req, res) => {
