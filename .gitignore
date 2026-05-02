@@ -16,3 +16,6 @@ rclone-v*-windows-amd64/
 
 # IVR runtime files — generated on server, never commit
 ivr-audio/
+
+# Virtual Secretary — פרויקט נפרד עם git משלו
+vs/
