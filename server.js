@@ -3954,7 +3954,8 @@ app.get('/unread-count', authenticateToken, async (req, res) => {
 
 // הסתרת פרופיל
 app.post('/api/hide-profile', authenticateToken, async (req, res) => {
-    const { userId, hiddenUserId, reason } = req.body;
+    const userId = req.user.id;
+    const { hiddenUserId, reason } = req.body;
     try {
         // Auto-add reason column if missing (idempotent)
         await pool.query(`
@@ -3976,7 +3977,8 @@ app.post('/api/hide-profile', authenticateToken, async (req, res) => {
 
 // שחזור פרופיל
 app.post('/api/unhide-profile', authenticateToken, async (req, res) => {
-    const { userId, hiddenUserId } = req.body;
+    const userId = req.user.id;
+    const { hiddenUserId } = req.body;
     try {
         await pool.query(
             'DELETE FROM hidden_profiles WHERE user_id = $1 AND hidden_user_id = $2',
@@ -3990,9 +3992,8 @@ app.post('/api/unhide-profile', authenticateToken, async (req, res) => {
 });
 
 // קבלת רשימת המוסתרים שלי
-// קבלת רשימת המוסתרים שלי
 app.get('/api/my-hidden-profiles', authenticateToken, async (req, res) => {
-    const { userId } = req.query;
+    const userId = req.user.id;
     try {
         const result = await pool.query(
             `SELECT u.id, u.full_name, u.age, u.height, u.status, u.heritage_sector, u.profile_images,
