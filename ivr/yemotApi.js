@@ -146,11 +146,71 @@ async function getSystemInfo() {
     };
 }
 
+// ==========================================
+// runTzintuk — שליחת צ'ינטוק (שיחה קצרה ללא מענה) למספרים נתונים
+// phones: מחרוזת מספרים מופרדים בנקודתיים, לדוגמה "0501234567:0507654321"
+// callerId: המספר המחייג המאושר (זיהוי יוצא)
+// מחזיר: { ok, code, message, raw }
+// קודי שגיאה ידועים: 102=אין מספרים תקינים, 103=אין מספיק יחידות,
+//                     104=שבת/חג, 120=callerId לא מאושר
+// ==========================================
+const TZINTUK_ERROR_CODES = {
+    101: 'הקמפיין לא מוגדר כראוי (רשימת טלפונים ריקה / אין הודעה תקינה)',
+    102: 'אין מספרי טלפון תקינים',
+    103: 'אין מספיק יחידות בחשבון ימות',
+    104: 'ניסיון הפעלה בשבת או יום טוב',
+    105: 'שגיאה כללית — הקמפיין לא יכול להתחיל',
+    120: 'המספר המחייג (callerId) אינו מאושר בחשבון'
+};
+
+async function runTzintuk(phones, callerId) {
+    const token = await getToken();
+
+    const params = { token, phones };
+    if (callerId) params.callerId = callerId;
+
+    const { data } = await axios.get(`${YEMOT_API_BASE}/RunTzintuk`, {
+        params,
+        timeout: 20000
+    });
+
+    // ימות מחזירים responseStatus='OK' בהצלחה, או message/responseMessage עם קוד שגיאה
+    const ok = data && data.responseStatus === 'OK';
+    let code = null;
+    const rawMsg = data && (data.message || data.responseMessage || '');
+    const codeMatch = String(rawMsg).match(/\b(10[0-9]|120)\b/);
+    if (codeMatch) code = parseInt(codeMatch[1], 10);
+
+    if (!ok) {
+        const friendly = code && TZINTUK_ERROR_CODES[code] ? TZINTUK_ERROR_CODES[code] : rawMsg;
+        console.warn(`[YemotAPI] ⚠️ RunTzintuk נכשל: ${friendly || JSON.stringify(data)}`);
+    }
+
+    return { ok, code, message: rawMsg, raw: data };
+}
+
+// ==========================================
+// getApprovedCallerIds — רשימת זיהויי היוצא המאושרים בחשבון
+// משמש לאימות שהמספר השלישי מאושר לפני הפעלה אמיתית
+// ==========================================
+async function getApprovedCallerIds() {
+    const token = await getToken();
+
+    const { data } = await axios.get(`${YEMOT_API_BASE}/GetApprovedCallerIDs`, {
+        params: { token },
+        timeout: 15000
+    });
+
+    return data;
+}
+
 module.exports = {
     login,
     getToken,
     uploadFile,
     deleteFile,
     checkFileExists,
-    getSystemInfo
+    getSystemInfo,
+    runTzintuk,
+    getApprovedCallerIds
 };

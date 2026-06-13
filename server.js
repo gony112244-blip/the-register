@@ -19,6 +19,7 @@ const rateLimit = require('express-rate-limit');
 const compression = require('compression');
 const { body, validationResult } = require('express-validator');
 const { buildMatchConditions } = require('./match-engine');
+const tzintuk = require('./ivr/tzintuk');
 
 
 const app = express();
@@ -1528,6 +1529,7 @@ app.post('/request-photo-access', authenticateToken, async (req, res) => {
         }
 
         setImmediate(() => logActivity(requesterId, 'photo_requested', { targetUserId: parseInt(targetId) }));
+        setImmediate(() => tzintuk.notify(parseInt(targetId), 'photo_request', requesterId).catch(() => {}));
         res.json({ message: "הבקשה נשלחה! תקבל הודעה כשיאשרו את הבקשה" });
 
     } catch (err) {
@@ -2980,6 +2982,7 @@ app.post('/connect', authenticateToken, async (req, res) => {
         }
 
         setImmediate(() => logActivity(myId, 'connection_sent', { targetUserId: parseInt(targetId) }));
+        setImmediate(() => tzintuk.notify(parseInt(targetId), 'interest', myId).catch(() => {}));
         res.json({ message: "🎉 הפנייה נשלחה בהצלחה!" });
     } catch (err) {
         res.status(500).json({ message: "שגיאה ביצירת הקשר" });
@@ -3385,6 +3388,10 @@ app.post('/finalize-connection', authenticateToken, async (req, res) => {
 
         if (sender_final_approve && receiver_final_approve) {
             await pool.query(`UPDATE connections SET status = 'waiting_for_shadchan' WHERE id = $1`, [connectionId]);
+            setImmediate(() => {
+                tzintuk.notify(conn.sender_id, 'shadchan', conn.receiver_id).catch(() => {});
+                tzintuk.notify(conn.receiver_id, 'shadchan', conn.sender_id).catch(() => {});
+            });
             res.json({ status: 'completed', message: "🎉 שני הצדדים אישרו! התיק עבר לשדכנית." });
         } else {
             res.json({ status: 'waiting', message: "האישור שלך התקבל. ממתינים לצד השני." });
@@ -4468,6 +4475,7 @@ app.post('/request-additional-reference', authenticateToken, async (req, res) =>
 
         // מייל לצד המקבל
         setImmediate(() => sendNewMessageEmail(otherUserId, requester_name, msg));
+        setImmediate(() => tzintuk.notify(otherUserId, 'reference_request', requesterId).catch(() => {}));
 
         res.json({ message: 'הבקשה נשלחה בהצלחה' });
     } catch (err) {
@@ -5261,6 +5269,26 @@ async function updateDbSchema() {
         if (normResult.rowCount > 0)
             console.log(`[Normalize] ✅ נורמלו ${normResult.rowCount} רשומות apartment_help מ-"yes (סכום)" ל-"yes"`);
 
+        // טבלת לוג צ'ינטוקים (Tzintuk) — מעקב + dedup "פעם ראשונה בלבד"
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS tzintuk_log (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                event_type VARCHAR(30) NOT NULL,
+                related_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                phone VARCHAR(30),
+                caller_id VARCHAR(30),
+                status VARCHAR(30) NOT NULL,
+                yemot_response JSONB,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        `);
+        // אינדקס ל-dedup מהיר של new_match (פעם ראשונה בלבד גם אם ירדה וחזרה)
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_tzintuk_dedup ON tzintuk_log(user_id, event_type, related_user_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_tzintuk_user ON tzintuk_log(user_id, created_at DESC)`);
+        // ביטול הסכמה אישי לצ'ינטוקים
+        await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tzintuk_opt_out BOOLEAN DEFAULT FALSE`).catch(() => {});
+
         console.log("✅ DB Schema updated: Wizard columns + IVR tables ensured.");
 
     } catch (err) {
@@ -5445,6 +5473,85 @@ app.delete('/user/delete-account', authenticateToken, async (req, res) => {
     }
 });
 
+// ==========================================
+// 📞 מערכת צ'ינטוקים — נתיבי אדמין לבדיקה ואימות (dry-run)
+// ==========================================
+
+// סטטוס + לוג אחרון
+app.get('/admin/tzintuk-log', authenticateToken, async (req, res) => {
+    if (!req.user?.is_admin) return res.status(403).json({ message: 'אין הרשאה' });
+    try {
+        const limit = Math.min(200, parseInt(req.query.limit) || 50);
+        const rows = await pool.query(
+            `SELECT id, user_id, event_type, related_user_id, phone, caller_id, status, yemot_response, created_at
+             FROM tzintuk_log ORDER BY id DESC LIMIT $1`,
+            [limit]
+        );
+        const counts = await pool.query(
+            `SELECT status, COUNT(*)::int AS n FROM tzintuk_log GROUP BY status ORDER BY n DESC`
+        );
+        res.json({
+            config: {
+                enabled: tzintuk.isEnabled(),
+                dryRun: tzintuk.isDryRun(),
+                callerId: tzintuk.getCallerId(),
+                window: `${tzintuk.windowStartHour()}:00-${tzintuk.windowEndHour()}:00`
+            },
+            counts: counts.rows,
+            recent: rows.rows
+        });
+    } catch (err) {
+        console.error('[tzintuk-log]', err);
+        res.status(500).json({ message: 'שגיאת שרת' });
+    }
+});
+
+// בדיקה: notify / dispatch / אימות callerId — ללא חיוג אמיתי (אלא אם enabled && !dryRun)
+app.post('/admin/tzintuk-test', authenticateToken, async (req, res) => {
+    if (!req.user?.is_admin) return res.status(403).json({ message: 'אין הרשאה' });
+    const { action, userId, eventType, relatedUserId } = req.body || {};
+    try {
+        if (action === 'caller-ids') {
+            const { getApprovedCallerIds } = require('./ivr/yemotApi');
+            const data = await getApprovedCallerIds();
+            const wanted = tzintuk.getCallerId();
+            // נרמול לשתי צורות: מקומית (0XX...) ובינלאומית (+972XX...)
+            const local = wanted.replace(/^\+?972/, '0');
+            const intl = '+972' + local.replace(/^0/, '');
+            const approvedList = (data && data.call && Array.isArray(data.call.callerIds)) ? data.call.callerIds : [];
+            const ownedDids = []
+                .concat(data && data.call && data.call.mainDid ? [data.call.mainDid] : [])
+                .concat(data && data.call && Array.isArray(data.call.secondaryDids) ? data.call.secondaryDids : []);
+            return res.json({
+                action,
+                wantedCallerId: wanted,
+                approvedAsCallerId: approvedList.includes(local) || approvedList.includes(intl),
+                ownedOnAccount: ownedDids.includes(local) || ownedDids.includes(intl),
+                approvedCallerIds: approvedList,
+                ownedDids,
+                raw: data
+            });
+        }
+        if (action === 'dispatch') {
+            await tzintuk.dispatchEveningTzintukim();
+            return res.json({ action, message: 'dispatch הורץ — ראה /admin/tzintuk-log' });
+        }
+        if (action === 'scan') {
+            await tzintuk.scanNewMatches();
+            return res.json({ action, message: 'scan הורץ — ראה /admin/tzintuk-log' });
+        }
+        // ברירת מחדל: notify יחיד (מתזה pending)
+        if (!userId || !eventType) {
+            return res.status(400).json({ message: 'נדרשים userId + eventType (או action=dispatch/scan/caller-ids)' });
+        }
+        const result = await tzintuk.notify(parseInt(userId), eventType, relatedUserId ? parseInt(relatedUserId) : null);
+        res.json({ action: 'notify', enabled: tzintuk.isEnabled(), dryRun: tzintuk.isDryRun(), result });
+    } catch (err) {
+        console.error('[tzintuk-test]', err);
+        res.status(500).json({ message: 'שגיאת שרת', error: err.message });
+    }
+});
+
 updateDbSchema().then(async () => {
     // הגשת frontend בפרודקשן — חייב להיות אחרי כל ה-API routes
     const distPath = path.join(__dirname, 'frontend', 'dist');
@@ -5520,6 +5627,11 @@ updateDbSchema().then(async () => {
             // הפעלת job ניקוי קבצי פרופיל ישנים
             const { startCleanupScheduler } = require('./ivr/cleanupJob');
             startCleanupScheduler(pool);
+        }
+
+        // מערכת צ'ינטוקים — scan התאמות + dispatch ערב אקראי (כבוי/dry-run עד אישור)
+        if (isPrimaryWorker) {
+            tzintuk.startTzintukScheduler();
         }
 
         // ניקוי חשבונות ללא פעילות מעל שנה — פועל פעם ביום, מתחיל מ-2027-04-19
