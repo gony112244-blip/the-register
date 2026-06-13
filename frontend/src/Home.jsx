@@ -1,10 +1,19 @@
-import { useState } from 'react';
+import API_BASE from './config';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Home.css';
 
 function Home() {
+  const [userCount, setUserCount] = useState(0);
   const [openFaq, setOpenFaq] = useState(null);
   const [activeFaqCat, setActiveFaqCat] = useState('general');
+
+  useEffect(() => {
+    fetch(`${API_BASE}/api/stats`)
+      .then(res => res.json())
+      .then(data => setUserCount(data.totalUsers))
+      .catch(err => console.error("Error fetching stats:", err));
+  }, []);
 
   const toggleFaq = (key) => {
     setOpenFaq(openFaq === key ? null : key);
@@ -187,6 +196,12 @@ function Home() {
           <div className="hero-buttons">
             <Link to="/register" className="btn-primary">הירשם עכשיו</Link>
             <Link to="/login" className="btn-secondary">כניסה לחברים</Link>
+          </div>
+
+          <div className="user-count-badge">
+            <span>כבר נרשמו</span>
+            <span className="count">{userCount}</span>
+            <span>למערכת</span>
           </div>
 
           <div className="phone-info">

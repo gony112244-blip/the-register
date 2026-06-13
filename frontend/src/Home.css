@@ -759,6 +759,22 @@
   }
 }
 
+/* דסקטופ: הרקע הכחול ממלא את כל המסך — מרשים, בלי שהלבן יבצבץ מלמטה */
+@media (min-width: 769px) {
+  .hero-section {
+    min-height: calc(100vh - 46px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 40px;
+    padding-bottom: 120px;
+  }
+
+  .hero-content {
+    width: 100%;
+  }
+}
+
 /* אנימציות טעינה */
 @keyframes fadeInUp {
   from {
