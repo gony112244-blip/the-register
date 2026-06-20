@@ -41,7 +41,7 @@ export default defineConfig({
       manifest: {
         name: 'הפנקס - מערכת שידוכים',
         short_name: 'הפנקס',
-        description: 'מערכת שידוכים מתקדמת למגזר החרדי',
+        description: 'הפנקס — מערכת שידוכים לחרדים, שידוכים והכרויות לדתיים ובני תורה',
         theme_color: '#1e3a5f',
         background_color: '#ffffff',
         display: 'standalone',
